@@ -1,6 +1,5 @@
 package com.sistemadeoperaciones.pagos.dto;
 
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 public class UpdatePaymentStatusRequestDto {

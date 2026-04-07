@@ -1,7 +1,5 @@
 package com.sistemadeoperaciones.socioscomerciales.service;
 
-import com.sistemadeoperaciones.cuentasbancarias.dto.BankAccountResponseDto;
-import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.socioscomerciales.dto.CommercialPartnerNetworkDto;
 import com.sistemadeoperaciones.socioscomerciales.dto.CommercialPartnerRequestDto;
 import com.sistemadeoperaciones.socioscomerciales.dto.CommercialPartnerResponseDto;
