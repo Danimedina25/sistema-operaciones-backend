@@ -1,0 +1,181 @@
+package com.sistemadeoperaciones.pagos.model;
+
+import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
+import com.sistemadeoperaciones.pagos.enums.OperationStatus;
+import com.sistemadeoperaciones.socioscomerciales.models.CommercialPartner;
+import jakarta.persistence.*;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = "payment_operations")
+public class PaymentOperation {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "cliente_nombre", nullable = false, length = 150)
+    private String clienteNombre;
+
+    @Column(name = "cliente_telefono", length = 20)
+    private String clienteTelefono;
+
+    @Column(name = "monto_total", nullable = false, precision = 15, scale = 2)
+    private BigDecimal montoTotal;
+
+    @Column(name = "monto_validado", nullable = false, precision = 15, scale = 2)
+    private BigDecimal montoValidado = BigDecimal.ZERO;
+
+    @Column(name = "saldo_pendiente", nullable = false, precision = 15, scale = 2)
+    private BigDecimal saldoPendiente = BigDecimal.ZERO;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 40)
+    private OperationStatus estatus;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cuenta_destino_id", nullable = false)
+    private BankAccount cuentaDestino;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "socio_comercial_id", nullable = false)
+    private CommercialPartner socioComercial;
+
+    @Column(length = 500)
+    private String observaciones;
+
+    @OneToMany(mappedBy = "operacion", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<OperationPayment> pagos = new ArrayList<>();
+
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    public void prePersist() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+
+        if (this.montoValidado == null) {
+            this.montoValidado = BigDecimal.ZERO;
+        }
+
+        if (this.saldoPendiente == null && this.montoTotal != null) {
+            this.saldoPendiente = this.montoTotal;
+        }
+
+        if (this.estatus == null) {
+            this.estatus = OperationStatus.PENDIENTE_VALIDACION;
+        }
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public PaymentOperation() {
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public String getClienteNombre() {
+        return clienteNombre;
+    }
+
+    public String getClienteTelefono() {
+        return clienteTelefono;
+    }
+
+    public BigDecimal getMontoTotal() {
+        return montoTotal;
+    }
+
+    public BigDecimal getMontoValidado() {
+        return montoValidado;
+    }
+
+    public BigDecimal getSaldoPendiente() {
+        return saldoPendiente;
+    }
+
+    public OperationStatus getEstatus() {
+        return estatus;
+    }
+
+    public BankAccount getCuentaDestino() {
+        return cuentaDestino;
+    }
+
+    public CommercialPartner getSocioComercial() {
+        return socioComercial;
+    }
+
+    public String getObservaciones() {
+        return observaciones;
+    }
+
+    public List<OperationPayment> getPagos() {
+        return pagos;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public void setClienteNombre(String clienteNombre) {
+        this.clienteNombre = clienteNombre;
+    }
+
+    public void setClienteTelefono(String clienteTelefono) {
+        this.clienteTelefono = clienteTelefono;
+    }
+
+    public void setMontoTotal(BigDecimal montoTotal) {
+        this.montoTotal = montoTotal;
+    }
+
+    public void setMontoValidado(BigDecimal montoValidado) {
+        this.montoValidado = montoValidado;
+    }
+
+    public void setSaldoPendiente(BigDecimal saldoPendiente) {
+        this.saldoPendiente = saldoPendiente;
+    }
+
+    public void setEstatus(OperationStatus estatus) {
+        this.estatus = estatus;
+    }
+
+    public void setCuentaDestino(BankAccount cuentaDestino) {
+        this.cuentaDestino = cuentaDestino;
+    }
+
+    public void setSocioComercial(CommercialPartner socioComercial) {
+        this.socioComercial = socioComercial;
+    }
+
+    public void setObservaciones(String observaciones) {
+        this.observaciones = observaciones;
+    }
+
+    public void setPagos(List<OperationPayment> pagos) {
+        this.pagos = pagos;
+    }
+}
