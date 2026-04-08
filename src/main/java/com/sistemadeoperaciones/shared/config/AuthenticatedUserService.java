@@ -2,6 +2,7 @@ package com.sistemadeoperaciones.shared.config;
 
 import com.sistemadeoperaciones.auth.models.User;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
+import com.sistemadeoperaciones.shared.model.AuthenticatedUser;
 import com.sistemadeoperaciones.usuarios.repository.UserRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,8 +23,15 @@ public class AuthenticatedUserService {
         if (authentication == null || authentication.getName() == null) {
             throw new ResourceNotFoundException("No fue posible obtener el usuario autenticado");
         }
+        Object principal = authentication.getPrincipal();
 
-        String correo = authentication.getName();
+        if (!(principal instanceof AuthenticatedUser)) {
+            throw new ResourceNotFoundException("El principal autenticado no es válido");
+        }
+
+        AuthenticatedUser authenticatedUser = (AuthenticatedUser) principal;
+
+        String correo = authenticatedUser.getEmail();
 
         return userRepository.findByCorreo(correo)
                 .orElseThrow(() -> new ResourceNotFoundException(

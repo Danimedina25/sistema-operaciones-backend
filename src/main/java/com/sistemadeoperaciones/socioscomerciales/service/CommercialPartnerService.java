@@ -1,9 +1,7 @@
 package com.sistemadeoperaciones.socioscomerciales.service;
 
 import com.sistemadeoperaciones.cuentasbancarias.dto.BankAccountResponseDto;
-import com.sistemadeoperaciones.socioscomerciales.dto.CommercialPartnerNetworkDto;
-import com.sistemadeoperaciones.socioscomerciales.dto.CommercialPartnerRequestDto;
-import com.sistemadeoperaciones.socioscomerciales.dto.CommercialPartnerResponseDto;
+import com.sistemadeoperaciones.socioscomerciales.dto.*;
 import org.springframework.data.domain.Page;
 
 public interface CommercialPartnerService {
@@ -30,4 +28,7 @@ public interface CommercialPartnerService {
     CommercialPartnerResponseDto deactivate(Long id);
 
     CommercialPartnerResponseDto activate(Long id);
+    SocioComercialEmailUpdatedResponseDto updateSocioComercialEmail(Long id, UpdateSocioComercialEmailRequestDto request);
+
+    void resendSocioComercialActivationEmail(Long id);
 }

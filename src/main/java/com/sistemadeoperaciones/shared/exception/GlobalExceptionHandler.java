@@ -9,6 +9,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -70,6 +71,10 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(ex.getMessage(), HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Object>> handleAccessDeniedException(AccessDeniedException ex) {
+        return buildErrorResponse("No tienes permisos para realizar esta acción", HttpStatus.FORBIDDEN);
+    }
     // ==========================================================
     // AUTH
     // ==========================================================
@@ -97,7 +102,6 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Object>> handleTokenExpirado(TokenExpiradoException ex) {
         return buildErrorResponse(ex.getMessage(), HttpStatus.UNAUTHORIZED);
     }
-
     // ==========================================================
     // EXCEPCIÓN GENERAL
     // ==========================================================

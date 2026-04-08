@@ -1,9 +1,7 @@
 package com.sistemadeoperaciones.usuarios.controller;
 
 import com.sistemadeoperaciones.shared.dto.ApiResponse;
-import com.sistemadeoperaciones.usuarios.dto.CreateUserRequestDto;
-import com.sistemadeoperaciones.usuarios.dto.UpdateUserRequestDto;
-import com.sistemadeoperaciones.usuarios.dto.UserResponseDto;
+import com.sistemadeoperaciones.usuarios.dto.*;
 import com.sistemadeoperaciones.usuarios.service.UserManagementService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -30,6 +28,34 @@ public class UserManagementController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 new ApiResponse<>(true, "Usuario creado exitosamente", response, null)
+        );
+    }
+
+    @PostMapping("/socio-comercial")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<SocioComercialCreatedResponseDto>> createSocioComercial(
+            @Valid @RequestBody CreateSocioComercialRequestDto request
+    ) {
+        SocioComercialCreatedResponseDto response = userManagementService.createSocioComercial(request);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                new ApiResponse<>(true, "Socio comercial invitado exitosamente", response, null)
+        );
+    }
+
+    @PostMapping("/activate-socio-comercial")
+    public ResponseEntity<ApiResponse<ActivateAccountResponseDto>> completeSocioComercialActivation(
+            @Valid @RequestBody CompleteSocioComercialActivationRequestDto request
+    ) {
+        userManagementService.completeSocioComercialActivation(request);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Cuenta activada exitosamente",
+                        new ActivateAccountResponseDto(true),
+                        null
+                )
         );
     }
 

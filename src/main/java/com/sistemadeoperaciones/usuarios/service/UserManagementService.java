@@ -1,8 +1,6 @@
 package com.sistemadeoperaciones.usuarios.service;
 
-import com.sistemadeoperaciones.usuarios.dto.CreateUserRequestDto;
-import com.sistemadeoperaciones.usuarios.dto.UpdateUserRequestDto;
-import com.sistemadeoperaciones.usuarios.dto.UserResponseDto;
+import com.sistemadeoperaciones.usuarios.dto.*;
 
 import java.util.List;
 
@@ -19,4 +17,6 @@ public interface UserManagementService {
     UserResponseDto deactivate(Long id);
 
     UserResponseDto activate(Long id);
+    SocioComercialCreatedResponseDto createSocioComercial(CreateSocioComercialRequestDto request);
+    void completeSocioComercialActivation(CompleteSocioComercialActivationRequestDto request);
 }

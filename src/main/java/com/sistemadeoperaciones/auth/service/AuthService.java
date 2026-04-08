@@ -32,15 +32,19 @@ public class AuthService {
 
     public AuthResponse login(LoginRequest request) {
         try {
+            User user = authRepository.findByCorreo(request.getCorreo().trim().toLowerCase())
+                    .orElseThrow(CredencialesInvalidasException::new);
+
+            if (user.getPassword() == null || !Boolean.TRUE.equals(user.getActivo())) {
+                throw new UsuarioInactivoException("La cuenta aún no ha sido activada");
+            }
+
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
-                            request.getCorreo(),
+                            request.getCorreo().trim().toLowerCase(),
                             request.getPassword()
                     )
             );
-
-            User user = authRepository.findByCorreo(request.getCorreo())
-                    .orElseThrow(CredencialesInvalidasException::new);
 
             String token = jwtUtil.generateToken(user);
 
@@ -56,6 +60,8 @@ public class AuthService {
                     roles
             );
 
+        } catch (UsuarioInactivoException e) {
+            throw e;
         } catch (DisabledException e) {
             throw new UsuarioInactivoException();
         } catch (AuthenticationException e) {
