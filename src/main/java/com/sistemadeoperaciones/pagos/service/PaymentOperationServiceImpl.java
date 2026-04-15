@@ -2,6 +2,11 @@ package com.sistemadeoperaciones.pagos.service;
 
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
+import com.sistemadeoperaciones.notifications.enums.NotificationModule;
+import com.sistemadeoperaciones.notifications.enums.NotificationPriority;
+import com.sistemadeoperaciones.notifications.enums.NotificationReferenceType;
+import com.sistemadeoperaciones.notifications.enums.NotificationType;
+import com.sistemadeoperaciones.notifications.service.NotificationService;
 import com.sistemadeoperaciones.pagos.dto.CreateOperationPaymentRequestDto;
 import com.sistemadeoperaciones.pagos.dto.CreatePaymentOperationRequestDto;
 import com.sistemadeoperaciones.pagos.dto.OperationPaymentResponseDto;
@@ -31,6 +36,7 @@ import com.sistemadeoperaciones.usuarios.model.CommercialPartnerSettings;
 import com.sistemadeoperaciones.usuarios.model.User;
 import com.sistemadeoperaciones.usuarios.repository.CommercialPartnerSettingsRepository;
 import com.sistemadeoperaciones.usuarios.repository.UserRepository;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +53,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     private final UserRepository userRepository;
     private final AuthenticatedUserService authenticatedUserService;
     private final CommercialPartnerSettingsRepository commercialPartnerSettingsRepository;
+    private final NotificationService notificationService;
 
     public PaymentOperationServiceImpl(
             PaymentOperationRepository paymentOperationRepository,
@@ -54,7 +61,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             BankAccountRepository bankAccountRepository,
             UserRepository userRepository,
             AuthenticatedUserService authenticatedUserService,
-            CommercialPartnerSettingsRepository commercialPartnerSettingsRepository
+            CommercialPartnerSettingsRepository commercialPartnerSettingsRepository,
+            NotificationService notificationService
     ) {
         this.paymentOperationRepository = paymentOperationRepository;
         this.operationPaymentRepository = operationPaymentRepository;
@@ -62,6 +70,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         this.userRepository = userRepository;
         this.authenticatedUserService = authenticatedUserService;
         this.commercialPartnerSettingsRepository = commercialPartnerSettingsRepository;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -137,6 +146,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         OperationPayment saved = operationPaymentRepository.save(payment);
 
         recalculateOperation(operation);
+        notifyPaymentSubmitted(operation, saved);
+
         return mapToPaymentResponse(saved);
     }
 
@@ -168,6 +179,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         OperationPayment updated = operationPaymentRepository.save(payment);
         recalculateOperation(payment.getOperacion());
+        notifyPaymentValidated(updated);
 
         return mapToPaymentResponse(updated);
     }
@@ -197,6 +209,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         OperationPayment updated = operationPaymentRepository.save(payment);
         recalculateOperation(payment.getOperacion());
+        notifyPaymentRejected(updated);
 
         return mapToPaymentResponse(updated);
     }
@@ -257,6 +270,12 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> findFrequentClientNames() {
+        return paymentOperationRepository.findMostFrequentClientNames(PageRequest.of(0, 10));
+    }
+
     private void validateOperationCanReceivePayments(PaymentOperation operation) {
         if (operation.getEstatus() == OperationStatus.RECHAZADA) {
             throw new OperationDoesNotAcceptPaymentsException(
@@ -293,9 +312,9 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         boolean allowed = currentUser.getRoles().stream()
                 .anyMatch(role ->
-                        role.getName().name().equals("JEFA_CAJAS")
-                                || role.getName().name().equals("GERENTE")
-                                || role.getName().name().equals("ADMIN")
+                        role.getName() == RoleName.JEFA_CAJAS
+                                || role.getName() == RoleName.GERENTE
+                                || role.getName() == RoleName.ADMIN
                 );
 
         if (!allowed) {
@@ -362,6 +381,63 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         }
 
         paymentOperationRepository.save(operation);
+    }
+
+    private void notifyPaymentSubmitted(PaymentOperation operation, OperationPayment payment) {
+        notificationService.createForRoles(
+                List.of(RoleName.JEFA_CAJAS, RoleName.GERENTE, RoleName.ADMIN),
+                "Nuevo pago pendiente de validación",
+                "Se registró un nuevo pago para la operación #" + operation.getId()
+                        + " del cliente " + operation.getClienteNombre() + ".",
+                NotificationType.PAYMENT_SUBMITTED,
+                NotificationModule.PAGOS,
+                NotificationReferenceType.PAYMENT_OPERATION,
+                operation.getId(),
+                "/operaciones/" + operation.getId(),
+                NotificationPriority.HIGH
+        );
+    }
+
+    private void notifyPaymentValidated(OperationPayment payment) {
+        PaymentOperation operation = payment.getOperacion();
+
+        if (operation.getSocioComercial() == null) {
+            return;
+        }
+
+        notificationService.createForUser(
+                operation.getSocioComercial().getId(),
+                "Pago validado",
+                "Tu pago de la operación #" + operation.getId()
+                        + " fue validado correctamente.",
+                NotificationType.PAYMENT_VALIDATED,
+                NotificationModule.PAGOS,
+                NotificationReferenceType.OPERATION_PAYMENT,
+                payment.getId(),
+                "/operaciones/" + operation.getId(),
+                NotificationPriority.MEDIUM
+        );
+    }
+
+    private void notifyPaymentRejected(OperationPayment payment) {
+        PaymentOperation operation = payment.getOperacion();
+
+        if (operation.getSocioComercial() == null) {
+            return;
+        }
+
+        notificationService.createForUser(
+                operation.getSocioComercial().getId(),
+                "Pago rechazado",
+                "Tu pago de la operación #" + operation.getId()
+                        + " fue rechazado. Revisa las observaciones para más detalle.",
+                NotificationType.PAYMENT_REJECTED,
+                NotificationModule.PAGOS,
+                NotificationReferenceType.OPERATION_PAYMENT,
+                payment.getId(),
+                "/operaciones/" + operation.getId(),
+                NotificationPriority.HIGH
+        );
     }
 
     private PaymentOperationResponseDto mapToOperationResponse(PaymentOperation operation) {

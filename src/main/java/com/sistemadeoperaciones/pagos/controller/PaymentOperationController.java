@@ -117,4 +117,14 @@ public class PaymentOperationController {
                 new ApiResponse<>(true, "Mis operaciones obtenidas exitosamente", response, null)
         );
     }
+
+    @GetMapping("/frequent-clients")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'AUXILIAR_CUENTAS')")
+    public ResponseEntity<ApiResponse<List<String>>> findFrequentClientNames() {
+        List<String> response = paymentOperationService.findFrequentClientNames();
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Clientes frecuentes obtenidos exitosamente", response, null)
+        );
+    }
 }

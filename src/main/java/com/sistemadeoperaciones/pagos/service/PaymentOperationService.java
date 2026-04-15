@@ -25,4 +25,5 @@ public interface PaymentOperationService {
     List<PaymentOperationResponseDto> findAllBySocioComercialId(Long socioComercialId);
 
     List<PaymentOperationResponseDto> findMyOperations();
+    List<String> findFrequentClientNames();
 }
