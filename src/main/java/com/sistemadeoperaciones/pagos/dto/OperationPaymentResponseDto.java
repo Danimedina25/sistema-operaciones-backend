@@ -12,6 +12,9 @@ public class OperationPaymentResponseDto {
     private BigDecimal monto;
     private PaymentType tipoPago;
     private String comprobanteUrl;
+    private Long cuentaDestinoId;
+    private String cuentaDestinoBanco;
+    private String cuentaDestinoTitular;
     private PaymentStatus estatus;
     private String observaciones;
     private Long registradoPorId;
@@ -26,15 +29,32 @@ public class OperationPaymentResponseDto {
     public OperationPaymentResponseDto() {
     }
 
-    public OperationPaymentResponseDto(Long id, BigDecimal monto, PaymentType tipoPago, String comprobanteUrl,
-                                       PaymentStatus estatus, String observaciones, Long registradoPorId,
-                                       String registradoPorNombre, Long validadoPorId, String validadoPorNombre,
-                                       LocalDateTime fechaPago, LocalDateTime fechaValidacion,
-                                       LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public OperationPaymentResponseDto(
+            Long id,
+            BigDecimal monto,
+            PaymentType tipoPago,
+            String comprobanteUrl,
+            Long cuentaDestinoId,
+            String cuentaDestinoBanco,
+            String cuentaDestinoTitular,
+            PaymentStatus estatus,
+            String observaciones,
+            Long registradoPorId,
+            String registradoPorNombre,
+            Long validadoPorId,
+            String validadoPorNombre,
+            LocalDateTime fechaPago,
+            LocalDateTime fechaValidacion,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt
+    ) {
         this.id = id;
         this.monto = monto;
         this.tipoPago = tipoPago;
         this.comprobanteUrl = comprobanteUrl;
+        this.cuentaDestinoId = cuentaDestinoId;
+        this.cuentaDestinoBanco = cuentaDestinoBanco;
+        this.cuentaDestinoTitular = cuentaDestinoTitular;
         this.estatus = estatus;
         this.observaciones = observaciones;
         this.registradoPorId = registradoPorId;
@@ -61,6 +81,18 @@ public class OperationPaymentResponseDto {
 
     public String getComprobanteUrl() {
         return comprobanteUrl;
+    }
+
+    public Long getCuentaDestinoId() {
+        return cuentaDestinoId;
+    }
+
+    public String getCuentaDestinoBanco() {
+        return cuentaDestinoBanco;
+    }
+
+    public String getCuentaDestinoTitular() {
+        return cuentaDestinoTitular;
     }
 
     public PaymentStatus getEstatus() {
@@ -117,6 +149,18 @@ public class OperationPaymentResponseDto {
 
     public void setComprobanteUrl(String comprobanteUrl) {
         this.comprobanteUrl = comprobanteUrl;
+    }
+
+    public void setCuentaDestinoId(Long cuentaDestinoId) {
+        this.cuentaDestinoId = cuentaDestinoId;
+    }
+
+    public void setCuentaDestinoBanco(String cuentaDestinoBanco) {
+        this.cuentaDestinoBanco = cuentaDestinoBanco;
+    }
+
+    public void setCuentaDestinoTitular(String cuentaDestinoTitular) {
+        this.cuentaDestinoTitular = cuentaDestinoTitular;
     }
 
     public void setEstatus(PaymentStatus estatus) {

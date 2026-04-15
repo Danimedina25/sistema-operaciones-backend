@@ -1,6 +1,6 @@
 package com.sistemadeoperaciones.auth.service;
 
-import com.sistemadeoperaciones.auth.models.User;
+import com.sistemadeoperaciones.usuarios.model.User;
 import com.sistemadeoperaciones.auth.repository.AuthRepository;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;

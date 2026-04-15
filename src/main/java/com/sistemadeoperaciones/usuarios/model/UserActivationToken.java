@@ -1,6 +1,6 @@
 package com.sistemadeoperaciones.usuarios.model;
 
-import com.sistemadeoperaciones.auth.models.User;
+import com.sistemadeoperaciones.usuarios.enums.UserTokenType;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
@@ -13,8 +13,8 @@ public class UserActivationToken {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
     @Column(nullable = false, unique = true, length = 255)
@@ -25,6 +25,9 @@ public class UserActivationToken {
 
     @Column(nullable = false)
     private Boolean used = false;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 50)
+    private UserTokenType type;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -79,5 +82,17 @@ public class UserActivationToken {
 
     public void setUsed(Boolean used) {
         this.used = used;
+    }
+
+    public UserTokenType getType() {
+        return type;
+    }
+
+    public void setType(UserTokenType type) {
+        this.type = type;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
     }
 }

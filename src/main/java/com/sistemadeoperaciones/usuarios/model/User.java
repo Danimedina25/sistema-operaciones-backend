@@ -1,4 +1,4 @@
-package com.sistemadeoperaciones.auth.models;
+package com.sistemadeoperaciones.usuarios.model;
 
 import jakarta.persistence.*;
 

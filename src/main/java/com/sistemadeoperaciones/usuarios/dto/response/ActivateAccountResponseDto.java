@@ -1,4 +1,4 @@
-package com.sistemadeoperaciones.usuarios.dto;
+package com.sistemadeoperaciones.usuarios.dto.response;
 
 public class ActivateAccountResponseDto {
 

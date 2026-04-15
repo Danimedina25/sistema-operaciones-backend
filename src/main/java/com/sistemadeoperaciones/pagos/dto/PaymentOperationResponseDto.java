@@ -10,15 +10,14 @@ public class PaymentOperationResponseDto {
 
     private Long id;
     private String clienteNombre;
-    private String clienteTelefono;
     private BigDecimal montoTotal;
     private BigDecimal montoValidado;
     private BigDecimal saldoPendiente;
     private OperationStatus estatus;
-    private Long cuentaDestinoId;
-    private String cuentaDestinoBanco;
     private Long socioComercialId;
     private String socioComercialNombre;
+    private Integer nivelesRedComercial;
+    private BigDecimal porcentajeComisionAplicado;
     private String observaciones;
     private List<OperationPaymentResponseDto> pagos;
     private LocalDateTime createdAt;
@@ -27,24 +26,23 @@ public class PaymentOperationResponseDto {
     public PaymentOperationResponseDto() {
     }
 
-    public PaymentOperationResponseDto(Long id, String clienteNombre, String clienteTelefono,
+    public PaymentOperationResponseDto(Long id, String clienteNombre,
                                        BigDecimal montoTotal, BigDecimal montoValidado,
                                        BigDecimal saldoPendiente, OperationStatus estatus,
-                                       Long cuentaDestinoId, String cuentaDestinoBanco,
                                        Long socioComercialId, String socioComercialNombre,
+                                       Integer nivelesRedComercial, BigDecimal porcentajeComisionAplicado,
                                        String observaciones, List<OperationPaymentResponseDto> pagos,
                                        LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.clienteNombre = clienteNombre;
-        this.clienteTelefono = clienteTelefono;
         this.montoTotal = montoTotal;
         this.montoValidado = montoValidado;
         this.saldoPendiente = saldoPendiente;
         this.estatus = estatus;
-        this.cuentaDestinoId = cuentaDestinoId;
-        this.cuentaDestinoBanco = cuentaDestinoBanco;
         this.socioComercialId = socioComercialId;
         this.socioComercialNombre = socioComercialNombre;
+        this.nivelesRedComercial = nivelesRedComercial;
+        this.porcentajeComisionAplicado = porcentajeComisionAplicado;
         this.observaciones = observaciones;
         this.pagos = pagos;
         this.createdAt = createdAt;
@@ -57,10 +55,6 @@ public class PaymentOperationResponseDto {
 
     public String getClienteNombre() {
         return clienteNombre;
-    }
-
-    public String getClienteTelefono() {
-        return clienteTelefono;
     }
 
     public BigDecimal getMontoTotal() {
@@ -79,20 +73,20 @@ public class PaymentOperationResponseDto {
         return estatus;
     }
 
-    public Long getCuentaDestinoId() {
-        return cuentaDestinoId;
-    }
-
-    public String getCuentaDestinoBanco() {
-        return cuentaDestinoBanco;
-    }
-
     public Long getSocioComercialId() {
         return socioComercialId;
     }
 
     public String getSocioComercialNombre() {
         return socioComercialNombre;
+    }
+
+    public Integer getNivelesRedComercial() {
+        return nivelesRedComercial;
+    }
+
+    public BigDecimal getPorcentajeComisionAplicado() {
+        return porcentajeComisionAplicado;
     }
 
     public String getObservaciones() {
@@ -119,10 +113,6 @@ public class PaymentOperationResponseDto {
         this.clienteNombre = clienteNombre;
     }
 
-    public void setClienteTelefono(String clienteTelefono) {
-        this.clienteTelefono = clienteTelefono;
-    }
-
     public void setMontoTotal(BigDecimal montoTotal) {
         this.montoTotal = montoTotal;
     }
@@ -139,20 +129,20 @@ public class PaymentOperationResponseDto {
         this.estatus = estatus;
     }
 
-    public void setCuentaDestinoId(Long cuentaDestinoId) {
-        this.cuentaDestinoId = cuentaDestinoId;
-    }
-
-    public void setCuentaDestinoBanco(String cuentaDestinoBanco) {
-        this.cuentaDestinoBanco = cuentaDestinoBanco;
-    }
-
     public void setSocioComercialId(Long socioComercialId) {
         this.socioComercialId = socioComercialId;
     }
 
     public void setSocioComercialNombre(String socioComercialNombre) {
         this.socioComercialNombre = socioComercialNombre;
+    }
+
+    public void setNivelesRedComercial(Integer nivelesRedComercial) {
+        this.nivelesRedComercial = nivelesRedComercial;
+    }
+
+    public void setPorcentajeComisionAplicado(BigDecimal porcentajeComisionAplicado) {
+        this.porcentajeComisionAplicado = porcentajeComisionAplicado;
     }
 
     public void setObservaciones(String observaciones) {

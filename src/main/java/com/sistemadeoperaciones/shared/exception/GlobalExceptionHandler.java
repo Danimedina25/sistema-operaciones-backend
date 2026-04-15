@@ -2,6 +2,7 @@ package com.sistemadeoperaciones.shared.exception;
 
 import com.sistemadeoperaciones.auth.exceptions.*;
 import com.sistemadeoperaciones.shared.dto.ApiResponse;
+import com.sistemadeoperaciones.usuarios.exceptions.EmailSendException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -96,6 +97,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(TokenInvalidoException.class)
     public ResponseEntity<ApiResponse<Object>> handleTokenInvalido(TokenInvalidoException ex) {
         return buildErrorResponse(ex.getMessage(), HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(EmailSendException.class)
+    public ResponseEntity<ApiResponse<Object>> handleEmailNotSendException(EmailSendException ex) {
+        return buildErrorResponse(ex.getMessage(), HttpStatus.BAD_GATEWAY);
     }
 
     @ExceptionHandler(TokenExpiradoException.class)

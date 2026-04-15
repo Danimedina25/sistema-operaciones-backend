@@ -2,6 +2,7 @@ package com.sistemadeoperaciones.pagos.dto;
 
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -19,6 +20,10 @@ public class CreateOperationPaymentRequestDto {
 
     @NotNull(message = "El tipo de pago es obligatorio")
     private PaymentType tipoPago;
+
+    @NotNull(message = "La cuenta destino es obligatoria")
+    @Min(value = 1, message = "La cuenta destino es obligatoria")
+    private Long cuentaDestinoId;
 
     @NotBlank(message = "El comprobante es obligatorio")
     @Size(max = 500, message = "La URL del comprobante no puede exceder 500 caracteres")
@@ -49,6 +54,14 @@ public class CreateOperationPaymentRequestDto {
 
     public void setTipoPago(PaymentType tipoPago) {
         this.tipoPago = tipoPago;
+    }
+
+    public Long getCuentaDestinoId() {
+        return cuentaDestinoId;
+    }
+
+    public void setCuentaDestinoId(Long cuentaDestinoId) {
+        this.cuentaDestinoId = cuentaDestinoId;
     }
 
     public String getComprobanteUrl() {

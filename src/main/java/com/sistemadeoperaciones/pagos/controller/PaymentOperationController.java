@@ -13,6 +13,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/operations")
 public class PaymentOperationController {
@@ -73,6 +75,16 @@ public class PaymentOperationController {
         );
     }
 
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'AUXILIAR_CUENTAS')")
+    public ResponseEntity<ApiResponse<List<PaymentOperationResponseDto>>> findAll() {
+        List<PaymentOperationResponseDto> response = paymentOperationService.findAll();
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Operaciones obtenidas exitosamente", response, null)
+        );
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> findById(@PathVariable Long id) {
@@ -80,6 +92,29 @@ public class PaymentOperationController {
 
         return ResponseEntity.ok(
                 new ApiResponse<>(true, "Operación obtenida exitosamente", response, null)
+        );
+    }
+
+    @GetMapping("/by-commercial-partner/{socioComercialId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    public ResponseEntity<ApiResponse<List<PaymentOperationResponseDto>>> findAllBySocioComercialId(
+            @PathVariable Long socioComercialId
+    ) {
+        List<PaymentOperationResponseDto> response =
+                paymentOperationService.findAllBySocioComercialId(socioComercialId);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Operaciones del socio comercial obtenidas exitosamente", response, null)
+        );
+    }
+
+    @GetMapping("/my-operations")
+    @PreAuthorize("hasRole('SOCIO_COMERCIAL')")
+    public ResponseEntity<ApiResponse<List<PaymentOperationResponseDto>>> findMyOperations() {
+        List<PaymentOperationResponseDto> response = paymentOperationService.findMyOperations();
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Mis operaciones obtenidas exitosamente", response, null)
         );
     }
 }

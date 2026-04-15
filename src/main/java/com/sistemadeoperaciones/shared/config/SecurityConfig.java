@@ -42,10 +42,8 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers(
-                                "/api/auth/**"
-                        ).permitAll()
-
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/admin/users/complete-activation").permitAll()
                         .requestMatchers("/api/admin/**").hasRole(RoleName.ADMIN.name())
                         .requestMatchers("/api/gerencia/**").hasAnyRole(RoleName.ADMIN.name(), RoleName.GERENTE.name())
                         .requestMatchers("/api/socios/**").hasAnyRole(RoleName.SOCIO_COMERCIAL.name())
@@ -54,7 +52,8 @@ public class SecurityConfig {
                                 RoleName.ADMIN.name(),
                                 RoleName.GERENTE.name(),
                                 RoleName.JEFA_CAJAS.name(),
-                                RoleName.AUXILIAR_CUENTAS.name()
+                                RoleName.AUXILIAR_CUENTAS.name(),
+                                RoleName.SOCIO_COMERCIAL.name()
                         )
                         .anyRequest().authenticated()
                 )

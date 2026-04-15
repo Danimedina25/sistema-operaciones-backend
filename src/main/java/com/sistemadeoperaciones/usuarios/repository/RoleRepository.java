@@ -1,6 +1,6 @@
 package com.sistemadeoperaciones.usuarios.repository;
 
-import com.sistemadeoperaciones.auth.models.Role;
+import com.sistemadeoperaciones.usuarios.model.Role;
 import com.sistemadeoperaciones.shared.enums.RoleName;
 import org.springframework.data.jpa.repository.JpaRepository;
 

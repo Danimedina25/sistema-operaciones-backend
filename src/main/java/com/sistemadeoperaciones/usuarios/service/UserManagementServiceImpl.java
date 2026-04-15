@@ -1,20 +1,24 @@
 package com.sistemadeoperaciones.usuarios.service;
 
-import com.sistemadeoperaciones.auth.models.Role;
-import com.sistemadeoperaciones.auth.models.User;
-import com.sistemadeoperaciones.shared.email.EmailService;
 import com.sistemadeoperaciones.shared.enums.RoleName;
-import com.sistemadeoperaciones.usuarios.dto.*;
-import com.sistemadeoperaciones.usuarios.model.UserActivationToken;
-import com.sistemadeoperaciones.usuarios.repository.RoleRepository;
-import com.sistemadeoperaciones.usuarios.repository.UserActivationTokenRepository;
-import com.sistemadeoperaciones.usuarios.repository.UserRepository;
+import com.sistemadeoperaciones.usuarios.dto.response.CommercialPartnerSettingsResponseDto;
+import com.sistemadeoperaciones.usuarios.model.CommercialPartnerSettings;
+import com.sistemadeoperaciones.usuarios.model.Role;
+import com.sistemadeoperaciones.usuarios.model.User;
 import com.sistemadeoperaciones.shared.exception.BadRequestException;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import com.sistemadeoperaciones.usuarios.dto.request.*;
+import com.sistemadeoperaciones.usuarios.dto.response.UserCreatedResponseDto;
+import com.sistemadeoperaciones.usuarios.dto.response.UserResponseDto;
+import com.sistemadeoperaciones.usuarios.exceptions.EmailSendException;
+import com.sistemadeoperaciones.usuarios.repository.CommercialPartnerSettingsRepository;
+import com.sistemadeoperaciones.usuarios.repository.RoleRepository;
+import com.sistemadeoperaciones.usuarios.repository.UserRepository;
+import com.sistemadeoperaciones.usuarios.service.activation.UserActivationService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -23,55 +27,30 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final UserActivationTokenRepository userActivationTokenRepository;
-    private final EmailService emailService;
-    private final String frontendActivationUrl;
+    private final UserActivationService userActivationService;
+    private final CommercialPartnerSettingsRepository commercialPartnerSettingsRepository;
 
     public UserManagementServiceImpl(UserRepository userRepository,
                                      RoleRepository roleRepository,
-                                     PasswordEncoder passwordEncoder,
-                                     UserActivationTokenRepository userActivationTokenRepository,
-                                     EmailService emailService,
-                                     @Value("${app.frontend.activation-url}") String frontendActivationUrl) {
+                                     UserActivationService userActivationService,
+                                     CommercialPartnerSettingsRepository commercialPartnerSettingsRepository) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.userActivationTokenRepository = userActivationTokenRepository;
-        this.emailService = emailService;
-        this.frontendActivationUrl = frontendActivationUrl;
+        this.userActivationService = userActivationService;
+        this.commercialPartnerSettingsRepository = commercialPartnerSettingsRepository;
     }
 
     @Override
-    public UserResponseDto create(CreateUserRequestDto request) {
-        if (userRepository.existsByCorreo(request.getCorreo())) {
-            throw new BadRequestException("Ya existe un usuario con ese correo");
-        }
-
-        Role role = roleRepository.findById(request.getRoleId())
-                .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado con id: " + request.getRoleId()));
-
-        User user = new User();
-        user.setNombre(request.getNombre());
-        user.setCorreo(request.getCorreo());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setActivo(request.getActivo() != null ? request.getActivo() : true);
-        user.setRoles(Set.of(role));
-
-        User saved = userRepository.save(user);
-        return mapToResponse(saved);
-    }
-
-    @Override
-    public SocioComercialCreatedResponseDto createSocioComercial(CreateSocioComercialRequestDto request) {
+    @Transactional
+    public UserCreatedResponseDto create(CreateUserRequestDto request) {
         String correoNormalizado = request.getCorreo().trim().toLowerCase();
 
         if (userRepository.existsByCorreo(correoNormalizado)) {
             throw new BadRequestException("Ya existe un usuario con ese correo");
         }
 
-        Role role = roleRepository.findByName(RoleName.SOCIO_COMERCIAL)
-                .orElseThrow(() -> new ResourceNotFoundException("Rol SOCIO_COMERCIAL no encontrado"));
+        Role role = roleRepository.findById(request.getRoleId())
+                .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado con id: " + request.getRoleId()));
 
         User user = new User();
         user.setNombre(request.getNombre().trim());
@@ -80,52 +59,79 @@ public class UserManagementServiceImpl implements UserManagementService {
         user.setActivo(false);
         user.setDebeCambiarPassword(true);
         user.setCorreoVerificado(false);
-        user.setRoles(Set.of(role));
+
+        Set<Role> roles = new HashSet<>();
+        roles.add(role);
+        user.setRoles(roles);
 
         User savedUser = userRepository.save(user);
 
-        String token = createAndSaveActivationToken(savedUser);
-        String activationUrl = frontendActivationUrl + "?token=" + token;
+        // Si es socio comercial, crear su configuración de comisión
+        if (role.getName() == RoleName.SOCIO_COMERCIAL) {
+            if (request.getCommissionPercentage() == null) {
+                throw new BadRequestException("El porcentaje de comisión es obligatorio para usuarios con rol SOCIO_COMERCIAL");
+            }
 
-        sendActivationEmail(savedUser.getCorreo(), savedUser.getNombre(), activationUrl);
+            if (commercialPartnerSettingsRepository.existsByUsuarioId(savedUser.getId())) {
+                throw new BadRequestException("El usuario ya cuenta con configuración comercial registrada");
+            }
 
-        return new SocioComercialCreatedResponseDto(
+            CommercialPartnerSettings settings = new CommercialPartnerSettings();
+            settings.setUsuario(savedUser);
+            settings.setCommissionPercentage(request.getCommissionPercentage());
+            settings.setAppliesToNetwork(
+                    request.getAppliesToNetwork() != null ? request.getAppliesToNetwork() : true
+            );
+
+            // Aquí puedes poner el usuario admin autenticado si luego lo tienes disponible
+            settings.setUpdatedBy(null);
+
+            commercialPartnerSettingsRepository.save(settings);
+        }
+
+        String token = userActivationService.createAndSaveActivationToken(savedUser);
+        String activationUrl = userActivationService.buildActivationUrl(token);
+
+        try {
+            userActivationService.sendActivationEmail(savedUser, activationUrl);
+        } catch (Exception e) {
+            throw new EmailSendException("El usuario fue creado correctamente, pero no se pudo enviar el correo de activación");
+        }
+
+        return new UserCreatedResponseDto(
                 savedUser.getId(),
                 savedUser.getNombre(),
                 savedUser.getCorreo(),
                 savedUser.getActivo(),
                 role.getName().name(),
-                activationUrl,
                 savedUser.getDebeCambiarPassword(),
-                savedUser.getCorreoVerificado()
+                savedUser.getCorreoVerificado(),
+                activationUrl
         );
     }
+
     @Override
-    public void completeSocioComercialActivation(CompleteSocioComercialActivationRequestDto request) {
-        UserActivationToken activationToken = userActivationTokenRepository.findByToken(request.getToken())
-                .orElseThrow(() -> new ResourceNotFoundException("Token de activación no encontrado"));
-
-        if (Boolean.TRUE.equals(activationToken.getUsed())) {
-            throw new BadRequestException("El token de activación ya fue utilizado");
-        }
-
-        if (activationToken.getExpiresAt().isBefore(java.time.LocalDateTime.now())) {
-            throw new BadRequestException("El token de activación ha expirado");
-        }
-
-        User user = activationToken.getUser();
-
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setActivo(true);
-        user.setDebeCambiarPassword(false);
-        user.setCorreoVerificado(true);
-
-        userRepository.save(user);
-
-        activationToken.setUsed(true);
-        userActivationTokenRepository.save(activationToken);
+    public void completeUserActivation(CompleteUserActivationRequestDto request) {
+        userActivationService.completeActivation(request);
     }
+
     @Override
+    public void completeEmailVerification(CompleteEmailVerificationRequestDto request) {
+        userActivationService.completeEmailVerification(request.getToken());
+    }
+
+    @Override
+    public void resendActivationEmail(Long userId) {
+        userActivationService.resendActivationEmail(userId);
+    }
+
+    @Override
+    public void updateUserEmail(Long userId, UpdateUserEmailRequestDto request) {
+        userActivationService.updateUserEmailAndResendActivation(userId, request);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<UserResponseDto> findAll() {
         return userRepository.findAll()
                 .stream()
@@ -134,6 +140,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public UserResponseDto findById(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + id));
@@ -142,28 +149,58 @@ public class UserManagementServiceImpl implements UserManagementService {
     }
 
     @Override
+    @Transactional
     public UserResponseDto update(Long id, UpdateUserRequestDto request) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + id));
 
-        if (userRepository.existsByCorreoAndIdNot(request.getCorreo(), id)) {
-            throw new BadRequestException("Ya existe otro usuario con ese correo");
-        }
-
         Role role = roleRepository.findById(request.getRoleId())
                 .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado con id: " + request.getRoleId()));
 
-        user.setNombre(request.getNombre());
-        user.setCorreo(request.getCorreo());
+        user.setNombre(request.getNombre().trim());
 
         if (request.getActivo() != null) {
             user.setActivo(request.getActivo());
         }
 
-        user.setRoles(Set.of(role));
+        Set<Role> roles = new HashSet<>();
+        roles.add(role);
+        user.setRoles(roles);
 
-        User updated = userRepository.save(user);
-        return mapToResponse(updated);
+        User updatedUser = userRepository.save(user);
+
+        boolean isSocioComercial = role.getName() == RoleName.SOCIO_COMERCIAL;
+
+        var existingSettingsOpt = commercialPartnerSettingsRepository.findByUsuarioId(updatedUser.getId());
+
+        if (isSocioComercial) {
+            if (request.getCommissionPercentage() == null) {
+                throw new BadRequestException("El porcentaje de comisión es obligatorio para usuarios con rol SOCIO_COMERCIAL");
+            }
+
+            if (existingSettingsOpt.isPresent()) {
+                CommercialPartnerSettings settings = existingSettingsOpt.get();
+                settings.setCommissionPercentage(request.getCommissionPercentage());
+                settings.setAppliesToNetwork(
+                        request.getAppliesToNetwork() != null ? request.getAppliesToNetwork() : true
+                );
+                settings.setUpdatedBy(null); // luego aquí puedes poner el admin autenticado
+                commercialPartnerSettingsRepository.save(settings);
+            } else {
+                CommercialPartnerSettings settings = new CommercialPartnerSettings();
+                settings.setUsuario(updatedUser);
+                settings.setCommissionPercentage(request.getCommissionPercentage());
+                settings.setAppliesToNetwork(
+                        request.getAppliesToNetwork() != null ? request.getAppliesToNetwork() : true
+                );
+                settings.setUpdatedBy(null);
+                commercialPartnerSettingsRepository.save(settings);
+            }
+        } else {
+            existingSettingsOpt.ifPresent(commercialPartnerSettingsRepository::delete);
+        }
+
+        return mapToResponse(updatedUser);
     }
 
     @Override
@@ -171,7 +208,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + id));
 
-        if (!user.getActivo()) {
+        if (!Boolean.TRUE.equals(user.getActivo())) {
             throw new BadRequestException("El usuario ya se encuentra inactivo");
         }
 
@@ -186,7 +223,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + id));
 
-        if (user.getActivo()) {
+        if (Boolean.TRUE.equals(user.getActivo())) {
             throw new BadRequestException("El usuario ya se encuentra activo");
         }
 
@@ -202,43 +239,33 @@ public class UserManagementServiceImpl implements UserManagementService {
         Long roleId = role != null ? role.getId() : null;
         String roleName = role != null ? role.getName().name() : null;
 
+        CommercialPartnerSettingsResponseDto commercialSettings = null;
+
+        boolean isSocioComercial = role != null && role.getName() == RoleName.SOCIO_COMERCIAL;
+
+        if (isSocioComercial) {
+            commercialSettings = commercialPartnerSettingsRepository.findByUsuarioId(user.getId())
+                    .map(settings -> new CommercialPartnerSettingsResponseDto(
+                            settings.getId(),
+                            settings.getUsuario().getId(),
+                            settings.getCommissionPercentage(),
+                            settings.getAppliesToNetwork(),
+                            settings.getCreatedAt(),
+                            settings.getUpdatedAt()
+                    ))
+                    .orElse(null);
+        }
+
         return new UserResponseDto(
                 user.getId(),
                 user.getNombre(),
                 user.getCorreo(),
                 user.getActivo(),
                 roleId,
-                roleName
+                roleName,
+                user.getCorreoVerificado(),
+                user.getDebeCambiarPassword(),
+                commercialSettings
         );
-    }
-
-    private String generateActivationToken() {
-        return java.util.UUID.randomUUID().toString();
-    }
-    private String createAndSaveActivationToken(User user) {
-        String token = generateActivationToken();
-
-        UserActivationToken activationToken = new UserActivationToken();
-        activationToken.setUser(user);
-        activationToken.setToken(token);
-        activationToken.setExpiresAt(java.time.LocalDateTime.now().plusHours(24));
-        activationToken.setUsed(false);
-
-        userActivationTokenRepository.save(activationToken);
-
-        return token;
-    }
-
-    private void sendActivationEmail(String correo, String nombre, String activationUrl) {
-        String subject = "Activa tu cuenta de socio comercial";
-
-        String body = "Hola " + nombre + ",\n\n"
-                + "Tu cuenta de socio comercial fue creada exitosamente.\n"
-                + "Para completar tu registro y definir tu contraseña, ingresa al siguiente enlace:\n\n"
-                + activationUrl + "\n\n"
-                + "Este enlace expirará en 24 horas.\n\n"
-                + "Si no reconoces este proceso, puedes ignorar este mensaje.";
-
-        emailService.sendEmail(correo, subject, body);
     }
 }

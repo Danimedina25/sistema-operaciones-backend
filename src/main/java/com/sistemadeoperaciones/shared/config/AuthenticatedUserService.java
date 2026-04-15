@@ -1,6 +1,6 @@
 package com.sistemadeoperaciones.shared.config;
 
-import com.sistemadeoperaciones.auth.models.User;
+import com.sistemadeoperaciones.usuarios.model.User;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
 import com.sistemadeoperaciones.shared.model.AuthenticatedUser;
 import com.sistemadeoperaciones.usuarios.repository.UserRepository;

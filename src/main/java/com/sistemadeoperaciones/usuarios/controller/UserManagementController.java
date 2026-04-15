@@ -1,7 +1,10 @@
 package com.sistemadeoperaciones.usuarios.controller;
 
 import com.sistemadeoperaciones.shared.dto.ApiResponse;
-import com.sistemadeoperaciones.usuarios.dto.*;
+import com.sistemadeoperaciones.usuarios.dto.request.*;
+import com.sistemadeoperaciones.usuarios.dto.response.ActivateAccountResponseDto;
+import com.sistemadeoperaciones.usuarios.dto.response.UserCreatedResponseDto;
+import com.sistemadeoperaciones.usuarios.dto.response.UserResponseDto;
 import com.sistemadeoperaciones.usuarios.service.UserManagementService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -23,31 +26,21 @@ public class UserManagementController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<UserResponseDto>> create(@Valid @RequestBody CreateUserRequestDto request) {
-        UserResponseDto response = userManagementService.create(request);
+    public ResponseEntity<ApiResponse<UserCreatedResponseDto>> create(
+            @Valid @RequestBody CreateUserRequestDto request
+    ) {
+        UserCreatedResponseDto response = userManagementService.create(request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
-                new ApiResponse<>(true, "Usuario creado exitosamente", response, null)
+                new ApiResponse<>(true, "Usuario creado exitosamente. Se envió correo de activación.", response, null)
         );
     }
 
-    @PostMapping("/socio-comercial")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<SocioComercialCreatedResponseDto>> createSocioComercial(
-            @Valid @RequestBody CreateSocioComercialRequestDto request
+    @PostMapping("/complete-activation")
+    public ResponseEntity<ApiResponse<ActivateAccountResponseDto>> completeUserActivation(
+            @Valid @RequestBody CompleteUserActivationRequestDto request
     ) {
-        SocioComercialCreatedResponseDto response = userManagementService.createSocioComercial(request);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(
-                new ApiResponse<>(true, "Socio comercial invitado exitosamente", response, null)
-        );
-    }
-
-    @PostMapping("/activate-socio-comercial")
-    public ResponseEntity<ApiResponse<ActivateAccountResponseDto>> completeSocioComercialActivation(
-            @Valid @RequestBody CompleteSocioComercialActivationRequestDto request
-    ) {
-        userManagementService.completeSocioComercialActivation(request);
+        userManagementService.completeUserActivation(request);
 
         return ResponseEntity.ok(
                 new ApiResponse<>(
@@ -56,6 +49,38 @@ public class UserManagementController {
                         new ActivateAccountResponseDto(true),
                         null
                 )
+        );
+    }
+
+    @PostMapping("/{id}/resend-activation-email")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> resendActivationEmail(@PathVariable Long id) {
+        userManagementService.resendActivationEmail(id);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Correo de activación reenviado exitosamente", null, null)
+        );
+    }
+
+    @PatchMapping("/{id}/email")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> updateUserEmail(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateUserEmailRequestDto request
+    ) {
+        userManagementService.updateUserEmail(id, request);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Correo actualizado y activación reenviada exitosamente", null, null)
+        );
+    }
+
+    @PostMapping("/complete-email-verification")
+    public ResponseEntity<ApiResponse<Void>> completeEmailVerification(@RequestBody CompleteEmailVerificationRequestDto request) {
+        userManagementService.completeEmailVerification(request);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Correo verificado exitosamente", null, null)
         );
     }
 
@@ -81,8 +106,10 @@ public class UserManagementController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<UserResponseDto>> update(@PathVariable Long id,
-                                                               @Valid @RequestBody UpdateUserRequestDto request) {
+    public ResponseEntity<ApiResponse<UserResponseDto>> update(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateUserRequestDto request
+    ) {
         UserResponseDto response = userManagementService.update(id, request);
 
         return ResponseEntity.ok(

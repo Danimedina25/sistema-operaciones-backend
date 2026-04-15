@@ -1,6 +1,6 @@
 package com.sistemadeoperaciones.auth.repository;
 
-import com.sistemadeoperaciones.auth.models.User;
+import com.sistemadeoperaciones.usuarios.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

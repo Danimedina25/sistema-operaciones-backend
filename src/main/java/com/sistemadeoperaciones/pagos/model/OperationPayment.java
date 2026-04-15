@@ -1,8 +1,9 @@
 package com.sistemadeoperaciones.pagos.model;
 
-import com.sistemadeoperaciones.auth.models.User;
+import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.pagos.enums.PaymentStatus;
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
+import com.sistemadeoperaciones.usuarios.model.User;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
@@ -26,6 +27,10 @@ public class OperationPayment {
     @Enumerated(EnumType.STRING)
     @Column(name = "tipo_pago", nullable = false, length = 30)
     private PaymentType tipoPago;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cuenta_destino_id", nullable = false)
+    private BankAccount cuentaDestino;
 
     @Column(name = "comprobante_url", nullable = false, length = 500)
     private String comprobanteUrl;
@@ -95,6 +100,10 @@ public class OperationPayment {
         return tipoPago;
     }
 
+    public BankAccount getCuentaDestino() {
+        return cuentaDestino;
+    }
+
     public String getComprobanteUrl() {
         return comprobanteUrl;
     }
@@ -147,6 +156,10 @@ public class OperationPayment {
         this.tipoPago = tipoPago;
     }
 
+    public void setCuentaDestino(BankAccount cuentaDestino) {
+        this.cuentaDestino = cuentaDestino;
+    }
+
     public void setComprobanteUrl(String comprobanteUrl) {
         this.comprobanteUrl = comprobanteUrl;
     }
@@ -173,5 +186,13 @@ public class OperationPayment {
 
     public void setFechaValidacion(LocalDateTime fechaValidacion) {
         this.fechaValidacion = fechaValidacion;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }

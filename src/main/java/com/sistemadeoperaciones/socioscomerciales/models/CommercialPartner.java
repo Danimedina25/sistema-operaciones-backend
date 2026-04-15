@@ -1,6 +1,6 @@
 package com.sistemadeoperaciones.socioscomerciales.models;
 
-import com.sistemadeoperaciones.auth.models.User;
+import com.sistemadeoperaciones.usuarios.model.User;
 import jakarta.persistence.*;
 
 import java.util.ArrayList;

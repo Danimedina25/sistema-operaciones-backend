@@ -1,6 +1,5 @@
 package com.sistemadeoperaciones.pagos.service;
 
-import com.sistemadeoperaciones.auth.models.User;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
 import com.sistemadeoperaciones.pagos.dto.CreateOperationPaymentRequestDto;
@@ -25,10 +24,12 @@ import com.sistemadeoperaciones.pagos.model.PaymentOperation;
 import com.sistemadeoperaciones.pagos.repository.OperationPaymentRepository;
 import com.sistemadeoperaciones.pagos.repository.PaymentOperationRepository;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
+import com.sistemadeoperaciones.shared.enums.RoleName;
 import com.sistemadeoperaciones.shared.exception.BusinessException;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
-import com.sistemadeoperaciones.socioscomerciales.models.CommercialPartner;
-import com.sistemadeoperaciones.socioscomerciales.repository.CommercialPartnerRepository;
+import com.sistemadeoperaciones.usuarios.model.CommercialPartnerSettings;
+import com.sistemadeoperaciones.usuarios.model.User;
+import com.sistemadeoperaciones.usuarios.repository.CommercialPartnerSettingsRepository;
 import com.sistemadeoperaciones.usuarios.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,54 +44,58 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     private final PaymentOperationRepository paymentOperationRepository;
     private final OperationPaymentRepository operationPaymentRepository;
     private final BankAccountRepository bankAccountRepository;
-    private final CommercialPartnerRepository commercialPartnerRepository;
     private final UserRepository userRepository;
     private final AuthenticatedUserService authenticatedUserService;
+    private final CommercialPartnerSettingsRepository commercialPartnerSettingsRepository;
 
     public PaymentOperationServiceImpl(
             PaymentOperationRepository paymentOperationRepository,
             OperationPaymentRepository operationPaymentRepository,
             BankAccountRepository bankAccountRepository,
-            CommercialPartnerRepository commercialPartnerRepository,
             UserRepository userRepository,
-            AuthenticatedUserService authenticatedUserService
+            AuthenticatedUserService authenticatedUserService,
+            CommercialPartnerSettingsRepository commercialPartnerSettingsRepository
     ) {
         this.paymentOperationRepository = paymentOperationRepository;
         this.operationPaymentRepository = operationPaymentRepository;
         this.bankAccountRepository = bankAccountRepository;
-        this.commercialPartnerRepository = commercialPartnerRepository;
         this.userRepository = userRepository;
         this.authenticatedUserService = authenticatedUserService;
+        this.commercialPartnerSettingsRepository = commercialPartnerSettingsRepository;
     }
 
     @Override
     @Transactional
     public PaymentOperationResponseDto createOperation(CreatePaymentOperationRequestDto request) {
-        BankAccount cuentaDestino = bankAccountRepository.findById(request.getCuentaDestinoId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Cuenta bancaria no encontrada con id: " + request.getCuentaDestinoId()));
-
-        CommercialPartner socioComercial = commercialPartnerRepository.findById(request.getSocioComercialId())
+        User socioComercial = userRepository.findById(request.getSocioComercialId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Socio comercial no encontrado con id: " + request.getSocioComercialId()));
-
-        if (!Boolean.TRUE.equals(cuentaDestino.getActivo())) {
-            throw new PaymentOperationInactiveAccountException();
-        }
 
         if (!Boolean.TRUE.equals(socioComercial.getActivo())) {
             throw new PaymentOperationInactivePartnerException();
         }
 
+        boolean isSocioComercial = socioComercial.getRoles().stream()
+                .anyMatch(role -> role.getName() == RoleName.SOCIO_COMERCIAL);
+
+        if (!isSocioComercial) {
+            throw new BusinessException("El usuario seleccionado no tiene el rol SOCIO_COMERCIAL");
+        }
+
+        CommercialPartnerSettings settings = commercialPartnerSettingsRepository
+                .findByUsuarioId(socioComercial.getId())
+                .orElseThrow(() -> new BusinessException(
+                        "El socio comercial no tiene configuración de comisión registrada"));
+
         PaymentOperation operation = new PaymentOperation();
         operation.setClienteNombre(request.getClienteNombre());
-        operation.setClienteTelefono(request.getClienteTelefono());
         operation.setMontoTotal(request.getMontoTotal());
         operation.setMontoValidado(BigDecimal.ZERO);
         operation.setSaldoPendiente(request.getMontoTotal());
         operation.setEstatus(OperationStatus.PENDIENTE_VALIDACION);
-        operation.setCuentaDestino(cuentaDestino);
         operation.setSocioComercial(socioComercial);
+        operation.setNivelesRedComercial(request.getNivelesRedComercial());
+        operation.setPorcentajeComisionAplicado(settings.getCommissionPercentage());
         operation.setObservaciones(request.getObservaciones());
 
         PaymentOperation saved = paymentOperationRepository.save(operation);
@@ -105,6 +110,14 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         User registradoPor = authenticatedUserService.getCurrentUser();
 
+        BankAccount cuentaDestino = bankAccountRepository.findById(request.getCuentaDestinoId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Cuenta bancaria no encontrada con id: " + request.getCuentaDestinoId()));
+
+        if (!Boolean.TRUE.equals(cuentaDestino.getActivo())) {
+            throw new PaymentOperationInactiveAccountException();
+        }
+
         validateOperationCanReceivePayments(operation);
         validateCurrentUserOwnsOperation(operation);
         validateDuplicateReceipt(request.getOperacionId(), request.getComprobanteUrl());
@@ -114,6 +127,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         payment.setOperacion(operation);
         payment.setMonto(request.getMonto());
         payment.setTipoPago(request.getTipoPago());
+        payment.setCuentaDestino(cuentaDestino);
         payment.setComprobanteUrl(request.getComprobanteUrl());
         payment.setEstatus(PaymentStatus.PENDIENTE_VALIDACION);
         payment.setObservaciones(request.getObservaciones());
@@ -143,6 +157,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         User validadoPor = authenticatedUserService.getCurrentUser();
         validateCurrentUserCanValidatePayments();
+
         payment.setEstatus(PaymentStatus.VALIDADO);
         payment.setValidadoPor(validadoPor);
         payment.setFechaValidacion(LocalDateTime.now());
@@ -174,6 +189,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         User validadoPor = authenticatedUserService.getCurrentUser();
         validateCurrentUserCanValidatePayments();
+
         payment.setEstatus(PaymentStatus.RECHAZADO);
         payment.setValidadoPor(validadoPor);
         payment.setFechaValidacion(LocalDateTime.now());
@@ -192,6 +208,53 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 .orElseThrow(() -> new PaymentOperationNotFoundException(id));
 
         return mapToOperationResponse(operation);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PaymentOperationResponseDto> findAll() {
+        return paymentOperationRepository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .map(this::mapToOperationResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PaymentOperationResponseDto> findAllBySocioComercialId(Long socioComercialId) {
+        User socioComercial = userRepository.findById(socioComercialId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Socio comercial no encontrado con id: " + socioComercialId));
+
+        boolean isSocioComercial = socioComercial.getRoles().stream()
+                .anyMatch(role -> role.getName() == RoleName.SOCIO_COMERCIAL);
+
+        if (!isSocioComercial) {
+            throw new BusinessException("El usuario indicado no tiene el rol SOCIO_COMERCIAL");
+        }
+
+        return paymentOperationRepository.findBySocioComercialIdOrderByCreatedAtDesc(socioComercialId)
+                .stream()
+                .map(this::mapToOperationResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PaymentOperationResponseDto> findMyOperations() {
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        boolean isSocioComercial = currentUser.getRoles().stream()
+                .anyMatch(role -> role.getName() == RoleName.SOCIO_COMERCIAL);
+
+        if (!isSocioComercial) {
+            throw new BusinessException("El usuario autenticado no tiene el rol SOCIO_COMERCIAL");
+        }
+
+        return paymentOperationRepository.findBySocioComercialIdOrderByCreatedAtDesc(currentUser.getId())
+                .stream()
+                .map(this::mapToOperationResponse)
+                .toList();
     }
 
     private void validateOperationCanReceivePayments(PaymentOperation operation) {
@@ -213,14 +276,15 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     private void validateCurrentUserOwnsOperation(PaymentOperation operation) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        if (operation.getSocioComercial() == null || operation.getSocioComercial().getUsuario() == null) {
-            throw new BusinessException("La operación no tiene un socio comercial asociado a un usuario");
+        if (operation.getSocioComercial() == null) {
+            throw new BusinessException("La operación no tiene un socio comercial asociado");
         }
 
-        Long ownerUserId = operation.getSocioComercial().getUsuario().getId();
+        Long ownerUserId = operation.getSocioComercial().getId();
 
         if (!ownerUserId.equals(currentUser.getId())) {
-            throw new BusinessException("No tienes permiso para registrar pagos en una operación que no pertenece a tu socio comercial");
+            throw new BusinessException(
+                    "No tienes permiso para registrar pagos en una operación que no pertenece a tu socio comercial");
         }
     }
 
@@ -309,15 +373,14 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         return new PaymentOperationResponseDto(
                 operation.getId(),
                 operation.getClienteNombre(),
-                operation.getClienteTelefono(),
                 operation.getMontoTotal(),
                 operation.getMontoValidado(),
                 operation.getSaldoPendiente(),
                 operation.getEstatus(),
-                operation.getCuentaDestino().getId(),
-                operation.getCuentaDestino().getBanco(),
                 operation.getSocioComercial().getId(),
                 operation.getSocioComercial().getNombre(),
+                operation.getNivelesRedComercial(),
+                operation.getPorcentajeComisionAplicado(),
                 operation.getObservaciones(),
                 payments,
                 operation.getCreatedAt(),
@@ -329,11 +392,18 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         Long validadoPorId = payment.getValidadoPor() != null ? payment.getValidadoPor().getId() : null;
         String validadoPorNombre = payment.getValidadoPor() != null ? payment.getValidadoPor().getNombre() : null;
 
+        Long cuentaDestinoId = payment.getCuentaDestino() != null ? payment.getCuentaDestino().getId() : null;
+        String cuentaDestinoBanco = payment.getCuentaDestino() != null ? payment.getCuentaDestino().getBanco() : null;
+        String cuentaDestinoTitular = payment.getCuentaDestino() != null ? payment.getCuentaDestino().getTitular() : null;
+
         return new OperationPaymentResponseDto(
                 payment.getId(),
                 payment.getMonto(),
                 payment.getTipoPago(),
                 payment.getComprobanteUrl(),
+                cuentaDestinoId,
+                cuentaDestinoBanco,
+                cuentaDestinoTitular,
                 payment.getEstatus(),
                 payment.getObservaciones(),
                 payment.getRegistradoPor().getId(),

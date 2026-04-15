@@ -1,6 +1,6 @@
 package com.sistemadeoperaciones.socioscomerciales.service;
 
-import com.sistemadeoperaciones.auth.models.User;
+import com.sistemadeoperaciones.usuarios.model.User;
 import com.sistemadeoperaciones.shared.email.EmailService;
 import com.sistemadeoperaciones.shared.enums.RoleName;
 import com.sistemadeoperaciones.socioscomerciales.dto.*;

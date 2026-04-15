@@ -35,7 +35,7 @@ public class BankAccountController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<List<BankAccountResponseDto>>> getAllBankAccounts() {
         List<BankAccountResponseDto> response = bankAccountService.findAll();
 
@@ -80,7 +80,7 @@ public class BankAccountController {
     @PatchMapping("/{id}/activate")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<ApiResponse<BankAccountResponseDto>> activateBankAccount(@PathVariable Long id) {
-        BankAccountResponseDto response = bankAccountService.deactivate(id);
+        BankAccountResponseDto response = bankAccountService.activate(id);
 
         return ResponseEntity.ok(
                 new ApiResponse<>(true, "Cuenta bancaria activada exitosamente", response, null)

@@ -3,6 +3,7 @@ package com.sistemadeoperaciones.pagos.model;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.pagos.enums.OperationStatus;
 import com.sistemadeoperaciones.socioscomerciales.models.CommercialPartner;
+import com.sistemadeoperaciones.usuarios.model.User;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
@@ -21,9 +22,6 @@ public class PaymentOperation {
     @Column(name = "cliente_nombre", nullable = false, length = 150)
     private String clienteNombre;
 
-    @Column(name = "cliente_telefono", length = 20)
-    private String clienteTelefono;
-
     @Column(name = "monto_total", nullable = false, precision = 15, scale = 2)
     private BigDecimal montoTotal;
 
@@ -38,12 +36,14 @@ public class PaymentOperation {
     private OperationStatus estatus;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "cuenta_destino_id", nullable = false)
-    private BankAccount cuentaDestino;
-
-    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "socio_comercial_id", nullable = false)
-    private CommercialPartner socioComercial;
+    private User socioComercial;
+
+    @Column(name = "niveles_red_comercial", nullable = false)
+    private Integer nivelesRedComercial = 1;
+
+    @Column(name = "porcentaje_comision_aplicado", nullable = false, precision = 5, scale = 2)
+    private BigDecimal porcentajeComisionAplicado;
 
     @Column(length = 500)
     private String observaciones;
@@ -73,6 +73,10 @@ public class PaymentOperation {
         if (this.estatus == null) {
             this.estatus = OperationStatus.PENDIENTE_VALIDACION;
         }
+
+        if (this.nivelesRedComercial == null) {
+            this.nivelesRedComercial = 1;
+        }
     }
 
     @PreUpdate
@@ -91,10 +95,6 @@ public class PaymentOperation {
         return clienteNombre;
     }
 
-    public String getClienteTelefono() {
-        return clienteTelefono;
-    }
-
     public BigDecimal getMontoTotal() {
         return montoTotal;
     }
@@ -111,12 +111,12 @@ public class PaymentOperation {
         return estatus;
     }
 
-    public BankAccount getCuentaDestino() {
-        return cuentaDestino;
+    public User getSocioComercial() {
+        return socioComercial;
     }
 
-    public CommercialPartner getSocioComercial() {
-        return socioComercial;
+    public Integer getNivelesRedComercial() {
+        return nivelesRedComercial;
     }
 
     public String getObservaciones() {
@@ -143,10 +143,6 @@ public class PaymentOperation {
         this.clienteNombre = clienteNombre;
     }
 
-    public void setClienteTelefono(String clienteTelefono) {
-        this.clienteTelefono = clienteTelefono;
-    }
-
     public void setMontoTotal(BigDecimal montoTotal) {
         this.montoTotal = montoTotal;
     }
@@ -163,12 +159,20 @@ public class PaymentOperation {
         this.estatus = estatus;
     }
 
-    public void setCuentaDestino(BankAccount cuentaDestino) {
-        this.cuentaDestino = cuentaDestino;
+    public void setSocioComercial(User socioComercial) {
+        this.socioComercial = socioComercial;
     }
 
-    public void setSocioComercial(CommercialPartner socioComercial) {
-        this.socioComercial = socioComercial;
+    public void setNivelesRedComercial(Integer nivelesRedComercial) {
+        this.nivelesRedComercial = nivelesRedComercial;
+    }
+
+    public BigDecimal getPorcentajeComisionAplicado() {
+        return porcentajeComisionAplicado;
+    }
+
+    public void setPorcentajeComisionAplicado(BigDecimal porcentajeComisionAplicado) {
+        this.porcentajeComisionAplicado = porcentajeComisionAplicado;
     }
 
     public void setObservaciones(String observaciones) {

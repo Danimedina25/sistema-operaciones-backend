@@ -1,4 +1,4 @@
-package com.sistemadeoperaciones.auth.models;
+package com.sistemadeoperaciones.usuarios.model;
 
 import com.sistemadeoperaciones.shared.enums.RoleName;
 import jakarta.persistence.*;

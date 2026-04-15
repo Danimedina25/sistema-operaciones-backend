@@ -1,30 +1,32 @@
-package com.sistemadeoperaciones.usuarios.dto;
+package com.sistemadeoperaciones.usuarios.dto.response;
 
-public class SocioComercialCreatedResponseDto {
+public class UserResponseDto {
 
     private Long id;
     private String nombre;
     private String correo;
     private Boolean activo;
+    private Long roleId;
     private String roleName;
-    private String activationUrl;
-    private Boolean debeCambiarPassword;
     private Boolean correoVerificado;
+    private Boolean debeCambiarPassword;
+    private CommercialPartnerSettingsResponseDto commercialSettings;
 
-    public SocioComercialCreatedResponseDto() {
+    public UserResponseDto() {
     }
 
-    public SocioComercialCreatedResponseDto(Long id, String nombre, String correo, Boolean activo,
-                                            String roleName, String activationUrl,
-                                            Boolean debeCambiarPassword, Boolean correoVerificado) {
+    public UserResponseDto(Long id, String nombre, String correo, Boolean activo, Long roleId, String roleName,
+                           Boolean correoVerificado, Boolean debeCambiarPassword,
+                           CommercialPartnerSettingsResponseDto commercialSettings) {
         this.id = id;
         this.nombre = nombre;
         this.correo = correo;
         this.activo = activo;
+        this.roleId = roleId;
         this.roleName = roleName;
-        this.activationUrl = activationUrl;
-        this.debeCambiarPassword = debeCambiarPassword;
         this.correoVerificado = correoVerificado;
+        this.debeCambiarPassword = debeCambiarPassword;
+        this.commercialSettings = commercialSettings;
     }
 
     public Long getId() {
@@ -43,20 +45,24 @@ public class SocioComercialCreatedResponseDto {
         return activo;
     }
 
+    public Long getRoleId() {
+        return roleId;
+    }
+
     public String getRoleName() {
         return roleName;
     }
 
-    public String getActivationUrl() {
-        return activationUrl;
+    public Boolean getCorreoVerificado() {
+        return correoVerificado;
     }
 
     public Boolean getDebeCambiarPassword() {
         return debeCambiarPassword;
     }
 
-    public Boolean getCorreoVerificado() {
-        return correoVerificado;
+    public CommercialPartnerSettingsResponseDto getCommercialSettings() {
+        return commercialSettings;
     }
 
     public void setId(Long id) {
@@ -75,19 +81,23 @@ public class SocioComercialCreatedResponseDto {
         this.activo = activo;
     }
 
+    public void setRoleId(Long roleId) {
+        this.roleId = roleId;
+    }
+
     public void setRoleName(String roleName) {
         this.roleName = roleName;
     }
 
-    public void setActivationUrl(String activationUrl) {
-        this.activationUrl = activationUrl;
+    public void setCorreoVerificado(Boolean correoVerificado) {
+        this.correoVerificado = correoVerificado;
     }
 
     public void setDebeCambiarPassword(Boolean debeCambiarPassword) {
         this.debeCambiarPassword = debeCambiarPassword;
     }
 
-    public void setCorreoVerificado(Boolean correoVerificado) {
-        this.correoVerificado = correoVerificado;
+    public void setCommercialSettings(CommercialPartnerSettingsResponseDto commercialSettings) {
+        this.commercialSettings = commercialSettings;
     }
 }
