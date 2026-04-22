@@ -36,13 +36,21 @@ import com.sistemadeoperaciones.usuarios.model.CommercialPartnerSettings;
 import com.sistemadeoperaciones.usuarios.model.User;
 import com.sistemadeoperaciones.usuarios.repository.CommercialPartnerSettingsRepository;
 import com.sistemadeoperaciones.usuarios.repository.UserRepository;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import com.sistemadeoperaciones.pagos.dto.PaymentOperationFilterDto;
+import com.sistemadeoperaciones.pagos.repository.specification.PaymentOperationSpecification;
+import org.springframework.data.jpa.domain.Specification;
+
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 
 @Service
 public class PaymentOperationServiceImpl implements PaymentOperationService {
@@ -225,16 +233,30 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PaymentOperationResponseDto> findAll() {
-        return paymentOperationRepository.findAllByOrderByCreatedAtDesc()
-                .stream()
-                .map(this::mapToOperationResponse)
-                .toList();
+    public Page<PaymentOperationResponseDto> findAll(PaymentOperationFilterDto filter, Pageable pageable) {
+        LocalDate startDate = resolveStartDate(filter);
+        LocalDate endDate = resolveEndDate(filter);
+
+        Specification<PaymentOperation> specification = Specification
+                .where(PaymentOperationSpecification.clienteONombreSocioContains(filter.getSearch()))
+                .and(PaymentOperationSpecification.hasStatus(filter.getStatus()))
+                .and(PaymentOperationSpecification.hasSocioComercialId(filter.getSocioComercialId()))
+                .and(PaymentOperationSpecification.createdAtBetween(
+                        toStartOfDay(startDate),
+                        toEndOfDay(endDate)
+                ));
+
+        return paymentOperationRepository.findAll(specification, pageable)
+                .map(this::mapToOperationResponse);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<PaymentOperationResponseDto> findAllBySocioComercialId(Long socioComercialId) {
+    public Page<PaymentOperationResponseDto> findAllBySocioComercialId(
+            Long socioComercialId,
+            PaymentOperationFilterDto filter,
+            Pageable pageable
+    ) {
         User socioComercial = userRepository.findById(socioComercialId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Socio comercial no encontrado con id: " + socioComercialId));
@@ -246,15 +268,27 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             throw new BusinessException("El usuario indicado no tiene el rol SOCIO_COMERCIAL");
         }
 
-        return paymentOperationRepository.findBySocioComercialIdOrderByCreatedAtDesc(socioComercialId)
-                .stream()
-                .map(this::mapToOperationResponse)
-                .toList();
-    }
+        LocalDate startDate = resolveStartDate(filter);
+        LocalDate endDate = resolveEndDate(filter);
 
+        Specification<PaymentOperation> specification = Specification
+                .where(PaymentOperationSpecification.clienteONombreSocioContains(filter.getSearch()))
+                .and(PaymentOperationSpecification.hasStatus(filter.getStatus()))
+                .and(PaymentOperationSpecification.hasSocioComercialId(socioComercialId))
+                .and(PaymentOperationSpecification.createdAtBetween(
+                        toStartOfDay(startDate),
+                        toEndOfDay(endDate)
+                ));
+
+        return paymentOperationRepository.findAll(specification, pageable)
+                .map(this::mapToOperationResponse);
+    }
     @Override
     @Transactional(readOnly = true)
-    public List<PaymentOperationResponseDto> findMyOperations() {
+    public Page<PaymentOperationResponseDto> findMyOperations(
+            PaymentOperationFilterDto filter,
+            Pageable pageable
+    ) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
         boolean isSocioComercial = currentUser.getRoles().stream()
@@ -264,11 +298,62 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             throw new BusinessException("El usuario autenticado no tiene el rol SOCIO_COMERCIAL");
         }
 
-        return paymentOperationRepository.findBySocioComercialIdOrderByCreatedAtDesc(currentUser.getId())
-                .stream()
-                .map(this::mapToOperationResponse)
-                .toList();
+        LocalDate startDate = resolveStartDate(filter);
+        LocalDate endDate = resolveEndDate(filter);
+
+        Specification<PaymentOperation> specification = Specification
+                .where(PaymentOperationSpecification.clienteONombreSocioContains(filter.getSearch()))
+                .and(PaymentOperationSpecification.hasStatus(filter.getStatus()))
+                .and(PaymentOperationSpecification.hasSocioComercialId(currentUser.getId()))
+                .and(PaymentOperationSpecification.createdAtBetween(
+                        toStartOfDay(startDate),
+                        toEndOfDay(endDate)
+                ));
+
+        return paymentOperationRepository.findAll(specification, pageable)
+                .map(this::mapToOperationResponse);
     }
+    private LocalDate resolveStartDate(PaymentOperationFilterDto filter) {
+        if (filter.getDateFilter() != null) {
+            LocalDate today = LocalDate.now();
+
+            return switch (filter.getDateFilter()) {
+                case TODAY -> today;
+                case THIS_WEEK -> today.with(DayOfWeek.MONDAY);
+                case THIS_MONTH -> today.withDayOfMonth(1);
+                case LAST_MONTH -> today.minusMonths(1).withDayOfMonth(1);
+            };
+        }
+
+        return filter.getStartDate();
+    }
+
+    private LocalDate resolveEndDate(PaymentOperationFilterDto filter) {
+        if (filter.getDateFilter() != null) {
+            LocalDate today = LocalDate.now();
+
+            return switch (filter.getDateFilter()) {
+                case TODAY -> today;
+                case THIS_WEEK -> today.with(DayOfWeek.SUNDAY);
+                case THIS_MONTH -> today.withDayOfMonth(today.lengthOfMonth());
+                case LAST_MONTH -> {
+                    LocalDate lastMonth = today.minusMonths(1);
+                    yield lastMonth.withDayOfMonth(lastMonth.lengthOfMonth());
+                }
+            };
+        }
+
+        return filter.getEndDate();
+    }
+
+    private LocalDateTime toStartOfDay(LocalDate date) {
+        return date != null ? date.atStartOfDay() : null;
+    }
+
+    private LocalDateTime toEndOfDay(LocalDate date) {
+        return date != null ? date.plusDays(1).atStartOfDay().minusNanos(1) : null;
+    }
+
 
     @Override
     @Transactional(readOnly = true)

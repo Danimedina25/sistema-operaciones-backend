@@ -30,17 +30,20 @@ public class NotificationServiceImpl implements NotificationService {
     private final UserNotificationRepository userNotificationRepository;
     private final UserRepository userRepository;
     private final AuthenticatedUserService authenticatedUserService;
+    private final NotificationRealtimeService notificationRealtimeService;
 
     public NotificationServiceImpl(
             NotificationRepository notificationRepository,
             UserNotificationRepository userNotificationRepository,
             UserRepository userRepository,
-            AuthenticatedUserService authenticatedUserService
+            AuthenticatedUserService authenticatedUserService,
+            NotificationRealtimeService notificationRealtimeService
     ) {
         this.notificationRepository = notificationRepository;
         this.userNotificationRepository = userNotificationRepository;
         this.userRepository = userRepository;
         this.authenticatedUserService = authenticatedUserService;
+        this.notificationRealtimeService = notificationRealtimeService;
     }
 
     @Override
@@ -103,6 +106,11 @@ public class NotificationServiceImpl implements NotificationService {
             userNotificationRepository.save(userNotification);
         }
 
+        long unreadCount = userNotificationRepository
+                .countByUsuarioIdAndLeidaFalseAndArchivadaFalse(currentUser.getId());
+
+        notificationRealtimeService.sendUnreadCountToUser(currentUser.getId(), unreadCount);
+
         return mapToResponse(userNotification);
     }
 
@@ -122,6 +130,8 @@ public class NotificationServiceImpl implements NotificationService {
         });
 
         userNotificationRepository.saveAll(unreadNotifications);
+
+        notificationRealtimeService.sendUnreadCountToUser(currentUser.getId(), 0);
     }
 
     @Override
@@ -163,7 +173,11 @@ public class NotificationServiceImpl implements NotificationService {
             String actionUrl,
             NotificationPriority prioridad
     ) {
+        System.out.println("=== createForUsers ejecutado ===");
+        System.out.println("userIds recibidos: " + userIds);
+
         if (userIds == null || userIds.isEmpty()) {
+            System.out.println("⚠️ userIds vacío o null, no se enviará nada");
             return;
         }
 
@@ -171,10 +185,19 @@ public class NotificationServiceImpl implements NotificationService {
 
         List<User> recipients = userRepository.findAllById(uniqueUserIds);
         if (recipients.isEmpty()) {
+            System.out.println("⚠️ No se encontraron recipients en BD");
             return;
         }
 
-        User createdBy = authenticatedUserService.getCurrentUser();
+        System.out.println("✅ Recipients encontrados: " + recipients.size());
+
+        User createdBy = null;
+        try {
+            createdBy = authenticatedUserService.getCurrentUser();
+            System.out.println("Notificación creada por userId=" + createdBy.getId());
+        } catch (Exception ignored) {
+            System.out.println("⚠️ No hay usuario autenticado creando la notificación");
+        }
 
         Notification notification = new Notification();
         notification.setTitulo(titulo);
@@ -188,6 +211,7 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setCreatedBy(createdBy);
 
         Notification savedNotification = notificationRepository.save(notification);
+        System.out.println("✅ Notification guardada con id=" + savedNotification.getId());
 
         List<UserNotification> userNotifications = recipients.stream()
                 .map(user -> {
@@ -200,7 +224,22 @@ public class NotificationServiceImpl implements NotificationService {
                 })
                 .toList();
 
-        userNotificationRepository.saveAll(userNotifications);
+        List<UserNotification> savedUserNotifications = userNotificationRepository.saveAll(userNotifications);
+        System.out.println("✅ UserNotifications guardadas: " + savedUserNotifications.size());
+
+        for (UserNotification userNotification : savedUserNotifications) {
+            NotificationResponseDto dto = mapToResponse(userNotification);
+
+            Long recipientUserId = userNotification.getUsuario().getId();
+            System.out.println("➡️ Procesando envío realtime para recipientUserId=" + recipientUserId);
+
+            notificationRealtimeService.sendNotificationToUser(recipientUserId, dto);
+
+            long unreadCount = userNotificationRepository
+                    .countByUsuarioIdAndLeidaFalseAndArchivadaFalse(recipientUserId);
+
+            notificationRealtimeService.sendUnreadCountToUser(recipientUserId, unreadCount);
+        }
     }
 
     @Override

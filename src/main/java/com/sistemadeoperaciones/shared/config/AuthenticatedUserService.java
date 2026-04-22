@@ -37,4 +37,12 @@ public class AuthenticatedUserService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Usuario autenticado no encontrado con correo: " + correo));
     }
+
+    public User getCurrentUserOrNull() {
+        try {
+            return getCurrentUser();
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }

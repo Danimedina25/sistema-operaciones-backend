@@ -44,6 +44,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/admin/users/complete-activation").permitAll()
+                        .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/ws").permitAll()
                         .requestMatchers("/api/admin/**").hasRole(RoleName.ADMIN.name())
                         .requestMatchers("/api/gerencia/**").hasAnyRole(RoleName.ADMIN.name(), RoleName.GERENTE.name())
                         .requestMatchers("/api/socios/**").hasAnyRole(RoleName.SOCIO_COMERCIAL.name())

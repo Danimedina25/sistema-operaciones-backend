@@ -3,11 +3,16 @@ package com.sistemadeoperaciones.pagos.controller;
 import com.sistemadeoperaciones.pagos.dto.CreateOperationPaymentRequestDto;
 import com.sistemadeoperaciones.pagos.dto.CreatePaymentOperationRequestDto;
 import com.sistemadeoperaciones.pagos.dto.OperationPaymentResponseDto;
+import com.sistemadeoperaciones.pagos.dto.PaymentOperationFilterDto;
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationResponseDto;
 import com.sistemadeoperaciones.pagos.dto.UpdatePaymentStatusRequestDto;
 import com.sistemadeoperaciones.pagos.service.PaymentOperationService;
 import com.sistemadeoperaciones.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -77,31 +82,26 @@ public class PaymentOperationController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'AUXILIAR_CUENTAS')")
-    public ResponseEntity<ApiResponse<List<PaymentOperationResponseDto>>> findAll() {
-        List<PaymentOperationResponseDto> response = paymentOperationService.findAll();
+    public ResponseEntity<ApiResponse<Page<PaymentOperationResponseDto>>> findAll(
+            PaymentOperationFilterDto filter,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        Page<PaymentOperationResponseDto> response = paymentOperationService.findAll(filter, pageable);
 
         return ResponseEntity.ok(
                 new ApiResponse<>(true, "Operaciones obtenidas exitosamente", response, null)
         );
     }
 
-    @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'AUXILIAR_CUENTAS')")
-    public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> findById(@PathVariable Long id) {
-        PaymentOperationResponseDto response = paymentOperationService.findById(id);
-
-        return ResponseEntity.ok(
-                new ApiResponse<>(true, "Operación obtenida exitosamente", response, null)
-        );
-    }
-
     @GetMapping("/by-commercial-partner/{socioComercialId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
-    public ResponseEntity<ApiResponse<List<PaymentOperationResponseDto>>> findAllBySocioComercialId(
-            @PathVariable Long socioComercialId
+    public ResponseEntity<ApiResponse<Page<PaymentOperationResponseDto>>> findAllBySocioComercialId(
+            @PathVariable Long socioComercialId,
+            PaymentOperationFilterDto filter,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
-        List<PaymentOperationResponseDto> response =
-                paymentOperationService.findAllBySocioComercialId(socioComercialId);
+        Page<PaymentOperationResponseDto> response =
+                paymentOperationService.findAllBySocioComercialId(socioComercialId, filter, pageable);
 
         return ResponseEntity.ok(
                 new ApiResponse<>(true, "Operaciones del socio comercial obtenidas exitosamente", response, null)
@@ -110,8 +110,11 @@ public class PaymentOperationController {
 
     @GetMapping("/my-operations")
     @PreAuthorize("hasRole('SOCIO_COMERCIAL')")
-    public ResponseEntity<ApiResponse<List<PaymentOperationResponseDto>>> findMyOperations() {
-        List<PaymentOperationResponseDto> response = paymentOperationService.findMyOperations();
+    public ResponseEntity<ApiResponse<Page<PaymentOperationResponseDto>>> findMyOperations(
+            PaymentOperationFilterDto filter,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        Page<PaymentOperationResponseDto> response = paymentOperationService.findMyOperations(filter, pageable);
 
         return ResponseEntity.ok(
                 new ApiResponse<>(true, "Mis operaciones obtenidas exitosamente", response, null)
@@ -125,6 +128,16 @@ public class PaymentOperationController {
 
         return ResponseEntity.ok(
                 new ApiResponse<>(true, "Clientes frecuentes obtenidos exitosamente", response, null)
+        );
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'AUXILIAR_CUENTAS')")
+    public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> findById(@PathVariable Long id) {
+        PaymentOperationResponseDto response = paymentOperationService.findById(id);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Operación obtenida exitosamente", response, null)
         );
     }
 }

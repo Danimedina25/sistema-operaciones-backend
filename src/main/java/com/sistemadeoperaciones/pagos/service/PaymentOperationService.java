@@ -3,8 +3,11 @@ package com.sistemadeoperaciones.pagos.service;
 import com.sistemadeoperaciones.pagos.dto.CreateOperationPaymentRequestDto;
 import com.sistemadeoperaciones.pagos.dto.CreatePaymentOperationRequestDto;
 import com.sistemadeoperaciones.pagos.dto.OperationPaymentResponseDto;
+import com.sistemadeoperaciones.pagos.dto.PaymentOperationFilterDto;
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationResponseDto;
 import com.sistemadeoperaciones.pagos.dto.UpdatePaymentStatusRequestDto;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
@@ -20,10 +23,15 @@ public interface PaymentOperationService {
 
     PaymentOperationResponseDto findById(Long id);
 
-    List<PaymentOperationResponseDto> findAll();
+    Page<PaymentOperationResponseDto> findAll(PaymentOperationFilterDto filter, Pageable pageable);
 
-    List<PaymentOperationResponseDto> findAllBySocioComercialId(Long socioComercialId);
+    Page<PaymentOperationResponseDto> findAllBySocioComercialId(
+            Long socioComercialId,
+            PaymentOperationFilterDto filter,
+            Pageable pageable
+    );
 
-    List<PaymentOperationResponseDto> findMyOperations();
+    Page<PaymentOperationResponseDto> findMyOperations(PaymentOperationFilterDto filter, Pageable pageable);
+
     List<String> findFrequentClientNames();
 }
