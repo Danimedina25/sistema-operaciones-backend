@@ -1,5 +1,6 @@
 package com.sistemadeoperaciones.pagos.model;
 
+import com.sistemadeoperaciones.clientes.model.Clientes;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.pagos.enums.OperationStatus;
 import com.sistemadeoperaciones.socioscomerciales.models.CommercialPartner;
@@ -19,8 +20,9 @@ public class PaymentOperation {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "cliente_nombre", nullable = false, length = 150)
-    private String clienteNombre;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cliente_id", nullable = false)
+    private Clientes cliente;
 
     @Column(name = "monto_total", nullable = false, precision = 15, scale = 2)
     private BigDecimal montoTotal;
@@ -44,6 +46,9 @@ public class PaymentOperation {
 
     @Column(name = "porcentaje_comision_aplicado", nullable = false, precision = 5, scale = 2)
     private BigDecimal porcentajeComisionAplicado;
+
+    @Column(name = "porcentaje_comision_oficina", nullable = false, precision = 5, scale = 2)
+    private BigDecimal porcentajeComisionOficina;
 
     @Column(length = 500)
     private String observaciones;
@@ -91,10 +96,6 @@ public class PaymentOperation {
         return id;
     }
 
-    public String getClienteNombre() {
-        return clienteNombre;
-    }
-
     public BigDecimal getMontoTotal() {
         return montoTotal;
     }
@@ -139,8 +140,12 @@ public class PaymentOperation {
         this.id = id;
     }
 
-    public void setClienteNombre(String clienteNombre) {
-        this.clienteNombre = clienteNombre;
+    public Clientes getCliente() {
+        return cliente;
+    }
+
+    public void setCliente(Clientes cliente) {
+        this.cliente = cliente;
     }
 
     public void setMontoTotal(BigDecimal montoTotal) {
@@ -173,6 +178,14 @@ public class PaymentOperation {
 
     public void setPorcentajeComisionAplicado(BigDecimal porcentajeComisionAplicado) {
         this.porcentajeComisionAplicado = porcentajeComisionAplicado;
+    }
+
+    public BigDecimal getPorcentajeComisionOficina() {
+        return porcentajeComisionOficina;
+    }
+
+    public void setPorcentajeComisionOficina(BigDecimal porcentajeComisionOficina) {
+        this.porcentajeComisionOficina = porcentajeComisionOficina;
     }
 
     public void setObservaciones(String observaciones) {

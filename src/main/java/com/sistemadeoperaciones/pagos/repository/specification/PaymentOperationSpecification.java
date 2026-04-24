@@ -19,7 +19,7 @@ public final class PaymentOperationSpecification {
             String value = "%" + search.trim().toLowerCase() + "%";
 
             var clientePredicate =
-                    cb.like(cb.lower(root.get("clienteNombre")), value);
+                    cb.like(cb.lower(root.get("cliente").get("nombre")), value);
 
             var socioPredicate =
                     cb.like(cb.lower(root.get("socioComercial").get("nombre")), value);

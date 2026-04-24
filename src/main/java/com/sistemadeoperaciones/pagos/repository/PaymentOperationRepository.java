@@ -20,12 +20,10 @@ public interface PaymentOperationRepository extends
 
 
     @Query("""
-        SELECT p.clienteNombre
-        FROM PaymentOperation p
-        WHERE p.clienteNombre IS NOT NULL
-          AND TRIM(p.clienteNombre) <> ''
-        GROUP BY p.clienteNombre
-        ORDER BY COUNT(p.clienteNombre) DESC, p.clienteNombre ASC
-    """)
+    SELECT op.cliente.nombre
+    FROM PaymentOperation op
+    GROUP BY op.cliente.nombre
+    ORDER BY COUNT(op.id) DESC
+""")
     List<String> findMostFrequentClientNames(Pageable pageable);
 }

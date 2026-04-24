@@ -1,5 +1,8 @@
 package com.sistemadeoperaciones.pagos.service;
 
+import com.sistemadeoperaciones.clientes.exceptions.ClienteNotFoundException;
+import com.sistemadeoperaciones.clientes.model.Clientes;
+import com.sistemadeoperaciones.clientes.repository.ClientesRepository;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
 import com.sistemadeoperaciones.notifications.enums.NotificationModule;
@@ -43,6 +46,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationFilterDto;
@@ -62,7 +66,9 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     private final AuthenticatedUserService authenticatedUserService;
     private final CommercialPartnerSettingsRepository commercialPartnerSettingsRepository;
     private final NotificationService notificationService;
-
+    private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
+    private static final int MONEY_SCALE = 2;
+    private final ClientesRepository clientesRepository;
     public PaymentOperationServiceImpl(
             PaymentOperationRepository paymentOperationRepository,
             OperationPaymentRepository operationPaymentRepository,
@@ -70,7 +76,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             UserRepository userRepository,
             AuthenticatedUserService authenticatedUserService,
             CommercialPartnerSettingsRepository commercialPartnerSettingsRepository,
-            NotificationService notificationService
+            NotificationService notificationService,
+            ClientesRepository clientesRepository
     ) {
         this.paymentOperationRepository = paymentOperationRepository;
         this.operationPaymentRepository = operationPaymentRepository;
@@ -79,6 +86,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         this.authenticatedUserService = authenticatedUserService;
         this.commercialPartnerSettingsRepository = commercialPartnerSettingsRepository;
         this.notificationService = notificationService;
+        this.clientesRepository = clientesRepository;
     }
 
     @Override
@@ -88,15 +96,27 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Socio comercial no encontrado con id: " + request.getSocioComercialId()));
 
+
+        Clientes cliente = clientesRepository.findById(request.getClienteId())
+                .orElseThrow(() -> new ClienteNotFoundException(request.getClienteId()));
+
+        if (!Boolean.TRUE.equals(cliente.getActivo())) {
+            throw new BusinessException("El cliente seleccionado está inactivo");
+        }
         if (!Boolean.TRUE.equals(socioComercial.getActivo())) {
             throw new PaymentOperationInactivePartnerException();
         }
 
-        boolean isSocioComercial = socioComercial.getRoles().stream()
-                .anyMatch(role -> role.getName() == RoleName.SOCIO_COMERCIAL);
+        boolean isAllowedUser = socioComercial.getRoles().stream()
+                .anyMatch(role ->
+                        role.getName() == RoleName.SOCIO_COMERCIAL
+                                || role.getName() == RoleName.ADMIN
+                );
 
-        if (!isSocioComercial) {
-            throw new BusinessException("El usuario seleccionado no tiene el rol SOCIO_COMERCIAL");
+        if (!isAllowedUser) {
+            throw new BusinessException(
+                    "El usuario seleccionado debe tener el rol SOCIO_COMERCIAL o ADMIN"
+            );
         }
 
         CommercialPartnerSettings settings = commercialPartnerSettingsRepository
@@ -105,14 +125,15 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                         "El socio comercial no tiene configuración de comisión registrada"));
 
         PaymentOperation operation = new PaymentOperation();
-        operation.setClienteNombre(request.getClienteNombre());
+        operation.setCliente(cliente);
         operation.setMontoTotal(request.getMontoTotal());
         operation.setMontoValidado(BigDecimal.ZERO);
         operation.setSaldoPendiente(request.getMontoTotal());
         operation.setEstatus(OperationStatus.PENDIENTE_VALIDACION);
         operation.setSocioComercial(socioComercial);
-        operation.setNivelesRedComercial(request.getNivelesRedComercial());
-        operation.setPorcentajeComisionAplicado(settings.getCommissionPercentage());
+        operation.setNivelesRedComercial(cliente.getNivelesRedComercial());
+        operation.setPorcentajeComisionAplicado(cliente.getPorcentajeComisionAplicado());
+        operation.setPorcentajeComisionOficina(new BigDecimal("1.5"));
         operation.setObservaciones(request.getObservaciones());
 
         PaymentOperation saved = paymentOperationRepository.save(operation);
@@ -177,7 +198,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         User validadoPor = authenticatedUserService.getCurrentUser();
         validateCurrentUserCanValidatePayments();
 
-        payment.setEstatus(PaymentStatus.VALIDADO);
+        payment.setEstatus(PaymentStatus.VALIDADA);
         payment.setValidadoPor(validadoPor);
         payment.setFechaValidacion(LocalDateTime.now());
 
@@ -210,7 +231,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         User validadoPor = authenticatedUserService.getCurrentUser();
         validateCurrentUserCanValidatePayments();
 
-        payment.setEstatus(PaymentStatus.RECHAZADO);
+        payment.setEstatus(PaymentStatus.RECHAZADA);
         payment.setValidadoPor(validadoPor);
         payment.setFechaValidacion(LocalDateTime.now());
         payment.setObservaciones(request.getObservaciones());
@@ -411,7 +432,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         boolean duplicated = operationPaymentRepository.existsByOperacionIdAndComprobanteUrlAndEstatusNot(
                 operacionId,
                 comprobanteUrl,
-                PaymentStatus.RECHAZADO
+                PaymentStatus.RECHAZADA
         );
 
         if (duplicated) {
@@ -423,7 +444,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         List<OperationPayment> existingPayments = operationPaymentRepository.findByOperacionId(operation.getId());
 
         BigDecimal accumulated = existingPayments.stream()
-                .filter(payment -> payment.getEstatus() != PaymentStatus.RECHAZADO)
+                .filter(payment -> payment.getEstatus() != PaymentStatus.RECHAZADA)
                 .map(OperationPayment::getMonto)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -436,7 +457,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
     private void recalculateOperation(PaymentOperation operation) {
         List<OperationPayment> validatedPayments =
-                operationPaymentRepository.findByOperacionIdAndEstatus(operation.getId(), PaymentStatus.VALIDADO);
+                operationPaymentRepository.findByOperacionIdAndEstatus(operation.getId(), PaymentStatus.VALIDADA);
 
         BigDecimal totalValidated = validatedPayments.stream()
                 .map(OperationPayment::getMonto)
@@ -449,7 +470,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         if (totalValidated.compareTo(BigDecimal.ZERO) == 0) {
             boolean hasRejected = operationPaymentRepository.existsByOperacionIdAndEstatus(
-                    operation.getId(), PaymentStatus.RECHAZADO);
+                    operation.getId(), PaymentStatus.RECHAZADA);
 
             boolean hasPending = operationPaymentRepository.existsByOperacionIdAndEstatus(
                     operation.getId(), PaymentStatus.PENDIENTE_VALIDACION);
@@ -473,7 +494,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 List.of(RoleName.JEFA_CAJAS, RoleName.GERENTE, RoleName.ADMIN),
                 "Nuevo pago pendiente de validación",
                 "Se registró un nuevo pago para la operación #" + operation.getId()
-                        + " del cliente " + operation.getClienteNombre() + ".",
+                        + " del cliente " + operation.getCliente().getNombre() + ".",
                 NotificationType.PAYMENT_SUBMITTED,
                 NotificationModule.PAGOS,
                 NotificationReferenceType.PAYMENT_OPERATION,
@@ -531,9 +552,37 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 .map(this::mapToPaymentResponse)
                 .toList();
 
+        BigDecimal montoTotal = safe(operation.getMontoTotal());
+
+        BigDecimal porcentajeComisionRedTotal = calculateTotalPercentageByLevels(
+                operation.getPorcentajeComisionAplicado(),
+                operation.getNivelesRedComercial()
+        );
+
+        BigDecimal montoComisionRedTotal = calculateAmountFromPercentage(
+                montoTotal,
+                porcentajeComisionRedTotal
+        );
+
+        BigDecimal porcentajeComisionOficinaTotal = calculateTotalPercentageByLevels(
+                operation.getPorcentajeComisionOficina(),
+                operation.getNivelesRedComercial()
+        );
+
+        BigDecimal montoComisionOficinaTotal = calculateAmountFromPercentage(
+                montoTotal,
+                porcentajeComisionOficinaTotal
+        );
+
+        BigDecimal montoTotalDevolverCliente = montoTotal
+                .subtract(montoComisionRedTotal)
+                .subtract(montoComisionOficinaTotal)
+                .setScale(2, RoundingMode.HALF_UP);
+
         return new PaymentOperationResponseDto(
                 operation.getId(),
-                operation.getClienteNombre(),
+                operation.getCliente().getId(),
+                operation.getCliente().getNombre(),
                 operation.getMontoTotal(),
                 operation.getMontoValidado(),
                 operation.getSaldoPendiente(),
@@ -542,6 +591,12 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 operation.getSocioComercial().getNombre(),
                 operation.getNivelesRedComercial(),
                 operation.getPorcentajeComisionAplicado(),
+                operation.getPorcentajeComisionOficina(),
+                porcentajeComisionRedTotal,
+                montoComisionRedTotal,
+                porcentajeComisionOficinaTotal,
+                montoComisionOficinaTotal,
+                montoTotalDevolverCliente,
                 operation.getObservaciones(),
                 payments,
                 operation.getCreatedAt(),
@@ -576,5 +631,23 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 payment.getCreatedAt(),
                 payment.getUpdatedAt()
         );
+    }
+
+    private BigDecimal safe(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
+    }
+
+    private BigDecimal calculateTotalPercentageByLevels(BigDecimal percentagePerLevel, Integer levels) {
+        BigDecimal percentage = safe(percentagePerLevel);
+        int niveles = levels != null ? levels : 0;
+
+        return percentage.multiply(BigDecimal.valueOf(niveles))
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal calculateAmountFromPercentage(BigDecimal baseAmount, BigDecimal percentage) {
+        return safe(baseAmount)
+                .multiply(safe(percentage))
+                .divide(ONE_HUNDRED, MONEY_SCALE, RoundingMode.HALF_UP);
     }
 }

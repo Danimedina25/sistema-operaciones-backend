@@ -9,6 +9,7 @@ import java.util.List;
 public class PaymentOperationResponseDto {
 
     private Long id;
+    private Long clienteId;
     private String clienteNombre;
     private BigDecimal montoTotal;
     private BigDecimal montoValidado;
@@ -18,6 +19,14 @@ public class PaymentOperationResponseDto {
     private String socioComercialNombre;
     private Integer nivelesRedComercial;
     private BigDecimal porcentajeComisionAplicado;
+    private BigDecimal porcentajeComisionOficina;
+
+    private BigDecimal porcentajeComisionRedTotal;
+    private BigDecimal montoComisionRedTotal;
+    private BigDecimal porcentajeComisionOficinaTotal;
+    private BigDecimal montoComisionOficinaTotal;
+    private BigDecimal montoTotalDevolverCliente;
+
     private String observaciones;
     private List<OperationPaymentResponseDto> pagos;
     private LocalDateTime createdAt;
@@ -26,14 +35,31 @@ public class PaymentOperationResponseDto {
     public PaymentOperationResponseDto() {
     }
 
-    public PaymentOperationResponseDto(Long id, String clienteNombre,
-                                       BigDecimal montoTotal, BigDecimal montoValidado,
-                                       BigDecimal saldoPendiente, OperationStatus estatus,
-                                       Long socioComercialId, String socioComercialNombre,
-                                       Integer nivelesRedComercial, BigDecimal porcentajeComisionAplicado,
-                                       String observaciones, List<OperationPaymentResponseDto> pagos,
-                                       LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public PaymentOperationResponseDto(
+            Long id,
+            Long clienteId,
+            String clienteNombre,
+            BigDecimal montoTotal,
+            BigDecimal montoValidado,
+            BigDecimal saldoPendiente,
+            OperationStatus estatus,
+            Long socioComercialId,
+            String socioComercialNombre,
+            Integer nivelesRedComercial,
+            BigDecimal porcentajeComisionAplicado,
+            BigDecimal porcentajeComisionOficina,
+            BigDecimal porcentajeComisionRedTotal,
+            BigDecimal montoComisionRedTotal,
+            BigDecimal porcentajeComisionOficinaTotal,
+            BigDecimal montoComisionOficinaTotal,
+            BigDecimal montoTotalDevolverCliente,
+            String observaciones,
+            List<OperationPaymentResponseDto> pagos,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt
+    ) {
         this.id = id;
+        this.clienteId = clienteId;
         this.clienteNombre = clienteNombre;
         this.montoTotal = montoTotal;
         this.montoValidado = montoValidado;
@@ -43,6 +69,12 @@ public class PaymentOperationResponseDto {
         this.socioComercialNombre = socioComercialNombre;
         this.nivelesRedComercial = nivelesRedComercial;
         this.porcentajeComisionAplicado = porcentajeComisionAplicado;
+        this.porcentajeComisionOficina = porcentajeComisionOficina;
+        this.porcentajeComisionRedTotal = porcentajeComisionRedTotal;
+        this.montoComisionRedTotal = montoComisionRedTotal;
+        this.porcentajeComisionOficinaTotal = porcentajeComisionOficinaTotal;
+        this.montoComisionOficinaTotal = montoComisionOficinaTotal;
+        this.montoTotalDevolverCliente = montoTotalDevolverCliente;
         this.observaciones = observaciones;
         this.pagos = pagos;
         this.createdAt = createdAt;
@@ -51,6 +83,14 @@ public class PaymentOperationResponseDto {
 
     public Long getId() {
         return id;
+    }
+
+    public Long getClienteId() {
+        return clienteId;
+    }
+
+    public void setClienteId(Long clienteId) {
+        this.clienteId = clienteId;
     }
 
     public String getClienteNombre() {
@@ -87,6 +127,30 @@ public class PaymentOperationResponseDto {
 
     public BigDecimal getPorcentajeComisionAplicado() {
         return porcentajeComisionAplicado;
+    }
+
+    public BigDecimal getPorcentajeComisionOficina() {
+        return porcentajeComisionOficina;
+    }
+
+    public BigDecimal getPorcentajeComisionRedTotal() {
+        return porcentajeComisionRedTotal;
+    }
+
+    public BigDecimal getMontoComisionRedTotal() {
+        return montoComisionRedTotal;
+    }
+
+    public BigDecimal getPorcentajeComisionOficinaTotal() {
+        return porcentajeComisionOficinaTotal;
+    }
+
+    public BigDecimal getMontoComisionOficinaTotal() {
+        return montoComisionOficinaTotal;
+    }
+
+    public BigDecimal getMontoTotalDevolverCliente() {
+        return montoTotalDevolverCliente;
     }
 
     public String getObservaciones() {
@@ -143,6 +207,30 @@ public class PaymentOperationResponseDto {
 
     public void setPorcentajeComisionAplicado(BigDecimal porcentajeComisionAplicado) {
         this.porcentajeComisionAplicado = porcentajeComisionAplicado;
+    }
+
+    public void setPorcentajeComisionOficina(BigDecimal porcentajeComisionOficina) {
+        this.porcentajeComisionOficina = porcentajeComisionOficina;
+    }
+
+    public void setPorcentajeComisionRedTotal(BigDecimal porcentajeComisionRedTotal) {
+        this.porcentajeComisionRedTotal = porcentajeComisionRedTotal;
+    }
+
+    public void setMontoComisionRedTotal(BigDecimal montoComisionRedTotal) {
+        this.montoComisionRedTotal = montoComisionRedTotal;
+    }
+
+    public void setPorcentajeComisionOficinaTotal(BigDecimal porcentajeComisionOficinaTotal) {
+        this.porcentajeComisionOficinaTotal = porcentajeComisionOficinaTotal;
+    }
+
+    public void setMontoComisionOficinaTotal(BigDecimal montoComisionOficinaTotal) {
+        this.montoComisionOficinaTotal = montoComisionOficinaTotal;
+    }
+
+    public void setMontoTotalDevolverCliente(BigDecimal montoTotalDevolverCliente) {
+        this.montoTotalDevolverCliente = montoTotalDevolverCliente;
     }
 
     public void setObservaciones(String observaciones) {
