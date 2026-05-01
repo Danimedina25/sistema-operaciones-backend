@@ -13,7 +13,9 @@ public class PaymentOperationResponseDto {
     private String clienteNombre;
     private BigDecimal montoTotal;
     private BigDecimal montoValidado;
+    private BigDecimal montoRegistrado;
     private BigDecimal saldoPendiente;
+    private BigDecimal saldoPendientePorRegistrar;
     private OperationStatus estatus;
     private Long socioComercialId;
     private String socioComercialNombre;
@@ -41,7 +43,9 @@ public class PaymentOperationResponseDto {
             String clienteNombre,
             BigDecimal montoTotal,
             BigDecimal montoValidado,
+            BigDecimal montoRegistrado,
             BigDecimal saldoPendiente,
+            BigDecimal saldoPendientePorRegistrar,
             OperationStatus estatus,
             Long socioComercialId,
             String socioComercialNombre,
@@ -63,7 +67,9 @@ public class PaymentOperationResponseDto {
         this.clienteNombre = clienteNombre;
         this.montoTotal = montoTotal;
         this.montoValidado = montoValidado;
+        this.montoRegistrado = montoRegistrado;
         this.saldoPendiente = saldoPendiente;
+        this.saldoPendientePorRegistrar = saldoPendientePorRegistrar;
         this.estatus = estatus;
         this.socioComercialId = socioComercialId;
         this.socioComercialNombre = socioComercialNombre;
@@ -105,8 +111,24 @@ public class PaymentOperationResponseDto {
         return montoValidado;
     }
 
+    public BigDecimal getMontoRegistrado() {
+        return montoRegistrado;
+    }
+
+    public void setMontoRegistrado(BigDecimal montoRegistrado) {
+        this.montoRegistrado = montoRegistrado;
+    }
+
     public BigDecimal getSaldoPendiente() {
         return saldoPendiente;
+    }
+
+    public BigDecimal getSaldoPendientePorRegistrar() {
+        return saldoPendientePorRegistrar;
+    }
+
+    public void setSaldoPendientePorRegistrar(BigDecimal saldoPendientePorRegistrar) {
+        this.saldoPendientePorRegistrar = saldoPendientePorRegistrar;
     }
 
     public OperationStatus getEstatus() {

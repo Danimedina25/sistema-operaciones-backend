@@ -188,7 +188,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         if (payment.getEstatus() != PaymentStatus.PENDIENTE_VALIDACION) {
             throw new InvalidPaymentStatusException(
-                    "Solo se pueden validar pagos en estatus PENDIENTE_VALIDACION");
+                    "Solo se pueden validar comprobantes en estatus PENDIENTE_VALIDACION");
         }
 
         if (payment.getComprobanteUrl() == null || payment.getComprobanteUrl().isBlank()) {
@@ -221,7 +221,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         if (payment.getEstatus() != PaymentStatus.PENDIENTE_VALIDACION) {
             throw new InvalidPaymentStatusException(
-                    "Solo se pueden rechazar pagos en estatus PENDIENTE_VALIDACION");
+                    "Solo se pueden rechazar comprobantes en estatus PENDIENTE_VALIDACION");
         }
 
         if (request.getObservaciones() == null || request.getObservaciones().isBlank()) {
@@ -385,7 +385,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     private void validateOperationCanReceivePayments(PaymentOperation operation) {
         if (operation.getEstatus() == OperationStatus.RECHAZADA) {
             throw new OperationDoesNotAcceptPaymentsException(
-                    "No se pueden agregar pagos a una operación rechazada");
+                    "No se pueden agregar comprobantes a una operación rechazada");
         }
 
         if (operation.getEstatus() == OperationStatus.VALIDADA
@@ -394,7 +394,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 || operation.getEstatus() == OperationStatus.RETORNO_PARCIAL
                 || operation.getEstatus() == OperationStatus.COMPLETADA) {
             throw new OperationDoesNotAcceptPaymentsException(
-                    "La operación ya no admite nuevos pagos en su estatus actual");
+                    "La operación ya no admite nuevos comprobantes en su estatus actual");
         }
     }
 
@@ -409,7 +409,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         if (!ownerUserId.equals(currentUser.getId())) {
             throw new BusinessException(
-                    "No tienes permiso para registrar pagos en una operación que no pertenece a tu socio comercial");
+                    "No tienes permiso para registrar comprobantes en una operación que no pertenece a tu socio comercial");
         }
     }
 
@@ -424,7 +424,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 );
 
         if (!allowed) {
-            throw new BusinessException("El usuario autenticado no tiene permiso para validar o rechazar pagos");
+            throw new BusinessException("El usuario autenticado no tiene permiso para validar o rechazar comprobantes");
         }
     }
 
@@ -492,8 +492,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     private void notifyPaymentSubmitted(PaymentOperation operation, OperationPayment payment) {
         notificationService.createForRoles(
                 List.of(RoleName.JEFA_CAJAS, RoleName.GERENTE, RoleName.ADMIN),
-                "Nuevo pago pendiente de validación",
-                "Se registró un nuevo pago para la operación #" + operation.getId()
+                "Nuevo comprobante pendiente de validación",
+                "Se registró un nuevo comprobante de pago para la operación #" + operation.getId()
                         + " del cliente " + operation.getCliente().getNombre() + ".",
                 NotificationType.PAYMENT_SUBMITTED,
                 NotificationModule.PAGOS,
@@ -513,8 +513,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         notificationService.createForUser(
                 operation.getSocioComercial().getId(),
-                "Pago validado",
-                "Tu pago de la operación #" + operation.getId()
+                "Comprobante validado",
+                "Tu comprobante de la operación #" + operation.getId()
                         + " fue validado correctamente.",
                 NotificationType.PAYMENT_VALIDATED,
                 NotificationModule.PAGOS,
@@ -534,8 +534,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         notificationService.createForUser(
                 operation.getSocioComercial().getId(),
-                "Pago rechazado",
-                "Tu pago de la operación #" + operation.getId()
+                "Comprobante rechazado",
+                "Tu comprobante de la operación #" + operation.getId()
                         + " fue rechazado. Revisa las observaciones para más detalle.",
                 NotificationType.PAYMENT_REJECTED,
                 NotificationModule.PAGOS,
@@ -547,12 +547,28 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     }
 
     private PaymentOperationResponseDto mapToOperationResponse(PaymentOperation operation) {
-        List<OperationPaymentResponseDto> payments = operationPaymentRepository.findByOperacionId(operation.getId())
+        List<OperationPayment> operationPayments =
+                operationPaymentRepository.findByOperacionId(operation.getId());
+
+        List<OperationPaymentResponseDto> payments = operationPayments
                 .stream()
                 .map(this::mapToPaymentResponse)
                 .toList();
 
         BigDecimal montoTotal = safe(operation.getMontoTotal());
+
+        BigDecimal totalPagosRegistrados = operationPayments.stream()
+                .filter(payment -> payment.getEstatus() != PaymentStatus.RECHAZADA)
+                .map(OperationPayment::getMonto)
+                .map(this::safe)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal saldoPendientePorRegistrar = montoTotal
+                .subtract(totalPagosRegistrados);
+
+        if (saldoPendientePorRegistrar.compareTo(BigDecimal.ZERO) < 0) {
+            saldoPendientePorRegistrar = BigDecimal.ZERO;
+        }
 
         BigDecimal porcentajeComisionRedTotal = calculateTotalPercentageByLevels(
                 operation.getPorcentajeComisionAplicado(),
@@ -585,7 +601,9 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 operation.getCliente().getNombre(),
                 operation.getMontoTotal(),
                 operation.getMontoValidado(),
+                totalPagosRegistrados,
                 operation.getSaldoPendiente(),
+                saldoPendientePorRegistrar,
                 operation.getEstatus(),
                 operation.getSocioComercial().getId(),
                 operation.getSocioComercial().getNombre(),
