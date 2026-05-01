@@ -50,6 +50,13 @@ public class SecurityConfig {
                         .requestMatchers("/api/gerencia/**").hasAnyRole(RoleName.ADMIN.name(), RoleName.GERENTE.name())
                         .requestMatchers("/api/socios/**").hasAnyRole(RoleName.SOCIO_COMERCIAL.name())
                         .requestMatchers("/api/cuentas/**").hasAnyRole(RoleName.JEFA_CAJAS.name(), RoleName.AUXILIAR_CUENTAS.name())
+                        .requestMatchers("/api/clientes/**").hasAnyRole(
+                                RoleName.ADMIN.name(),
+                                RoleName.GERENTE.name(),
+                                RoleName.JEFA_CAJAS.name(),
+                                RoleName.AUXILIAR_CUENTAS.name(),
+                                RoleName.SOCIO_COMERCIAL.name()
+                        )
                         .requestMatchers("/api/bank-accounts/**").hasAnyRole(
                                 RoleName.ADMIN.name(),
                                 RoleName.GERENTE.name(),
@@ -71,7 +78,7 @@ public class SecurityConfig {
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
                             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                             response.setContentType("application/json");
-                            response.getWriter().write("{\"error\":\"Forbidden\"}");
+                            response.getWriter().write("{\"error\":\"Forbiddennn\"}");
                         })
                 )
                 .authenticationProvider(authenticationProvider)

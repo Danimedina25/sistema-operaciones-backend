@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/admin/clientes")
+@RequestMapping("/api/clientes")
 public class ClientesController {
 
     private final ClientesService clientesService;
@@ -36,7 +36,7 @@ public class ClientesController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<List<ClienteResponseDto>>> findAll() {
         List<ClienteResponseDto> response = clientesService.findAll();
 
