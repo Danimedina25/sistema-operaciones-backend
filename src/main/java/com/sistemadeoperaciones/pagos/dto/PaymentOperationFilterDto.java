@@ -43,6 +43,7 @@ public class PaymentOperationFilterDto {
         this.socioComercialId = socioComercialId;
     }
 
+
     public OperationDateFilter getDateFilter() {
         return dateFilter;
     }

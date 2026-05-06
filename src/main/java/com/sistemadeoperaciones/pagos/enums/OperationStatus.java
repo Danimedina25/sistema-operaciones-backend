@@ -2,7 +2,7 @@ package com.sistemadeoperaciones.pagos.enums;
 
 public enum OperationStatus {
     PENDIENTE_VALIDACION,
-    PAGO_PARCIAL,
+    INGRESO_PARCIAL,
     VALIDADA,
     RECHAZADA,
     FACTURADA,

@@ -34,4 +34,6 @@ public interface PaymentOperationService {
     Page<PaymentOperationResponseDto> findMyOperations(PaymentOperationFilterDto filter, Pageable pageable);
 
     List<String> findFrequentClientNames();
+
+    PaymentOperationResponseDto markAsInvoiced(Long operationId);
 }

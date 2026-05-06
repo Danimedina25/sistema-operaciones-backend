@@ -259,7 +259,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         LocalDate endDate = resolveEndDate(filter);
 
         Specification<PaymentOperation> specification = Specification
-                .where(PaymentOperationSpecification.clienteONombreSocioContains(filter.getSearch()))
+                .where(PaymentOperationSpecification.clienteONombreSocioOIdContains(filter.getSearch()))
                 .and(PaymentOperationSpecification.hasStatus(filter.getStatus()))
                 .and(PaymentOperationSpecification.hasSocioComercialId(filter.getSocioComercialId()))
                 .and(PaymentOperationSpecification.createdAtBetween(
@@ -293,7 +293,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         LocalDate endDate = resolveEndDate(filter);
 
         Specification<PaymentOperation> specification = Specification
-                .where(PaymentOperationSpecification.clienteONombreSocioContains(filter.getSearch()))
+                .where(PaymentOperationSpecification.clienteONombreSocioOIdContains(filter.getSearch()))
                 .and(PaymentOperationSpecification.hasStatus(filter.getStatus()))
                 .and(PaymentOperationSpecification.hasSocioComercialId(socioComercialId))
                 .and(PaymentOperationSpecification.createdAtBetween(
@@ -323,7 +323,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         LocalDate endDate = resolveEndDate(filter);
 
         Specification<PaymentOperation> specification = Specification
-                .where(PaymentOperationSpecification.clienteONombreSocioContains(filter.getSearch()))
+                .where(PaymentOperationSpecification.clienteONombreSocioOIdContains(filter.getSearch()))
                 .and(PaymentOperationSpecification.hasStatus(filter.getStatus()))
                 .and(PaymentOperationSpecification.hasSocioComercialId(currentUser.getId()))
                 .and(PaymentOperationSpecification.createdAtBetween(
@@ -380,6 +380,50 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Transactional(readOnly = true)
     public List<String> findFrequentClientNames() {
         return paymentOperationRepository.findMostFrequentClientNames(PageRequest.of(0, 10));
+    }
+
+    @Override
+    @Transactional
+    public PaymentOperationResponseDto markAsInvoiced(Long operationId) {
+        PaymentOperation operation = paymentOperationRepository.findById(operationId)
+                .orElseThrow(() -> new PaymentOperationNotFoundException(operationId));
+
+        validateCurrentUserCanMarkAsInvoiced(operation);
+
+        if (operation.getEstatus() != OperationStatus.VALIDADA) {
+            throw new BusinessException(
+                    "Solo se puede marcar como facturada una operación con estatus VALIDADA"
+            );
+        }
+
+        if (safe(operation.getMontoValidado()).compareTo(safe(operation.getMontoTotal())) != 0) {
+            throw new BusinessException(
+                    "La operación no puede facturarse porque aún no está completamente validada"
+            );
+        }
+
+        operation.setEstatus(OperationStatus.FACTURADA);
+
+        PaymentOperation updated = paymentOperationRepository.save(operation);
+
+        return mapToOperationResponse(updated);
+    }
+
+    private void validateCurrentUserCanMarkAsInvoiced(PaymentOperation operation) {
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        boolean allowed = currentUser.getRoles().stream()
+                .anyMatch(role ->
+                        role.getName() == RoleName.ADMIN
+                                || role.getName() == RoleName.GERENTE
+                                || role.getName() == RoleName.AUXILIAR_CUENTAS
+                );
+
+        if (!allowed) {
+            throw new BusinessException(
+                    "El usuario autenticado no tiene permiso para marcar operaciones como facturadas"
+            );
+        }
     }
 
     private void validateOperationCanReceivePayments(PaymentOperation operation) {
@@ -481,7 +525,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 operation.setEstatus(OperationStatus.PENDIENTE_VALIDACION);
             }
         } else if (totalValidated.compareTo(operation.getMontoTotal()) < 0) {
-            operation.setEstatus(OperationStatus.PAGO_PARCIAL);
+            operation.setEstatus(OperationStatus.INGRESO_PARCIAL);
         } else if (totalValidated.compareTo(operation.getMontoTotal()) == 0) {
             operation.setEstatus(OperationStatus.VALIDADA);
         }

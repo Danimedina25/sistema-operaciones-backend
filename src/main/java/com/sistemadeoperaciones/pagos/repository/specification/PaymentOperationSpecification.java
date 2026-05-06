@@ -10,13 +10,24 @@ public final class PaymentOperationSpecification {
 
     private PaymentOperationSpecification() {
     }
-    public static Specification<PaymentOperation> clienteONombreSocioContains(String search) {
+    public static Specification<PaymentOperation> clienteONombreSocioOIdContains(String search) {
         return (root, query, cb) -> {
             if (search == null || search.isBlank()) {
                 return cb.conjunction();
             }
 
-            String value = "%" + search.trim().toLowerCase() + "%";
+            String searchTrimmed = search.trim();
+
+            // Intentar búsqueda por ID exacto primero
+            try {
+                Long id = Long.valueOf(searchTrimmed);
+                return cb.equal(root.get("id"), id);
+            } catch (NumberFormatException e) {
+                // Si no es un número válido, buscar por nombre
+            }
+
+            // Búsqueda por nombre de cliente o socio comercial
+            String value = "%" + searchTrimmed.toLowerCase() + "%";
 
             var clientePredicate =
                     cb.like(cb.lower(root.get("cliente").get("nombre")), value);

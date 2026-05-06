@@ -140,4 +140,16 @@ public class PaymentOperationController {
                 new ApiResponse<>(true, "Operación obtenida exitosamente", response, null)
         );
     }
+
+    @PatchMapping("/{operationId}/invoice")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS')")
+    public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> markAsInvoiced(
+            @PathVariable Long operationId
+    ) {
+        PaymentOperationResponseDto response = paymentOperationService.markAsInvoiced(operationId);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Operación marcada como facturada exitosamente", response, null)
+        );
+    }
 }

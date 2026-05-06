@@ -156,8 +156,8 @@ public class BankAccountServiceImpl implements BankAccountService {
                 bankAccount.getId(),
                 bankAccount.getBanco(),
                 bankAccount.getTitular(),
-                maskAccountNumber(numeroCuenta),
-                maskClabe(clabe),
+                numeroCuenta,
+                clabe,
                 bankAccount.getActivo(),
                 bankAccount.getCreatedAt(),
                 bankAccount.getUpdatedAt()
