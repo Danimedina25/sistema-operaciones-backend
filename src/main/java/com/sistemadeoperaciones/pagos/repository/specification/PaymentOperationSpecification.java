@@ -5,6 +5,7 @@ import com.sistemadeoperaciones.pagos.model.PaymentOperation;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public final class PaymentOperationSpecification {
 
@@ -75,6 +76,16 @@ public final class PaymentOperationSpecification {
             }
 
             return cb.lessThanOrEqualTo(root.get("createdAt"), endDateTime);
+        };
+    }
+
+    public static Specification<PaymentOperation> hasStatusIn(List<OperationStatus> statuses) {
+        return (root, query, cb) -> {
+            if (statuses == null || statuses.isEmpty()) {
+                return cb.conjunction();
+            }
+
+            return root.get("estatus").in(statuses);
         };
     }
 }

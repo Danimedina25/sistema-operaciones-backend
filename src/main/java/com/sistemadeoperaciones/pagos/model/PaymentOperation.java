@@ -56,6 +56,9 @@ public class PaymentOperation {
     @OneToMany(mappedBy = "operacion", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OperationPayment> pagos = new ArrayList<>();
 
+    @OneToMany(mappedBy = "operacion", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<OperationReturnPayment> retornos = new ArrayList<>();
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -126,6 +129,22 @@ public class PaymentOperation {
 
     public List<OperationPayment> getPagos() {
         return pagos;
+    }
+
+    public List<OperationReturnPayment> getRetornos() {
+        return retornos;
+    }
+
+    public void setRetornos(List<OperationReturnPayment> retornos) {
+        this.retornos = retornos;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
     }
 
     public LocalDateTime getCreatedAt() {

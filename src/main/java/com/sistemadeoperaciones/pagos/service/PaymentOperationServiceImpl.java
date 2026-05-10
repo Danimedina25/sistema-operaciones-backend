@@ -434,7 +434,6 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         if (operation.getEstatus() == OperationStatus.VALIDADA
                 || operation.getEstatus() == OperationStatus.FACTURADA
-                || operation.getEstatus() == OperationStatus.RETORNO_PENDIENTE
                 || operation.getEstatus() == OperationStatus.RETORNO_PARCIAL
                 || operation.getEstatus() == OperationStatus.COMPLETADA) {
             throw new OperationDoesNotAcceptPaymentsException(
