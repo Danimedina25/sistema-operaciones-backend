@@ -1,11 +1,6 @@
 package com.sistemadeoperaciones.pagos.controller;
 
-import com.sistemadeoperaciones.pagos.dto.CreateOperationPaymentRequestDto;
-import com.sistemadeoperaciones.pagos.dto.CreatePaymentOperationRequestDto;
-import com.sistemadeoperaciones.pagos.dto.OperationPaymentResponseDto;
-import com.sistemadeoperaciones.pagos.dto.PaymentOperationFilterDto;
-import com.sistemadeoperaciones.pagos.dto.PaymentOperationResponseDto;
-import com.sistemadeoperaciones.pagos.dto.UpdatePaymentStatusRequestDto;
+import com.sistemadeoperaciones.pagos.dto.*;
 import com.sistemadeoperaciones.pagos.service.PaymentOperationService;
 import com.sistemadeoperaciones.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
@@ -42,6 +37,20 @@ public class PaymentOperationController {
         );
     }
 
+    @PutMapping("/{operationId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> updateOperation(
+            @PathVariable Long operationId,
+            @Valid @RequestBody UpdatePaymentOperationRequestDto request
+    ) {
+        PaymentOperationResponseDto response =
+                paymentOperationService.updateOperation(operationId, request);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Operación actualizada exitosamente", response, null)
+        );
+    }
+
     @PostMapping("/payments")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<OperationPaymentResponseDto>> addPayment(
@@ -51,6 +60,20 @@ public class PaymentOperationController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 new ApiResponse<>(true, "Pago registrado exitosamente", response, null)
+        );
+    }
+
+    @PutMapping("/payments/{paymentId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    public ResponseEntity<ApiResponse<OperationPaymentResponseDto>> updatePayment(
+            @PathVariable Long paymentId,
+            @Valid @RequestBody UpdateOperationPaymentRequestDto request
+    ) {
+        OperationPaymentResponseDto response =
+                paymentOperationService.updatePayment(paymentId, request);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Pago actualizado exitosamente", response, null)
         );
     }
 

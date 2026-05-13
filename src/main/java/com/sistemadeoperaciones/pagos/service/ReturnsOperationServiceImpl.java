@@ -61,7 +61,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         Specification<PaymentOperation> specification = Specification
                 .where(PaymentOperationSpecification.hasStatusIn(
                         List.of(
-                                OperationStatus.FACTURADA,
+                                OperationStatus.VALIDADA,
                                 OperationStatus.RETORNO_PARCIAL
                         )
                 ))
@@ -194,7 +194,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
     private void validateOperationCanReceiveReturn(PaymentOperation operation) {
         if (
-                operation.getEstatus() != OperationStatus.FACTURADA &&
+                operation.getEstatus() != OperationStatus.VALIDADA &&
                 operation.getEstatus() != OperationStatus.RETORNO_PARCIAL
         ) {
             throw new IllegalArgumentException(

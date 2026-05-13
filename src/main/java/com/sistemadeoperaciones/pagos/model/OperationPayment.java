@@ -29,7 +29,7 @@ public class OperationPayment {
     private PaymentType tipoPago;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "cuenta_destino_id", nullable = false)
+    @JoinColumn(name = "cuenta_destino_id", nullable = true)
     private BankAccount cuentaDestino;
 
     @Column(name = "comprobante_url", nullable = false, length = 500)

@@ -10,13 +10,10 @@ import com.sistemadeoperaciones.notifications.enums.NotificationPriority;
 import com.sistemadeoperaciones.notifications.enums.NotificationReferenceType;
 import com.sistemadeoperaciones.notifications.enums.NotificationType;
 import com.sistemadeoperaciones.notifications.service.NotificationService;
-import com.sistemadeoperaciones.pagos.dto.CreateOperationPaymentRequestDto;
-import com.sistemadeoperaciones.pagos.dto.CreatePaymentOperationRequestDto;
-import com.sistemadeoperaciones.pagos.dto.OperationPaymentResponseDto;
-import com.sistemadeoperaciones.pagos.dto.PaymentOperationResponseDto;
-import com.sistemadeoperaciones.pagos.dto.UpdatePaymentStatusRequestDto;
+import com.sistemadeoperaciones.pagos.dto.*;
 import com.sistemadeoperaciones.pagos.enums.OperationStatus;
 import com.sistemadeoperaciones.pagos.enums.PaymentStatus;
+import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import com.sistemadeoperaciones.pagos.exceptions.DuplicatePaymentReceiptException;
 import com.sistemadeoperaciones.pagos.exceptions.InvalidPaymentStatusException;
 import com.sistemadeoperaciones.pagos.exceptions.MissingPaymentReceiptException;
@@ -49,7 +46,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
-import com.sistemadeoperaciones.pagos.dto.PaymentOperationFilterDto;
+
 import com.sistemadeoperaciones.pagos.repository.specification.PaymentOperationSpecification;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -142,18 +139,89 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
     @Override
     @Transactional
+    public PaymentOperationResponseDto updateOperation(
+            Long operationId,
+            UpdatePaymentOperationRequestDto request
+    ) {
+        PaymentOperation operation = paymentOperationRepository.findById(operationId)
+                .orElseThrow(() -> new PaymentOperationNotFoundException(operationId));
+
+        Clientes cliente = clientesRepository.findById(request.getClienteId())
+                .orElseThrow(() -> new ClienteNotFoundException(request.getClienteId()));
+
+        if (!Boolean.TRUE.equals(cliente.getActivo())) {
+            throw new BusinessException("El cliente seleccionado está inactivo");
+        }
+
+        User socioComercial = userRepository.findById(request.getSocioComercialId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Socio comercial no encontrado con id: " + request.getSocioComercialId()
+                ));
+
+        if (!Boolean.TRUE.equals(socioComercial.getActivo())) {
+            throw new PaymentOperationInactivePartnerException();
+        }
+
+        boolean isAllowedUser = socioComercial.getRoles().stream()
+                .anyMatch(role ->
+                        role.getName() == RoleName.SOCIO_COMERCIAL
+                                || role.getName() == RoleName.ADMIN
+                );
+
+        if (!isAllowedUser) {
+            throw new BusinessException(
+                    "El usuario seleccionado debe tener el rol SOCIO_COMERCIAL o ADMIN"
+            );
+        }
+
+        List<OperationPayment> payments = operationPaymentRepository.findByOperacionId(operationId);
+
+        BigDecimal totalPagosNoRechazados = payments.stream()
+                .filter(payment -> payment.getEstatus() != PaymentStatus.RECHAZADA)
+                .map(OperationPayment::getMonto)
+                .map(this::safe)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        if (request.getMontoTotal().compareTo(totalPagosNoRechazados) < 0) {
+            throw new BusinessException(
+                    "El monto total no puede ser menor al total de pagos registrados no rechazados"
+            );
+        }
+
+        operation.setCliente(cliente);
+        operation.setMontoTotal(request.getMontoTotal());
+        operation.setSocioComercial(socioComercial);
+        operation.setNivelesRedComercial(cliente.getNivelesRedComercial());
+        operation.setPorcentajeComisionAplicado(cliente.getPorcentajeComisionAplicado());
+        operation.setPorcentajeComisionOficina(new BigDecimal("1.5"));
+        operation.setObservaciones(request.getObservaciones());
+
+        recalculateOperation(operation);
+
+        PaymentOperation updated = paymentOperationRepository.save(operation);
+
+        return mapToOperationResponse(updated);
+    }
+
+    @Override
+    @Transactional
     public OperationPaymentResponseDto addPayment(CreateOperationPaymentRequestDto request) {
         PaymentOperation operation = paymentOperationRepository.findById(request.getOperacionId())
                 .orElseThrow(() -> new PaymentOperationNotFoundException(request.getOperacionId()));
 
         User registradoPor = authenticatedUserService.getCurrentUser();
 
-        BankAccount cuentaDestino = bankAccountRepository.findById(request.getCuentaDestinoId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Cuenta bancaria no encontrada con id: " + request.getCuentaDestinoId()));
+        BankAccount cuentaDestino = null;
 
-        if (!Boolean.TRUE.equals(cuentaDestino.getActivo())) {
-            throw new PaymentOperationInactiveAccountException();
+        if (request.getTipoPago() != PaymentType.EFECTIVO) {
+            cuentaDestino = bankAccountRepository.findById(request.getCuentaDestinoId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Cuenta bancaria no encontrada con id: " + request.getCuentaDestinoId()
+                    ));
+
+            if (!Boolean.TRUE.equals(cuentaDestino.getActivo())) {
+                throw new PaymentOperationInactiveAccountException();
+            }
         }
 
         validateOperationCanReceivePayments(operation);
@@ -178,6 +246,105 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         notifyPaymentSubmitted(operation, saved);
 
         return mapToPaymentResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public OperationPaymentResponseDto updatePayment(
+            Long paymentId,
+            UpdateOperationPaymentRequestDto request
+    ) {
+        OperationPayment payment = operationPaymentRepository.findById(paymentId)
+                .orElseThrow(() -> new OperationPaymentNotFoundException(paymentId));
+
+        if (payment.getEstatus() != PaymentStatus.PENDIENTE_VALIDACION) {
+            throw new InvalidPaymentStatusException(
+                    "Solo se pueden editar comprobantes en estatus PENDIENTE_VALIDACION"
+            );
+        }
+
+        PaymentOperation operation = payment.getOperacion();
+
+        validateOperationCanReceivePayments(operation);
+        validateCurrentUserOwnsOperation(operation);
+
+        BankAccount cuentaDestino = null;
+
+        if (request.getTipoPago() != PaymentType.EFECTIVO) {
+            cuentaDestino = bankAccountRepository.findById(request.getCuentaDestinoId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Cuenta bancaria no encontrada con id: " + request.getCuentaDestinoId()
+                    ));
+
+            if (!Boolean.TRUE.equals(cuentaDestino.getActivo())) {
+                throw new PaymentOperationInactiveAccountException();
+            }
+        }
+
+        validateUpdatedPaymentAmountDoesNotExceedOperation(
+                operation,
+                payment,
+                request.getMonto()
+        );
+
+        validateUpdatedDuplicateReceipt(
+                operation.getId(),
+                payment.getId(),
+                request.getComprobanteUrl()
+        );
+
+        payment.setMonto(request.getMonto());
+        payment.setTipoPago(request.getTipoPago());
+        payment.setCuentaDestino(cuentaDestino);
+        payment.setComprobanteUrl(request.getComprobanteUrl());
+        payment.setFechaPago(LocalDateTime.now());
+        payment.setObservaciones(request.getObservaciones());
+
+        OperationPayment updated = operationPaymentRepository.save(payment);
+
+        recalculateOperation(operation);
+
+        return mapToPaymentResponse(updated);
+    }
+
+    private void validateUpdatedPaymentAmountDoesNotExceedOperation(
+            PaymentOperation operation,
+            OperationPayment paymentToUpdate,
+            BigDecimal newAmount
+    ) {
+        List<OperationPayment> existingPayments =
+                operationPaymentRepository.findByOperacionId(operation.getId());
+
+        BigDecimal accumulated = existingPayments.stream()
+                .filter(payment -> payment.getEstatus() != PaymentStatus.RECHAZADA)
+                .filter(payment -> !payment.getId().equals(paymentToUpdate.getId()))
+                .map(OperationPayment::getMonto)
+                .map(this::safe)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal resultingTotal = accumulated.add(safe(newAmount));
+
+        if (resultingTotal.compareTo(safe(operation.getMontoTotal())) > 0) {
+            throw new PaymentAmountExceededException();
+        }
+    }
+    private void validateUpdatedDuplicateReceipt(
+            Long operationId,
+            Long paymentId,
+            String comprobanteUrl
+    ) {
+        List<OperationPayment> existingPayments =
+                operationPaymentRepository.findByOperacionId(operationId);
+
+        boolean duplicated = existingPayments.stream()
+                .filter(payment -> !payment.getId().equals(paymentId))
+                .filter(payment -> payment.getEstatus() != PaymentStatus.RECHAZADA)
+                .anyMatch(payment -> payment.getComprobanteUrl() != null
+                        && payment.getComprobanteUrl().equals(comprobanteUrl));
+
+        if (duplicated) {
+            throw new DuplicatePaymentReceiptException();
+        }
     }
 
     @Override
@@ -402,7 +569,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             );
         }
 
-        operation.setEstatus(OperationStatus.FACTURADA);
+        //operation.setEstatus(OperationStatus.FACTURADA);
 
         PaymentOperation updated = paymentOperationRepository.save(operation);
 
@@ -433,7 +600,6 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         }
 
         if (operation.getEstatus() == OperationStatus.VALIDADA
-                || operation.getEstatus() == OperationStatus.FACTURADA
                 || operation.getEstatus() == OperationStatus.RETORNO_PARCIAL
                 || operation.getEstatus() == OperationStatus.COMPLETADA) {
             throw new OperationDoesNotAcceptPaymentsException(
@@ -518,11 +684,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             boolean hasPending = operationPaymentRepository.existsByOperacionIdAndEstatus(
                     operation.getId(), PaymentStatus.PENDIENTE_VALIDACION);
 
-            if (hasRejected && !hasPending) {
-                operation.setEstatus(OperationStatus.RECHAZADA);
-            } else {
-                operation.setEstatus(OperationStatus.PENDIENTE_VALIDACION);
-            }
+            operation.setEstatus(OperationStatus.PENDIENTE_VALIDACION);
         } else if (totalValidated.compareTo(operation.getMontoTotal()) < 0) {
             operation.setEstatus(OperationStatus.INGRESO_PARCIAL);
         } else if (totalValidated.compareTo(operation.getMontoTotal()) == 0) {

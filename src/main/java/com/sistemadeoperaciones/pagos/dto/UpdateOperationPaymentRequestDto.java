@@ -1,18 +1,11 @@
 package com.sistemadeoperaciones.pagos.dto;
 
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
 
-public class CreateOperationPaymentRequestDto {
-
-    @NotNull(message = "La operación es obligatoria")
-    private Long operacionId;
+public class UpdateOperationPaymentRequestDto {
 
     @NotNull(message = "El monto es obligatorio")
     @DecimalMin(value = "0.01", message = "El monto debe ser mayor a cero")
@@ -30,12 +23,13 @@ public class CreateOperationPaymentRequestDto {
     @Size(max = 500, message = "Las observaciones no pueden exceder 500 caracteres")
     private String observaciones;
 
-    public Long getOperacionId() {
-        return operacionId;
-    }
+    @AssertTrue(message = "La cuenta destino es obligatoria para transferencias y depósitos")
+    public boolean isCuentaDestinoValid() {
+        if (tipoPago == PaymentType.EFECTIVO) {
+            return true;
+        }
 
-    public void setOperacionId(Long operacionId) {
-        this.operacionId = operacionId;
+        return cuentaDestinoId != null && cuentaDestinoId > 0;
     }
 
     public BigDecimal getMonto() {
