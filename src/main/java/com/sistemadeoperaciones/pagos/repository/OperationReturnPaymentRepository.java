@@ -1,17 +1,16 @@
 package com.sistemadeoperaciones.pagos.repository;
 
+import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
 import com.sistemadeoperaciones.pagos.model.OperationReturnPayment;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 public interface OperationReturnPaymentRepository
         extends JpaRepository<OperationReturnPayment, Long> {
-
-    List<OperationReturnPayment> findByOperacionId(Long operacionId);
-
     @Query("""
         SELECT COALESCE(SUM(r.monto), 0)
         FROM OperationReturnPayment r
@@ -23,4 +22,33 @@ public interface OperationReturnPaymentRepository
 
     long countByOperacionId(Long operacionId);
 
+    List<OperationReturnPayment> findByOperacionId(Long operationId);
+
+    @Query("""
+        SELECT COALESCE(SUM(r.monto), 0)
+        FROM OperationReturnPayment r
+        WHERE r.operacion.id = :operationId
+          AND r.estatus IN :statuses
+    """)
+    BigDecimal sumAmountByOperationIdAndStatuses(
+            @Param("operationId") Long operationId,
+            @Param("statuses") List<ReturnPaymentStatus> statuses
+    );
+
+    default BigDecimal sumRequestedAmountByOperationId(Long operationId) {
+        return sumAmountByOperationIdAndStatuses(
+                operationId,
+                List.of(
+                        ReturnPaymentStatus.SOLICITADO,
+                        ReturnPaymentStatus.REALIZADO
+                )
+        );
+    }
+
+    default BigDecimal sumRealizedAmountByOperationId(Long operationId) {
+        return sumAmountByOperationIdAndStatuses(
+                operationId,
+                List.of(ReturnPaymentStatus.REALIZADO)
+        );
+    }
 }

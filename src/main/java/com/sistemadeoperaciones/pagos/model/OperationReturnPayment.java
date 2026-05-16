@@ -2,6 +2,7 @@ package com.sistemadeoperaciones.pagos.model;
 
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
+import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
 import com.sistemadeoperaciones.usuarios.model.User;
 import jakarta.persistence.*;
 
@@ -24,7 +25,7 @@ public class OperationReturnPayment {
     private PaymentOperation operacion;
 
     /**
-     * Monto retornado al cliente
+     * Monto solicitado para retornar al cliente
      */
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal monto;
@@ -37,39 +38,57 @@ public class OperationReturnPayment {
     private PaymentType tipoPago;
 
     /**
-     * Cuenta de la empresa desde donde sale el dinero
-     * Nullable cuando es EFECTIVO
+     * Cuenta de la empresa desde donde sale el dinero.
+     * La llena la jefa de cuentas cuando realiza el pago.
+     * Nullable cuando es EFECTIVO.
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cuenta_origen_id")
     private BankAccount cuentaOrigen;
 
     /**
-     * Cuenta del cliente que recibe el dinero
-     * Nullable cuando es EFECTIVO
+     * Cuenta del cliente que recibe el dinero.
+     * La indica el socio comercial cuando solicita el retorno.
+     * Nullable cuando es EFECTIVO.
      */
     @Column(name = "cuenta_destino_cliente", length = 30)
     private String cuentaDestinoCliente;
 
     /**
-     * Comprobante del retorno
-     * Opcional para EFECTIVO
+     * Comprobante del retorno.
+     * Lo carga la jefa de cuentas cuando realiza el pago.
      */
     @Column(name = "comprobante_url", length = 500)
     private String comprobanteUrl;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private ReturnPaymentStatus estatus;
 
     @Column(length = 500)
     private String observaciones;
 
     /**
-     * Usuario que registró el retorno
+     * Usuario que solicitó el retorno.
+     * Normalmente SOCIO_COMERCIAL.
      */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "registrado_por", nullable = false)
-    private User registradoPor;
+    @JoinColumn(name = "solicitado_por", nullable = false)
+    private User solicitadoPor;
 
-    @Column(name = "fecha_retorno", nullable = false)
-    private LocalDateTime fechaRetorno;
+    /**
+     * Usuario que pagó/registró el retorno.
+     * Normalmente JEFA_CAJAS o ADMIN.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "pagado_por")
+    private User pagadoPor;
+
+    @Column(name = "fecha_solicitud", nullable = false)
+    private LocalDateTime fechaSolicitud;
+
+    @Column(name = "fecha_pago")
+    private LocalDateTime fechaPago;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -79,12 +98,15 @@ public class OperationReturnPayment {
 
     @PrePersist
     public void prePersist() {
-
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
 
-        if (this.fechaRetorno == null) {
-            this.fechaRetorno = LocalDateTime.now();
+        if (this.fechaSolicitud == null) {
+            this.fechaSolicitud = LocalDateTime.now();
+        }
+
+        if (this.estatus == null) {
+            this.estatus = ReturnPaymentStatus.SOLICITADO;
         }
     }
 
@@ -124,16 +146,28 @@ public class OperationReturnPayment {
         return comprobanteUrl;
     }
 
+    public ReturnPaymentStatus getEstatus() {
+        return estatus;
+    }
+
     public String getObservaciones() {
         return observaciones;
     }
 
-    public User getRegistradoPor() {
-        return registradoPor;
+    public User getSolicitadoPor() {
+        return solicitadoPor;
     }
 
-    public LocalDateTime getFechaRetorno() {
-        return fechaRetorno;
+    public User getPagadoPor() {
+        return pagadoPor;
+    }
+
+    public LocalDateTime getFechaSolicitud() {
+        return fechaSolicitud;
+    }
+
+    public LocalDateTime getFechaPago() {
+        return fechaPago;
     }
 
     public LocalDateTime getCreatedAt() {
@@ -167,20 +201,33 @@ public class OperationReturnPayment {
     public void setCuentaDestinoCliente(String cuentaDestinoCliente) {
         this.cuentaDestinoCliente = cuentaDestinoCliente;
     }
+
     public void setComprobanteUrl(String comprobanteUrl) {
         this.comprobanteUrl = comprobanteUrl;
+    }
+
+    public void setEstatus(ReturnPaymentStatus estatus) {
+        this.estatus = estatus;
     }
 
     public void setObservaciones(String observaciones) {
         this.observaciones = observaciones;
     }
 
-    public void setRegistradoPor(User registradoPor) {
-        this.registradoPor = registradoPor;
+    public void setSolicitadoPor(User solicitadoPor) {
+        this.solicitadoPor = solicitadoPor;
     }
 
-    public void setFechaRetorno(LocalDateTime fechaRetorno) {
-        this.fechaRetorno = fechaRetorno;
+    public void setPagadoPor(User pagadoPor) {
+        this.pagadoPor = pagadoPor;
+    }
+
+    public void setFechaSolicitud(LocalDateTime fechaSolicitud) {
+        this.fechaSolicitud = fechaSolicitud;
+    }
+
+    public void setFechaPago(LocalDateTime fechaPago) {
+        this.fechaPago = fechaPago;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {

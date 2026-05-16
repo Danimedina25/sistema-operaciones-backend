@@ -16,22 +16,8 @@ public class CreateReturnPaymentRequestDto {
     @NotNull(message = "El tipo de pago es obligatorio")
     private PaymentType tipoPago;
 
-    /**
-     * Nullable cuando es EFECTIVO
-     */
-    private Long cuentaOrigenId;
-
-    /**
-     * Cuenta o CLABE capturada del cliente.
-     * Nullable cuando es EFECTIVO.
-     */
     @Size(max = 30, message = "La cuenta o CLABE no puede superar los 30 caracteres")
     private String cuentaDestinoCliente;
-
-    /**
-     * Opcional para EFECTIVO
-     */
-    private String comprobanteUrl;
 
     @Size(max = 500, message = "Las observaciones no pueden superar los 500 caracteres")
     private String observaciones;
@@ -47,16 +33,8 @@ public class CreateReturnPaymentRequestDto {
         return tipoPago;
     }
 
-    public Long getCuentaOrigenId() {
-        return cuentaOrigenId;
-    }
-
     public String getCuentaDestinoCliente() {
         return cuentaDestinoCliente;
-    }
-
-    public String getComprobanteUrl() {
-        return comprobanteUrl;
     }
 
     public String getObservaciones() {
@@ -71,16 +49,8 @@ public class CreateReturnPaymentRequestDto {
         this.tipoPago = tipoPago;
     }
 
-    public void setCuentaOrigenId(Long cuentaOrigenId) {
-        this.cuentaOrigenId = cuentaOrigenId;
-    }
-
     public void setCuentaDestinoCliente(String cuentaDestinoCliente) {
         this.cuentaDestinoCliente = cuentaDestinoCliente;
-    }
-
-    public void setComprobanteUrl(String comprobanteUrl) {
-        this.comprobanteUrl = comprobanteUrl;
     }
 
     public void setObservaciones(String observaciones) {

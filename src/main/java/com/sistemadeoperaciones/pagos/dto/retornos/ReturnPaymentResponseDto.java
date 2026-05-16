@@ -1,6 +1,7 @@
 package com.sistemadeoperaciones.pagos.dto.retornos;
 
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
+import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -15,23 +16,53 @@ public class ReturnPaymentResponseDto {
 
     private PaymentType tipoPago;
 
+    private ReturnPaymentStatus estatus;
+
+    /**
+     * Cuenta origen de la empresa
+     * Se llena cuando el retorno ya fue realizado
+     */
     private Long cuentaOrigenId;
+
     private String cuentaOrigenNombre;
+
     private String cuentaOrigenBanco;
 
     /**
-     * Cuenta o CLABE capturada del cliente
+     * Cuenta o CLABE del cliente
      */
     private String cuentaDestinoCliente;
 
+    /**
+     * Comprobante del retorno realizado
+     */
     private String comprobanteUrl;
 
     private String observaciones;
 
-    private Long registradoPorId;
-    private String registradoPorNombre;
+    /**
+     * Usuario que solicitó el retorno
+     */
+    private Long solicitadoPorId;
 
-    private LocalDateTime fechaRetorno;
+    private String solicitadoPorNombre;
+
+    /**
+     * Usuario que realizó el retorno
+     */
+    private Long pagadoPorId;
+
+    private String pagadoPorNombre;
+
+    /**
+     * Fecha en que el socio comercial solicitó el retorno
+     */
+    private LocalDateTime fechaSolicitud;
+
+    /**
+     * Fecha en que se realizó el retorno
+     */
+    private LocalDateTime fechaPago;
 
     private LocalDateTime createdAt;
 
@@ -54,12 +85,20 @@ public class ReturnPaymentResponseDto {
         return tipoPago;
     }
 
+    public ReturnPaymentStatus getEstatus() {
+        return estatus;
+    }
+
     public Long getCuentaOrigenId() {
         return cuentaOrigenId;
     }
 
     public String getCuentaOrigenNombre() {
         return cuentaOrigenNombre;
+    }
+
+    public String getCuentaOrigenBanco() {
+        return cuentaOrigenBanco;
     }
 
     public String getCuentaDestinoCliente() {
@@ -74,16 +113,28 @@ public class ReturnPaymentResponseDto {
         return observaciones;
     }
 
-    public Long getRegistradoPorId() {
-        return registradoPorId;
+    public Long getSolicitadoPorId() {
+        return solicitadoPorId;
     }
 
-    public String getRegistradoPorNombre() {
-        return registradoPorNombre;
+    public String getSolicitadoPorNombre() {
+        return solicitadoPorNombre;
     }
 
-    public LocalDateTime getFechaRetorno() {
-        return fechaRetorno;
+    public Long getPagadoPorId() {
+        return pagadoPorId;
+    }
+
+    public String getPagadoPorNombre() {
+        return pagadoPorNombre;
+    }
+
+    public LocalDateTime getFechaSolicitud() {
+        return fechaSolicitud;
+    }
+
+    public LocalDateTime getFechaPago() {
+        return fechaPago;
     }
 
     public LocalDateTime getCreatedAt() {
@@ -106,12 +157,20 @@ public class ReturnPaymentResponseDto {
         this.tipoPago = tipoPago;
     }
 
+    public void setEstatus(ReturnPaymentStatus estatus) {
+        this.estatus = estatus;
+    }
+
     public void setCuentaOrigenId(Long cuentaOrigenId) {
         this.cuentaOrigenId = cuentaOrigenId;
     }
 
     public void setCuentaOrigenNombre(String cuentaOrigenNombre) {
         this.cuentaOrigenNombre = cuentaOrigenNombre;
+    }
+
+    public void setCuentaOrigenBanco(String cuentaOrigenBanco) {
+        this.cuentaOrigenBanco = cuentaOrigenBanco;
     }
 
     public void setCuentaDestinoCliente(String cuentaDestinoCliente) {
@@ -126,27 +185,31 @@ public class ReturnPaymentResponseDto {
         this.observaciones = observaciones;
     }
 
-    public void setRegistradoPorId(Long registradoPorId) {
-        this.registradoPorId = registradoPorId;
+    public void setSolicitadoPorId(Long solicitadoPorId) {
+        this.solicitadoPorId = solicitadoPorId;
     }
 
-    public void setRegistradoPorNombre(String registradoPorNombre) {
-        this.registradoPorNombre = registradoPorNombre;
+    public void setSolicitadoPorNombre(String solicitadoPorNombre) {
+        this.solicitadoPorNombre = solicitadoPorNombre;
     }
 
-    public void setFechaRetorno(LocalDateTime fechaRetorno) {
-        this.fechaRetorno = fechaRetorno;
+    public void setPagadoPorId(Long pagadoPorId) {
+        this.pagadoPorId = pagadoPorId;
+    }
+
+    public void setPagadoPorNombre(String pagadoPorNombre) {
+        this.pagadoPorNombre = pagadoPorNombre;
+    }
+
+    public void setFechaSolicitud(LocalDateTime fechaSolicitud) {
+        this.fechaSolicitud = fechaSolicitud;
+    }
+
+    public void setFechaPago(LocalDateTime fechaPago) {
+        this.fechaPago = fechaPago;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
-    }
-
-    public String getCuentaOrigenBanco() {
-        return cuentaOrigenBanco;
-    }
-
-    public void setCuentaOrigenBanco(String cuentaOrigenBanco) {
-        this.cuentaOrigenBanco = cuentaOrigenBanco;
     }
 }

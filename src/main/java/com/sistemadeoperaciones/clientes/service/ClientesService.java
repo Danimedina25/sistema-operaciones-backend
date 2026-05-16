@@ -12,6 +12,8 @@ public interface ClientesService {
 
     List<ClienteResponseDto> findAll();
 
+    List<ClienteResponseDto> findAllByUserId(Long userId);
+
     List<ClienteResponseDto> findActive();
 
     ClienteResponseDto findById(Long id);

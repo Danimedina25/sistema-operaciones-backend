@@ -14,4 +14,6 @@ public interface ClientesRepository extends JpaRepository<Clientes, Long> {
     List<Clientes> findByActivoTrueOrderByNombreAsc();
 
     List<Clientes> findAllByOrderByCreatedAtDesc();
+
+    List<Clientes> findByUserIdOrderByNombreAsc(Long userId);
 }

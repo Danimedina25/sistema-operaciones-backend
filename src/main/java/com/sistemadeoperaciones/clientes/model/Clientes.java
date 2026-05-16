@@ -1,12 +1,10 @@
 package com.sistemadeoperaciones.clientes.model;
 
-import com.sistemadeoperaciones.usuarios.model.Role;
+import com.sistemadeoperaciones.usuarios.model.User;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Set;
 
 @Entity
 @Table(name = "clientes")
@@ -18,6 +16,10 @@ public class Clientes {
 
     @Column(nullable = false, length = 100)
     private String nombre;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @Column(nullable = false)
     private Boolean activo = true;
@@ -70,6 +72,14 @@ public class Clientes {
 
     public void setNombre(String nombre) {
         this.nombre = nombre;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
     }
 
     public Boolean getActivo() {

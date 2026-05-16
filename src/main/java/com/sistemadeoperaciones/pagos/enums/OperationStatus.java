@@ -5,6 +5,7 @@ public enum OperationStatus {
     INGRESO_PARCIAL,
     VALIDADA,
     RECHAZADA,
+    RETORNO_SOLICITADO,
     RETORNO_PARCIAL,
     COMPLETADA
 }

@@ -1,26 +1,27 @@
 package com.sistemadeoperaciones.pagos.service;
 
-import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
-import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationFilterDto;
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationResponseDto;
 import com.sistemadeoperaciones.pagos.dto.retornos.CreateReturnPaymentRequestDto;
+import com.sistemadeoperaciones.pagos.dto.retornos.RealizeReturnPaymentRequestDto;
 import com.sistemadeoperaciones.pagos.dto.retornos.ReturnPaymentResponseDto;
 import com.sistemadeoperaciones.pagos.enums.OperationStatus;
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
+import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
 import com.sistemadeoperaciones.pagos.model.OperationReturnPayment;
 import com.sistemadeoperaciones.pagos.model.PaymentOperation;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
 import com.sistemadeoperaciones.pagos.repository.PaymentOperationRepository;
 import com.sistemadeoperaciones.pagos.repository.specification.PaymentOperationSpecification;
-import com.sistemadeoperaciones.pagos.service.ReturnsOperationService;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.usuarios.model.User;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
+import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -34,92 +35,23 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
     private final PaymentOperationRepository paymentOperationRepository;
     private final OperationReturnPaymentRepository operationReturnPaymentRepository;
-    private final BankAccountRepository bankAccountRepository;
     private final AuthenticatedUserService authenticatedUserService;
+    private final BankAccountRepository bankAccountRepository;
 
     public ReturnsOperationServiceImpl(
             PaymentOperationRepository paymentOperationRepository,
             OperationReturnPaymentRepository operationReturnPaymentRepository,
-            BankAccountRepository bankAccountRepository,
-            AuthenticatedUserService authenticatedUserService
+            AuthenticatedUserService authenticatedUserService,
+            BankAccountRepository bankAccountRepository
     ) {
         this.paymentOperationRepository = paymentOperationRepository;
         this.operationReturnPaymentRepository = operationReturnPaymentRepository;
-        this.bankAccountRepository = bankAccountRepository;
         this.authenticatedUserService = authenticatedUserService;
+        this.bankAccountRepository = bankAccountRepository;
     }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Page<PaymentOperationResponseDto> findOperationsReadyForReturn(
-            PaymentOperationFilterDto filter,
-            Pageable pageable
-    ) {
-        if (filter == null) {
-            filter = new PaymentOperationFilterDto();
-        }
-        Specification<PaymentOperation> specification = Specification
-                .where(PaymentOperationSpecification.hasStatusIn(
-                        List.of(
-                                OperationStatus.VALIDADA,
-                                OperationStatus.RETORNO_PARCIAL
-                        )
-                ))
-                .and(PaymentOperationSpecification.clienteONombreSocioOIdContains(filter.getSearch()))
-                .and(PaymentOperationSpecification.hasSocioComercialId(filter.getSocioComercialId()))
-                .and(PaymentOperationSpecification.createdAtBetween(
-                        toStartOfDay(resolveStartDate(filter)),
-                        toEndOfDay(resolveEndDate(filter))
-                ));
-
-        return paymentOperationRepository.findAll(specification, pageable)
-                .map(this::mapOperationToResponse);
-    }
-
-    private LocalDate resolveStartDate(PaymentOperationFilterDto filter) {
-        if (filter.getDateFilter() != null) {
-            LocalDate today = LocalDate.now();
-
-            return switch (filter.getDateFilter()) {
-                case TODAY -> today;
-                case THIS_WEEK -> today.with(DayOfWeek.MONDAY);
-                case THIS_MONTH -> today.withDayOfMonth(1);
-                case LAST_MONTH -> today.minusMonths(1).withDayOfMonth(1);
-            };
-        }
-
-        return filter.getStartDate();
-    }
-
-    private LocalDate resolveEndDate(PaymentOperationFilterDto filter) {
-        if (filter.getDateFilter() != null) {
-            LocalDate today = LocalDate.now();
-
-            return switch (filter.getDateFilter()) {
-                case TODAY -> today;
-                case THIS_WEEK -> today.with(DayOfWeek.SUNDAY);
-                case THIS_MONTH -> today.withDayOfMonth(today.lengthOfMonth());
-                case LAST_MONTH -> {
-                    LocalDate lastMonth = today.minusMonths(1);
-                    yield lastMonth.withDayOfMonth(lastMonth.lengthOfMonth());
-                }
-            };
-        }
-
-        return filter.getEndDate();
-    }
-
-    private LocalDateTime toStartOfDay(LocalDate date) {
-        return date != null ? date.atStartOfDay() : null;
-    }
-
-    private LocalDateTime toEndOfDay(LocalDate date) {
-        return date != null ? date.plusDays(1).atStartOfDay().minusNanos(1) : null;
-    }
-
     @Override
     @Transactional
-    public ReturnPaymentResponseDto registerReturnPayment(
+    public ReturnPaymentResponseDto requestReturnPayment(
             Long operationId,
             CreateReturnPaymentRequestDto request
     ) {
@@ -129,16 +61,16 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         validateOperationCanReceiveReturn(operation);
         validateReturnRequest(request);
 
-        BigDecimal totalReturnedBefore =
-                operationReturnPaymentRepository.sumReturnedAmountByOperationId(operationId);
+        BigDecimal totalRequestedBefore =
+                operationReturnPaymentRepository.sumRequestedAmountByOperationId(operationId);
 
         BigDecimal amountToReturn = calculateAmountToReturn(operation);
 
-        BigDecimal newTotalReturned = totalReturnedBefore.add(request.getMonto());
+        BigDecimal newTotalRequested = totalRequestedBefore.add(request.getMonto());
 
-        if (newTotalReturned.compareTo(amountToReturn) > 0) {
+        if (newTotalRequested.compareTo(amountToReturn) > 0) {
             throw new IllegalArgumentException(
-                    "El monto del retorno excede el saldo pendiente por devolver"
+                    "El monto solicitado para retorno excede el saldo pendiente por devolver"
             );
         }
 
@@ -149,29 +81,94 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         returnPayment.setMonto(request.getMonto());
         returnPayment.setTipoPago(request.getTipoPago());
         returnPayment.setObservaciones(request.getObservaciones());
-        returnPayment.setComprobanteUrl(request.getComprobanteUrl());
-        returnPayment.setRegistradoPor(currentUser);
+        returnPayment.setSolicitadoPor(currentUser);
+        returnPayment.setEstatus(ReturnPaymentStatus.SOLICITADO);
+
         String cuentaDestinoCliente = request.getCuentaDestinoCliente() != null
                 ? request.getCuentaDestinoCliente().replaceAll("\\s+", "")
                 : null;
 
         returnPayment.setCuentaDestinoCliente(cuentaDestinoCliente);
 
-        if (request.getTipoPago() != PaymentType.EFECTIVO) {
+        OperationReturnPayment savedReturn =
+                operationReturnPaymentRepository.save(returnPayment);
+
+        if (operation.getEstatus() == OperationStatus.VALIDADA) {
+            operation.setEstatus(OperationStatus.RETORNO_SOLICITADO);
+        }
+        paymentOperationRepository.save(operation);
+
+        return mapReturnToResponse(savedReturn);
+    }
+
+    @Override
+    @Transactional
+    public ReturnPaymentResponseDto realizeReturnPayment(
+            Long returnPaymentId,
+            RealizeReturnPaymentRequestDto request
+    ) {
+        OperationReturnPayment returnPayment = operationReturnPaymentRepository.findById(returnPaymentId)
+                .orElseThrow(() -> new IllegalArgumentException("Retorno no encontrado"));
+
+        if (returnPayment.getEstatus() != ReturnPaymentStatus.SOLICITADO) {
+            throw new IllegalArgumentException("Solo se pueden realizar retornos solicitados");
+        }
+
+        validateRealizeReturnRequest(returnPayment, request);
+
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        if (returnPayment.getTipoPago() != PaymentType.EFECTIVO) {
             BankAccount cuentaOrigen = bankAccountRepository.findById(request.getCuentaOrigenId())
                     .orElseThrow(() -> new IllegalArgumentException("Cuenta origen no encontrada"));
 
             returnPayment.setCuentaOrigen(cuentaOrigen);
+        } else {
+            returnPayment.setCuentaOrigen(null);
         }
 
-        OperationReturnPayment savedReturn =
-                operationReturnPaymentRepository.save(returnPayment);
+        returnPayment.setComprobanteUrl(request.getComprobanteUrl());
+        returnPayment.setPagadoPor(currentUser);
+        returnPayment.setFechaPago(LocalDateTime.now());
+        returnPayment.setEstatus(ReturnPaymentStatus.REALIZADO);
 
-        updateOperationReturnStatus(operation, newTotalReturned, amountToReturn);
+        if (request.getObservaciones() != null && !request.getObservaciones().isBlank()) {
+            returnPayment.setObservaciones(request.getObservaciones());
+        }
 
-        paymentOperationRepository.save(operation);
+        OperationReturnPayment savedReturn = operationReturnPaymentRepository.save(returnPayment);
+
+        updateOperationStatusAfterReturnRealized(returnPayment.getOperacion());
 
         return mapReturnToResponse(savedReturn);
+    }
+
+    private void validateRealizeReturnRequest(
+            OperationReturnPayment returnPayment,
+            RealizeReturnPaymentRequestDto request
+    ) {
+        if (returnPayment.getTipoPago() != PaymentType.EFECTIVO && request.getCuentaOrigenId() == null) {
+            throw new IllegalArgumentException("La cuenta origen es obligatoria");
+        }
+
+        if (request.getComprobanteUrl() == null || request.getComprobanteUrl().isBlank()) {
+            throw new IllegalArgumentException("El comprobante es obligatorio");
+        }
+    }
+
+    private void updateOperationStatusAfterReturnRealized(PaymentOperation operation) {
+        BigDecimal amountToReturn = calculateAmountToReturn(operation);
+
+        BigDecimal totalRealized =
+                operationReturnPaymentRepository.sumRealizedAmountByOperationId(operation.getId());
+
+        if (totalRealized.compareTo(amountToReturn) >= 0) {
+            operation.setEstatus(OperationStatus.COMPLETADA);
+        } else {
+            operation.setEstatus(OperationStatus.RETORNO_PARCIAL);
+        }
+
+        paymentOperationRepository.save(operation);
     }
 
     @Override
@@ -192,36 +189,97 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         return mapOperationToResponse(operation);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PaymentOperationResponseDto> findOperationsAvailableToRequestReturn(
+            PaymentOperationFilterDto filter,
+            Pageable pageable
+    ) {
+        if (filter == null) {
+            filter = new PaymentOperationFilterDto();
+        }
+
+        Specification<PaymentOperation> specification = buildReturnOperationSpecification(
+                filter,
+                List.of(
+                        OperationStatus.VALIDADA,
+                        OperationStatus.RETORNO_SOLICITADO,
+                        OperationStatus.RETORNO_PARCIAL
+                )
+        );
+
+        return paymentOperationRepository.findAll(specification, pageable)
+                .map(this::mapOperationToResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PaymentOperationResponseDto> findOperationsWithRequestedReturns(
+            PaymentOperationFilterDto filter,
+            Pageable pageable
+    ) {
+        if (filter == null) {
+            filter = new PaymentOperationFilterDto();
+        }
+
+        Specification<PaymentOperation> specification = buildReturnOperationSpecification(
+                filter,
+                List.of(
+                        OperationStatus.RETORNO_SOLICITADO,
+                        OperationStatus.RETORNO_PARCIAL
+                )
+        ).and(PaymentOperationSpecification.hasReturnWithStatus(ReturnPaymentStatus.SOLICITADO));
+
+        return paymentOperationRepository.findAll(specification, pageable)
+                .map(this::mapOperationToResponse);
+    }
+
+    private Specification<PaymentOperation> buildReturnOperationSpecification(
+            PaymentOperationFilterDto filter,
+            List<OperationStatus> statuses
+    ) {
+        return Specification
+                .where(PaymentOperationSpecification.hasStatusIn(statuses))
+                .and(PaymentOperationSpecification.clienteONombreSocioOIdContains(filter.getSearch()))
+                .and(PaymentOperationSpecification.hasSocioComercialId(filter.getSocioComercialId()))
+                .and(PaymentOperationSpecification.createdAtBetween(
+                        toStartOfDay(resolveStartDate(filter)),
+                        toEndOfDay(resolveEndDate(filter))
+                ));
+    }
+
     private void validateOperationCanReceiveReturn(PaymentOperation operation) {
         if (
                 operation.getEstatus() != OperationStatus.VALIDADA &&
-                operation.getEstatus() != OperationStatus.RETORNO_PARCIAL
+                operation.getEstatus() != OperationStatus.RETORNO_SOLICITADO &&
+                        operation.getEstatus() != OperationStatus.RETORNO_PARCIAL
         ) {
             throw new IllegalArgumentException(
-                    "La operación no está lista para registrar retornos"
+                    "La operación no está lista para solicitar retornos"
             );
         }
     }
 
     private void validateReturnRequest(CreateReturnPaymentRequestDto request) {
+        if (request.getMonto() == null || request.getMonto().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("El monto del retorno debe ser mayor a 0");
+        }
+
+        if (request.getTipoPago() == null) {
+            throw new IllegalArgumentException("El tipo de pago es obligatorio");
+        }
 
         if (request.getTipoPago() == PaymentType.EFECTIVO) {
-
             if (
-                    request.getCuentaOrigenId() != null ||
-                            (request.getCuentaDestinoCliente() != null &&
-                                    !request.getCuentaDestinoCliente().isBlank())
+                    request.getCuentaDestinoCliente() != null &&
+                            !request.getCuentaDestinoCliente().isBlank()
             ) {
                 throw new IllegalArgumentException(
-                        "Para retornos en efectivo no se debe enviar cuenta origen ni cuenta destino"
+                        "Para retornos en efectivo no se debe enviar cuenta destino"
                 );
             }
 
             return;
-        }
-
-        if (request.getCuentaOrigenId() == null) {
-            throw new IllegalArgumentException("La cuenta origen es obligatoria");
         }
 
         String cuentaDestinoCliente = request.getCuentaDestinoCliente();
@@ -245,19 +303,9 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                     "La cuenta debe tener 10 dígitos o la CLABE 18 dígitos"
             );
         }
-
-        if (
-                request.getComprobanteUrl() == null ||
-                        request.getComprobanteUrl().isBlank()
-        ) {
-            throw new IllegalArgumentException(
-                    "El comprobante es obligatorio"
-            );
-        }
     }
 
     private BigDecimal calculateAmountToReturn(PaymentOperation operation) {
-
         BigDecimal montoValidado = safe(operation.getMontoValidado());
 
         BigDecimal porcentajeComisionRedTotal = calculateTotalPercentageByLevels(
@@ -304,18 +352,6 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     }
 
-    private void updateOperationReturnStatus(
-            PaymentOperation operation,
-            BigDecimal totalReturned,
-            BigDecimal amountToReturn
-    ) {
-        if (totalReturned.compareTo(amountToReturn) >= 0) {
-            operation.setEstatus(OperationStatus.COMPLETADA);
-        } else {
-            operation.setEstatus(OperationStatus.RETORNO_PARCIAL);
-        }
-    }
-
     private ReturnPaymentResponseDto mapReturnToResponse(OperationReturnPayment returnPayment) {
         ReturnPaymentResponseDto dto = new ReturnPaymentResponseDto();
 
@@ -323,9 +359,12 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         dto.setOperationId(returnPayment.getOperacion().getId());
         dto.setMonto(returnPayment.getMonto());
         dto.setTipoPago(returnPayment.getTipoPago());
+        dto.setCuentaDestinoCliente(returnPayment.getCuentaDestinoCliente());
         dto.setComprobanteUrl(returnPayment.getComprobanteUrl());
         dto.setObservaciones(returnPayment.getObservaciones());
-        dto.setFechaRetorno(returnPayment.getFechaRetorno());
+        dto.setEstatus(returnPayment.getEstatus());
+        dto.setFechaSolicitud(returnPayment.getFechaSolicitud());
+        dto.setFechaPago(returnPayment.getFechaPago());
         dto.setCreatedAt(returnPayment.getCreatedAt());
 
         if (returnPayment.getCuentaOrigen() != null) {
@@ -333,11 +372,14 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             dto.setCuentaOrigenNombre(returnPayment.getCuentaOrigen().getBanco());
         }
 
-        dto.setCuentaDestinoCliente(returnPayment.getCuentaDestinoCliente());
+        if (returnPayment.getSolicitadoPor() != null) {
+            dto.setSolicitadoPorId(returnPayment.getSolicitadoPor().getId());
+            dto.setSolicitadoPorNombre(returnPayment.getSolicitadoPor().getNombre());
+        }
 
-        if (returnPayment.getRegistradoPor() != null) {
-            dto.setRegistradoPorId(returnPayment.getRegistradoPor().getId());
-            dto.setRegistradoPorNombre(returnPayment.getRegistradoPor().getNombre());
+        if (returnPayment.getPagadoPor() != null) {
+            dto.setPagadoPorId(returnPayment.getPagadoPor().getId());
+            dto.setPagadoPorNombre(returnPayment.getPagadoPor().getNombre());
         }
 
         return dto;
@@ -347,11 +389,104 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         PaymentOperationResponseDto dto = new PaymentOperationResponseDto();
 
         dto.setId(operation.getId());
+
+        if (operation.getCliente() != null) {
+            dto.setClienteId(operation.getCliente().getId());
+            dto.setClienteNombre(operation.getCliente().getNombre());
+        }
+
         dto.setMontoTotal(operation.getMontoTotal());
         dto.setMontoValidado(operation.getMontoValidado());
         dto.setSaldoPendiente(operation.getSaldoPendiente());
         dto.setEstatus(operation.getEstatus());
 
+        if (operation.getSocioComercial() != null) {
+            dto.setSocioComercialId(operation.getSocioComercial().getId());
+            dto.setSocioComercialNombre(operation.getSocioComercial().getNombre());
+        }
+
+        dto.setNivelesRedComercial(operation.getNivelesRedComercial());
+        dto.setPorcentajeComisionAplicado(operation.getPorcentajeComisionAplicado());
+        dto.setPorcentajeComisionOficina(operation.getPorcentajeComisionOficina());
+
+        BigDecimal montoValidado = safe(operation.getMontoValidado());
+
+        BigDecimal porcentajeComisionRedTotal = calculateTotalPercentageByLevels(
+                operation.getPorcentajeComisionAplicado(),
+                operation.getNivelesRedComercial()
+        );
+
+        BigDecimal montoComisionRedTotal = calculateAmountFromPercentage(
+                montoValidado,
+                porcentajeComisionRedTotal
+        );
+
+        BigDecimal porcentajeComisionOficinaTotal = calculateTotalPercentageByLevels(
+                operation.getPorcentajeComisionOficina(),
+                operation.getNivelesRedComercial()
+        );
+
+        BigDecimal montoComisionOficinaTotal = calculateAmountFromPercentage(
+                montoValidado,
+                porcentajeComisionOficinaTotal
+        );
+
+        BigDecimal montoTotalDevolverCliente = montoValidado
+                .subtract(montoComisionRedTotal)
+                .subtract(montoComisionOficinaTotal)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        dto.setPorcentajeComisionRedTotal(porcentajeComisionRedTotal);
+        dto.setMontoComisionRedTotal(montoComisionRedTotal);
+        dto.setPorcentajeComisionOficinaTotal(porcentajeComisionOficinaTotal);
+        dto.setMontoComisionOficinaTotal(montoComisionOficinaTotal);
+        dto.setMontoTotalDevolverCliente(montoTotalDevolverCliente);
+
+        dto.setObservaciones(operation.getObservaciones());
+        dto.setCreatedAt(operation.getCreatedAt());
+        dto.setUpdatedAt(operation.getUpdatedAt());
+
         return dto;
+    }
+
+    private LocalDate resolveStartDate(PaymentOperationFilterDto filter) {
+        if (filter.getDateFilter() != null) {
+            LocalDate today = LocalDate.now();
+
+            return switch (filter.getDateFilter()) {
+                case TODAY -> today;
+                case THIS_WEEK -> today.with(DayOfWeek.MONDAY);
+                case THIS_MONTH -> today.withDayOfMonth(1);
+                case LAST_MONTH -> today.minusMonths(1).withDayOfMonth(1);
+            };
+        }
+
+        return filter.getStartDate();
+    }
+
+    private LocalDate resolveEndDate(PaymentOperationFilterDto filter) {
+        if (filter.getDateFilter() != null) {
+            LocalDate today = LocalDate.now();
+
+            return switch (filter.getDateFilter()) {
+                case TODAY -> today;
+                case THIS_WEEK -> today.with(DayOfWeek.SUNDAY);
+                case THIS_MONTH -> today.withDayOfMonth(today.lengthOfMonth());
+                case LAST_MONTH -> {
+                    LocalDate lastMonth = today.minusMonths(1);
+                    yield lastMonth.withDayOfMonth(lastMonth.lengthOfMonth());
+                }
+            };
+        }
+
+        return filter.getEndDate();
+    }
+
+    private LocalDateTime toStartOfDay(LocalDate date) {
+        return date != null ? date.atStartOfDay() : null;
+    }
+
+    private LocalDateTime toEndOfDay(LocalDate date) {
+        return date != null ? date.plusDays(1).atStartOfDay().minusNanos(1) : null;
     }
 }

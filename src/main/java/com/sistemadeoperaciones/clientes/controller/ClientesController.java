@@ -24,7 +24,7 @@ public class ClientesController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<ClienteResponseDto>> create(
             @Valid @RequestBody CreateClienteRequestDto request
     ) {
@@ -32,6 +32,16 @@ public class ClientesController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 new ApiResponse<>(true, "Cliente creado exitosamente", response, null)
+        );
+    }
+
+    @GetMapping("/my_clients/{user_id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    public ResponseEntity<ApiResponse<List<ClienteResponseDto>>> findAllByUserId(@PathVariable("user_id") Long userId) {
+        List<ClienteResponseDto> response = clientesService.findAllByUserId(userId);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Listado de clientes obtenido exitosamente", response, null)
         );
     }
 

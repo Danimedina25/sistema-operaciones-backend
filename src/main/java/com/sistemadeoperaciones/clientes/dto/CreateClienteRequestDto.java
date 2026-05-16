@@ -22,6 +22,9 @@ public class CreateClienteRequestDto {
     @DecimalMin(value = "0.00", message = "El porcentaje de comisión no puede ser negativo")
     private BigDecimal porcentajeComisionAplicado;
 
+    @NotNull(message = "El ID del usuario es obligatorio")
+    private Long userId;
+
     public String getNombre() {
         return nombre;
     }
@@ -44,5 +47,13 @@ public class CreateClienteRequestDto {
 
     public void setPorcentajeComisionAplicado(BigDecimal porcentajeComisionAplicado) {
         this.porcentajeComisionAplicado = porcentajeComisionAplicado;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 }

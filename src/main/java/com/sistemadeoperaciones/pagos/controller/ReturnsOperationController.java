@@ -3,6 +3,7 @@ package com.sistemadeoperaciones.pagos.controller;
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationFilterDto;
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationResponseDto;
 import com.sistemadeoperaciones.pagos.dto.retornos.CreateReturnPaymentRequestDto;
+import com.sistemadeoperaciones.pagos.dto.retornos.RealizeReturnPaymentRequestDto;
 import com.sistemadeoperaciones.pagos.dto.retornos.ReturnPaymentResponseDto;
 import com.sistemadeoperaciones.pagos.service.ReturnsOperationService;
 import com.sistemadeoperaciones.shared.dto.ApiResponse;
@@ -28,38 +29,76 @@ public class ReturnsOperationController {
         this.returnsOperationService = returnsOperationService;
     }
 
-    @GetMapping("/ready")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS')")
-    public ResponseEntity<ApiResponse<Page<PaymentOperationResponseDto>>> findOperationsReadyForReturn(
+    @GetMapping("/available-to-request")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    public ResponseEntity<ApiResponse<Page<PaymentOperationResponseDto>>> findOperationsAvailableToRequestReturn(
             PaymentOperationFilterDto filter,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<PaymentOperationResponseDto> response =
-                returnsOperationService.findOperationsReadyForReturn(filter, pageable);
+                returnsOperationService.findOperationsAvailableToRequestReturn(filter, pageable);
 
         return ResponseEntity.ok(
                 new ApiResponse<>(
                         true,
-                        "Operaciones listas para retorno obtenidas exitosamente",
+                        "Operaciones disponibles para solicitar retorno obtenidas exitosamente",
                         response,
                         null
                 )
         );
     }
 
-    @PostMapping("/{operationId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS')")
-    public ResponseEntity<ApiResponse<ReturnPaymentResponseDto>> registerReturnPayment(
+    @GetMapping("/requested")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS')")
+    public ResponseEntity<ApiResponse<Page<PaymentOperationResponseDto>>> findOperationsWithRequestedReturns(
+            PaymentOperationFilterDto filter,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        Page<PaymentOperationResponseDto> response =
+                returnsOperationService.findOperationsWithRequestedReturns(filter, pageable);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Operaciones con retornos solicitados obtenidas exitosamente",
+                        response,
+                        null
+                )
+        );
+    }
+
+    @PostMapping("/{operationId}/request")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    public ResponseEntity<ApiResponse<ReturnPaymentResponseDto>> requestReturnPayment(
             @PathVariable Long operationId,
             @Valid @RequestBody CreateReturnPaymentRequestDto request
     ) {
         ReturnPaymentResponseDto response =
-                returnsOperationService.registerReturnPayment(operationId, request);
+                returnsOperationService.requestReturnPayment(operationId, request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 new ApiResponse<>(
                         true,
-                        "Retorno registrado exitosamente",
+                        "Solicitud de retorno registrada exitosamente",
+                        response,
+                        null
+                )
+        );
+    }
+
+    @PatchMapping("/payments/{returnPaymentId}/realize")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS')")
+    public ResponseEntity<ApiResponse<ReturnPaymentResponseDto>> realizeReturnPayment(
+            @PathVariable Long returnPaymentId,
+            @Valid @RequestBody RealizeReturnPaymentRequestDto request
+    ) {
+        ReturnPaymentResponseDto response =
+                returnsOperationService.realizeReturnPayment(returnPaymentId, request);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Retorno realizado exitosamente",
                         response,
                         null
                 )
@@ -67,7 +106,7 @@ public class ReturnsOperationController {
     }
 
     @GetMapping("/{operationId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS')")
     public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> findReturnDetailByOperationId(
             @PathVariable Long operationId
     ) {
@@ -85,7 +124,7 @@ public class ReturnsOperationController {
     }
 
     @GetMapping("/{operationId}/payments")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS')")
     public ResponseEntity<ApiResponse<List<ReturnPaymentResponseDto>>> findReturnsByOperationId(
             @PathVariable Long operationId
     ) {

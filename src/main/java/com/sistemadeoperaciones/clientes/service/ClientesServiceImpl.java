@@ -9,8 +9,9 @@ import com.sistemadeoperaciones.clientes.exceptions.ClienteNameRequiredException
 import com.sistemadeoperaciones.clientes.exceptions.ClienteNotFoundException;
 import com.sistemadeoperaciones.clientes.model.Clientes;
 import com.sistemadeoperaciones.clientes.repository.ClientesRepository;
-import com.sistemadeoperaciones.shared.exception.BusinessException;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
+import com.sistemadeoperaciones.usuarios.model.User;
+import com.sistemadeoperaciones.usuarios.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,9 +22,11 @@ import java.util.List;
 public class ClientesServiceImpl implements ClientesService {
 
     private final ClientesRepository clientesRepository;
+    private final UserRepository userRepository;
 
-    public ClientesServiceImpl(ClientesRepository clientesRepository) {
+    public ClientesServiceImpl(ClientesRepository clientesRepository, UserRepository userRepository) {
         this.clientesRepository = clientesRepository;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -42,7 +45,12 @@ public class ClientesServiceImpl implements ClientesService {
             throw new ClienteInvalidCommissionException();
         }
 
+        User user = userRepository.findById(request.getUserId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Usuario no encontrado con id: " + request.getUserId()));
+
         Clientes cliente = new Clientes();
+        cliente.setUser(user);
         cliente.setNombre(request.getNombre().trim());
         cliente.setActivo(true);
         cliente.setNivelesRedComercial(request.getNivelesRedComercial());
@@ -57,6 +65,15 @@ public class ClientesServiceImpl implements ClientesService {
     @Transactional(readOnly = true)
     public List<ClienteResponseDto> findAll() {
         return clientesRepository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClienteResponseDto> findAllByUserId(Long userId) {
+        return clientesRepository.findByUserIdOrderByNombreAsc(userId)
                 .stream()
                 .map(this::mapToResponse)
                 .toList();

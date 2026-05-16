@@ -1,7 +1,9 @@
 package com.sistemadeoperaciones.pagos.repository.specification;
 
 import com.sistemadeoperaciones.pagos.enums.OperationStatus;
+import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
 import com.sistemadeoperaciones.pagos.model.PaymentOperation;
+import jakarta.persistence.criteria.Join;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDateTime;
@@ -46,6 +48,19 @@ public final class PaymentOperationSpecification {
                 return cb.conjunction();
             }
             return cb.equal(root.get("estatus"), status);
+        };
+    }
+
+    public static Specification<PaymentOperation> hasReturnWithStatus(ReturnPaymentStatus status) {
+        return (root, query, criteriaBuilder) -> {
+            query.distinct(true);
+
+            Join<Object, Object> retornos = root.join("retornos");
+
+            return criteriaBuilder.equal(
+                    retornos.get("estatus"),
+                    status
+            );
         };
     }
 
