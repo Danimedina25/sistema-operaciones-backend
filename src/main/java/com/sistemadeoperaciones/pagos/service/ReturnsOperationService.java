@@ -2,6 +2,7 @@ package com.sistemadeoperaciones.pagos.service;
 
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationFilterDto;
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationResponseDto;
+import com.sistemadeoperaciones.pagos.dto.retornos.CreateReturnPaymentBatchRequestDto;
 import com.sistemadeoperaciones.pagos.dto.retornos.CreateReturnPaymentRequestDto;
 import com.sistemadeoperaciones.pagos.dto.retornos.RealizeReturnPaymentRequestDto;
 import com.sistemadeoperaciones.pagos.dto.retornos.ReturnPaymentResponseDto;
@@ -16,9 +17,9 @@ public interface ReturnsOperationService {
      * SOCIO_COMERCIAL:
      * Solicita cómo quiere recibir el retorno.
      */
-    ReturnPaymentResponseDto requestReturnPayment(
+    List<ReturnPaymentResponseDto> requestReturnPayment(
             Long operationId,
-            CreateReturnPaymentRequestDto request
+            CreateReturnPaymentBatchRequestDto request
     );
 
     /**

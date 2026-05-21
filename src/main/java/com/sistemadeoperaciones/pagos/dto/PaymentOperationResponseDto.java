@@ -14,7 +14,7 @@ public class PaymentOperationResponseDto {
     private BigDecimal montoTotal;
     private BigDecimal montoValidado;
     private BigDecimal montoRegistrado;
-    private BigDecimal saldoPendiente;
+    private BigDecimal saldoPendientePorValidar;
     private BigDecimal saldoPendientePorRegistrar;
     private OperationStatus estatus;
     private Long socioComercialId;
@@ -28,7 +28,9 @@ public class PaymentOperationResponseDto {
     private BigDecimal porcentajeComisionOficinaTotal;
     private BigDecimal montoComisionOficinaTotal;
     private BigDecimal montoTotalDevolverCliente;
-
+    private BigDecimal montoRetornado;
+    private BigDecimal saldoPendienteRetornar;
+    private BigDecimal montoSolicitadoRetorno;
     private String observaciones;
     private List<OperationPaymentResponseDto> pagos;
     private LocalDateTime createdAt;
@@ -44,7 +46,7 @@ public class PaymentOperationResponseDto {
             BigDecimal montoTotal,
             BigDecimal montoValidado,
             BigDecimal montoRegistrado,
-            BigDecimal saldoPendiente,
+            BigDecimal saldoPendientePorValidar,
             BigDecimal saldoPendientePorRegistrar,
             OperationStatus estatus,
             Long socioComercialId,
@@ -57,6 +59,9 @@ public class PaymentOperationResponseDto {
             BigDecimal porcentajeComisionOficinaTotal,
             BigDecimal montoComisionOficinaTotal,
             BigDecimal montoTotalDevolverCliente,
+            BigDecimal montoRetornado,
+            BigDecimal saldoPendienteRetornar,
+            BigDecimal montoSolicitadoRetorno,
             String observaciones,
             List<OperationPaymentResponseDto> pagos,
             LocalDateTime createdAt,
@@ -68,7 +73,7 @@ public class PaymentOperationResponseDto {
         this.montoTotal = montoTotal;
         this.montoValidado = montoValidado;
         this.montoRegistrado = montoRegistrado;
-        this.saldoPendiente = saldoPendiente;
+        this.saldoPendientePorValidar = saldoPendientePorValidar;
         this.saldoPendientePorRegistrar = saldoPendientePorRegistrar;
         this.estatus = estatus;
         this.socioComercialId = socioComercialId;
@@ -81,6 +86,9 @@ public class PaymentOperationResponseDto {
         this.porcentajeComisionOficinaTotal = porcentajeComisionOficinaTotal;
         this.montoComisionOficinaTotal = montoComisionOficinaTotal;
         this.montoTotalDevolverCliente = montoTotalDevolverCliente;
+        this.montoRetornado = montoRetornado;
+        this.saldoPendienteRetornar = saldoPendienteRetornar;
+        this.montoSolicitadoRetorno = montoSolicitadoRetorno;
         this.observaciones = observaciones;
         this.pagos = pagos;
         this.createdAt = createdAt;
@@ -119,8 +127,8 @@ public class PaymentOperationResponseDto {
         this.montoRegistrado = montoRegistrado;
     }
 
-    public BigDecimal getSaldoPendiente() {
-        return saldoPendiente;
+    public BigDecimal getSaldoPendientePorValidar() {
+        return saldoPendientePorValidar;
     }
 
     public BigDecimal getSaldoPendientePorRegistrar() {
@@ -175,6 +183,22 @@ public class PaymentOperationResponseDto {
         return montoTotalDevolverCliente;
     }
 
+    public BigDecimal getMontoRetornado() {
+        return montoRetornado;
+    }
+
+    public void setMontoRetornado(BigDecimal montoRetornado) {
+        this.montoRetornado = montoRetornado;
+    }
+
+    public BigDecimal getSaldoPendienteRetornar() {
+        return saldoPendienteRetornar;
+    }
+
+    public void setSaldoPendienteRetornar(BigDecimal saldoPendienteRetornar) {
+        this.saldoPendienteRetornar = saldoPendienteRetornar;
+    }
+
     public String getObservaciones() {
         return observaciones;
     }
@@ -207,8 +231,8 @@ public class PaymentOperationResponseDto {
         this.montoValidado = montoValidado;
     }
 
-    public void setSaldoPendiente(BigDecimal saldoPendiente) {
-        this.saldoPendiente = saldoPendiente;
+    public void setSaldoPendientePorValidar(BigDecimal saldoPendientePorValidar) {
+        this.saldoPendientePorValidar = saldoPendientePorValidar;
     }
 
     public void setEstatus(OperationStatus estatus) {
@@ -253,6 +277,14 @@ public class PaymentOperationResponseDto {
 
     public void setMontoTotalDevolverCliente(BigDecimal montoTotalDevolverCliente) {
         this.montoTotalDevolverCliente = montoTotalDevolverCliente;
+    }
+
+    public BigDecimal getMontoSolicitadoRetorno() {
+        return montoSolicitadoRetorno;
+    }
+
+    public void setMontoSolicitadoRetorno(BigDecimal montoSolicitadoRetorno) {
+        this.montoSolicitadoRetorno = montoSolicitadoRetorno;
     }
 
     public void setObservaciones(String observaciones) {

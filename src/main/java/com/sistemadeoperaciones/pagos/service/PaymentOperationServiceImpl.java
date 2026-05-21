@@ -27,6 +27,7 @@ import com.sistemadeoperaciones.pagos.exceptions.PaymentOperationNotFoundExcepti
 import com.sistemadeoperaciones.pagos.model.OperationPayment;
 import com.sistemadeoperaciones.pagos.model.PaymentOperation;
 import com.sistemadeoperaciones.pagos.repository.OperationPaymentRepository;
+import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
 import com.sistemadeoperaciones.pagos.repository.PaymentOperationRepository;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.shared.enums.RoleName;
@@ -62,6 +63,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     private final UserRepository userRepository;
     private final AuthenticatedUserService authenticatedUserService;
     private final CommercialPartnerSettingsRepository commercialPartnerSettingsRepository;
+    private final OperationReturnPaymentRepository operationReturnPaymentRepository;
     private final NotificationService notificationService;
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
     private static final int MONEY_SCALE = 2;
@@ -69,6 +71,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     public PaymentOperationServiceImpl(
             PaymentOperationRepository paymentOperationRepository,
             OperationPaymentRepository operationPaymentRepository,
+            OperationReturnPaymentRepository operationReturnPaymentRepository,
             BankAccountRepository bankAccountRepository,
             UserRepository userRepository,
             AuthenticatedUserService authenticatedUserService,
@@ -78,6 +81,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     ) {
         this.paymentOperationRepository = paymentOperationRepository;
         this.operationPaymentRepository = operationPaymentRepository;
+        this.operationReturnPaymentRepository = operationReturnPaymentRepository;
         this.bankAccountRepository = bankAccountRepository;
         this.userRepository = userRepository;
         this.authenticatedUserService = authenticatedUserService;
@@ -125,7 +129,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         operation.setCliente(cliente);
         operation.setMontoTotal(request.getMontoTotal());
         operation.setMontoValidado(BigDecimal.ZERO);
-        operation.setSaldoPendiente(request.getMontoTotal());
+        //operation.setSaldoPendiente(request.getMontoTotal());
         operation.setEstatus(OperationStatus.PENDIENTE_VALIDACION);
         operation.setSocioComercial(socioComercial);
         operation.setNivelesRedComercial(cliente.getNivelesRedComercial());
@@ -675,7 +679,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         BigDecimal saldoPendiente = operation.getMontoTotal().subtract(totalValidated);
 
         operation.setMontoValidado(totalValidated);
-        operation.setSaldoPendiente(saldoPendiente);
+        //operation.setSaldoPendiente(saldoPendiente);
 
         if (totalValidated.compareTo(BigDecimal.ZERO) == 0) {
             boolean hasRejected = operationPaymentRepository.existsByOperacionIdAndEstatus(
@@ -752,6 +756,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     }
 
     private PaymentOperationResponseDto mapToOperationResponse(PaymentOperation operation) {
+        PaymentOperationResponseDto dto = new PaymentOperationResponseDto();
+
         List<OperationPayment> operationPayments =
                 operationPaymentRepository.findByOperacionId(operation.getId());
 
@@ -768,12 +774,40 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 .map(this::safe)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal saldoPendientePorRegistrar = montoTotal
-                .subtract(totalPagosRegistrados);
+        BigDecimal saldoPendientePorRegistrar = montoTotal.subtract(totalPagosRegistrados);
 
         if (saldoPendientePorRegistrar.compareTo(BigDecimal.ZERO) < 0) {
             saldoPendientePorRegistrar = BigDecimal.ZERO;
         }
+
+        dto.setId(operation.getId());
+
+        if (operation.getCliente() != null) {
+            dto.setClienteId(operation.getCliente().getId());
+            dto.setClienteNombre(operation.getCliente().getNombre());
+        }
+
+        BigDecimal saldoPendientePorValidar = montoTotal.subtract(safe(operation.getMontoValidado()));
+
+        if (saldoPendientePorValidar.compareTo(BigDecimal.ZERO) < 0) {
+            saldoPendientePorValidar = BigDecimal.ZERO;
+        }
+
+        dto.setMontoTotal(operation.getMontoTotal());
+        dto.setMontoValidado(operation.getMontoValidado());
+        dto.setMontoRegistrado(totalPagosRegistrados);
+        dto.setSaldoPendientePorValidar(saldoPendientePorValidar);
+        dto.setSaldoPendientePorRegistrar(saldoPendientePorRegistrar);
+        dto.setEstatus(operation.getEstatus());
+
+        if (operation.getSocioComercial() != null) {
+            dto.setSocioComercialId(operation.getSocioComercial().getId());
+            dto.setSocioComercialNombre(operation.getSocioComercial().getNombre());
+        }
+
+        dto.setNivelesRedComercial(operation.getNivelesRedComercial());
+        dto.setPorcentajeComisionAplicado(operation.getPorcentajeComisionAplicado());
+        dto.setPorcentajeComisionOficina(operation.getPorcentajeComisionOficina());
 
         BigDecimal porcentajeComisionRedTotal = calculateTotalPercentageByLevels(
                 operation.getPorcentajeComisionAplicado(),
@@ -800,33 +834,38 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 .subtract(montoComisionOficinaTotal)
                 .setScale(2, RoundingMode.HALF_UP);
 
-        return new PaymentOperationResponseDto(
-                operation.getId(),
-                operation.getCliente().getId(),
-                operation.getCliente().getNombre(),
-                operation.getMontoTotal(),
-                operation.getMontoValidado(),
-                totalPagosRegistrados,
-                operation.getSaldoPendiente(),
-                saldoPendientePorRegistrar,
-                operation.getEstatus(),
-                operation.getSocioComercial().getId(),
-                operation.getSocioComercial().getNombre(),
-                operation.getNivelesRedComercial(),
-                operation.getPorcentajeComisionAplicado(),
-                operation.getPorcentajeComisionOficina(),
-                porcentajeComisionRedTotal,
-                montoComisionRedTotal,
-                porcentajeComisionOficinaTotal,
-                montoComisionOficinaTotal,
-                montoTotalDevolverCliente,
-                operation.getObservaciones(),
-                payments,
-                operation.getCreatedAt(),
-                operation.getUpdatedAt()
-        );
-    }
+        dto.setPorcentajeComisionRedTotal(porcentajeComisionRedTotal);
+        dto.setMontoComisionRedTotal(montoComisionRedTotal);
+        dto.setPorcentajeComisionOficinaTotal(porcentajeComisionOficinaTotal);
+        dto.setMontoComisionOficinaTotal(montoComisionOficinaTotal);
+        dto.setMontoTotalDevolverCliente(montoTotalDevolverCliente);
 
+        BigDecimal montoRetornado = safe(
+                operationReturnPaymentRepository
+                        .sumRealizedAmountByOperationId(operation.getId())
+        );
+
+        BigDecimal montoSolicitadoRetorno = safe(
+                operationReturnPaymentRepository
+                        .sumRequestedAmountByOperationId(operation.getId())
+        );
+
+        BigDecimal saldoPendienteRetornar = montoTotalDevolverCliente
+                .subtract(montoRetornado)
+                .max(BigDecimal.ZERO)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        dto.setMontoSolicitadoRetorno(montoSolicitadoRetorno);
+        dto.setMontoRetornado(montoRetornado);
+        dto.setSaldoPendienteRetornar(saldoPendienteRetornar);
+
+        dto.setObservaciones(operation.getObservaciones());
+        dto.setPagos(payments);
+        dto.setCreatedAt(operation.getCreatedAt());
+        dto.setUpdatedAt(operation.getUpdatedAt());
+
+        return dto;
+    }
     private OperationPaymentResponseDto mapToPaymentResponse(OperationPayment payment) {
         Long validadoPorId = payment.getValidadoPor() != null ? payment.getValidadoPor().getId() : null;
         String validadoPorNombre = payment.getValidadoPor() != null ? payment.getValidadoPor().getNombre() : null;

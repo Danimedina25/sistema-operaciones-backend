@@ -2,6 +2,7 @@ package com.sistemadeoperaciones.pagos.controller;
 
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationFilterDto;
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationResponseDto;
+import com.sistemadeoperaciones.pagos.dto.retornos.CreateReturnPaymentBatchRequestDto;
 import com.sistemadeoperaciones.pagos.dto.retornos.CreateReturnPaymentRequestDto;
 import com.sistemadeoperaciones.pagos.dto.retornos.RealizeReturnPaymentRequestDto;
 import com.sistemadeoperaciones.pagos.dto.retornos.ReturnPaymentResponseDto;
@@ -69,11 +70,11 @@ public class ReturnsOperationController {
 
     @PostMapping("/{operationId}/request")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
-    public ResponseEntity<ApiResponse<ReturnPaymentResponseDto>> requestReturnPayment(
+    public ResponseEntity<ApiResponse<List<ReturnPaymentResponseDto>>> requestReturnPayment(
             @PathVariable Long operationId,
-            @Valid @RequestBody CreateReturnPaymentRequestDto request
+            @Valid @RequestBody CreateReturnPaymentBatchRequestDto request
     ) {
-        ReturnPaymentResponseDto response =
+        List<ReturnPaymentResponseDto> response =
                 returnsOperationService.requestReturnPayment(operationId, request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(

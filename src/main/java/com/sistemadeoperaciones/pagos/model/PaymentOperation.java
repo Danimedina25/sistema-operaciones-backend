@@ -30,9 +30,6 @@ public class PaymentOperation {
     @Column(name = "monto_validado", nullable = false, precision = 15, scale = 2)
     private BigDecimal montoValidado = BigDecimal.ZERO;
 
-    @Column(name = "saldo_pendiente", nullable = false, precision = 15, scale = 2)
-    private BigDecimal saldoPendiente = BigDecimal.ZERO;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40)
     private OperationStatus estatus;
@@ -74,10 +71,6 @@ public class PaymentOperation {
             this.montoValidado = BigDecimal.ZERO;
         }
 
-        if (this.saldoPendiente == null && this.montoTotal != null) {
-            this.saldoPendiente = this.montoTotal;
-        }
-
         if (this.estatus == null) {
             this.estatus = OperationStatus.PENDIENTE_VALIDACION;
         }
@@ -105,10 +98,6 @@ public class PaymentOperation {
 
     public BigDecimal getMontoValidado() {
         return montoValidado;
-    }
-
-    public BigDecimal getSaldoPendiente() {
-        return saldoPendiente;
     }
 
     public OperationStatus getEstatus() {
@@ -173,10 +162,6 @@ public class PaymentOperation {
 
     public void setMontoValidado(BigDecimal montoValidado) {
         this.montoValidado = montoValidado;
-    }
-
-    public void setSaldoPendiente(BigDecimal saldoPendiente) {
-        this.saldoPendiente = saldoPendiente;
     }
 
     public void setEstatus(OperationStatus estatus) {
