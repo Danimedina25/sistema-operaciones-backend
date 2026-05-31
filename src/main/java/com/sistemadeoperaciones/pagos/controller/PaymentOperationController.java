@@ -38,7 +38,7 @@ public class PaymentOperationController {
     }
 
     @PutMapping("/{operationId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> updateOperation(
             @PathVariable Long operationId,
             @Valid @RequestBody UpdatePaymentOperationRequestDto request

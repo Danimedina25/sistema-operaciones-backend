@@ -1,12 +1,14 @@
 package com.sistemadeoperaciones.socioscomerciales.service;
 
-import com.sistemadeoperaciones.cuentasbancarias.dto.BankAccountResponseDto;
-import com.sistemadeoperaciones.socioscomerciales.dto.*;
+import com.sistemadeoperaciones.socioscomerciales.dto.CommercialPartnerRequestDTO;
+import com.sistemadeoperaciones.socioscomerciales.dto.CommercialPartnerResponseDto;
 import org.springframework.data.domain.Page;
 
 public interface CommercialPartnerService {
 
-    CommercialPartnerResponseDto create(CommercialPartnerRequestDto request);
+    CommercialPartnerResponseDto create(
+            CommercialPartnerRequestDTO request
+    );
 
     Page<CommercialPartnerResponseDto> findAll(
             int page,
@@ -15,20 +17,17 @@ public interface CommercialPartnerService {
             String sortDir,
             Boolean activo,
             String nombre,
-            String correo,
-            Long socioPadreId
+            String cuentaBancaria
     );
 
     CommercialPartnerResponseDto findById(Long id);
 
-    CommercialPartnerResponseDto update(Long id, CommercialPartnerRequestDto request);
-
-    CommercialPartnerNetworkDto getNetworkById(Long id);
-
-    CommercialPartnerResponseDto deactivate(Long id);
+    CommercialPartnerResponseDto update(
+            Long id,
+            CommercialPartnerRequestDTO request
+    );
 
     CommercialPartnerResponseDto activate(Long id);
-    SocioComercialEmailUpdatedResponseDto updateSocioComercialEmail(Long id, UpdateSocioComercialEmailRequestDto request);
 
-    void resendSocioComercialActivationEmail(Long id);
+    CommercialPartnerResponseDto deactivate(Long id);
 }

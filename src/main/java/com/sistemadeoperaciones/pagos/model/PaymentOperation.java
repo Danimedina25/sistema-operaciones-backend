@@ -38,6 +38,14 @@ public class PaymentOperation {
     @JoinColumn(name = "socio_comercial_id", nullable = false)
     private User socioComercial;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "socio_comercial_id_nivel_2")
+    private CommercialPartner socioComercialNivel2;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "socio_comercial_id_nivel_3")
+    private CommercialPartner socioComercialNivel3;
+
     @Column(name = "niveles_red_comercial", nullable = false)
     private Integer nivelesRedComercial = 1;
 
@@ -50,10 +58,10 @@ public class PaymentOperation {
     @Column(length = 500)
     private String observaciones;
 
-    @OneToMany(mappedBy = "operacion", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "operacion",  cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
     private List<OperationPayment> pagos = new ArrayList<>();
 
-    @OneToMany(mappedBy = "operacion", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "operacion",  cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
     private List<OperationReturnPayment> retornos = new ArrayList<>();
 
     @Column(nullable = false, updatable = false)
@@ -170,6 +178,22 @@ public class PaymentOperation {
 
     public void setSocioComercial(User socioComercial) {
         this.socioComercial = socioComercial;
+    }
+
+    public CommercialPartner getSocioComercialNivel2() {
+        return socioComercialNivel2;
+    }
+
+    public void setSocioComercialNivel2(CommercialPartner socioComercialNivel2) {
+        this.socioComercialNivel2 = socioComercialNivel2;
+    }
+
+    public CommercialPartner getSocioComercialNivel3() {
+        return socioComercialNivel3;
+    }
+
+    public void setSocioComercialNivel3(CommercialPartner socioComercialNivel3) {
+        this.socioComercialNivel3 = socioComercialNivel3;
     }
 
     public void setNivelesRedComercial(Integer nivelesRedComercial) {

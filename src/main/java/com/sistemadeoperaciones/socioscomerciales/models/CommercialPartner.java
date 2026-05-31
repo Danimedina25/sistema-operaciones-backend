@@ -3,6 +3,7 @@ package com.sistemadeoperaciones.socioscomerciales.models;
 import com.sistemadeoperaciones.usuarios.model.User;
 import jakarta.persistence.*;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,99 +18,122 @@ public class CommercialPartner {
     @Column(nullable = false, length = 150)
     private String nombre;
 
-    @Column(nullable = false, unique = true, length = 150)
-    private String correo;
+    @Column(name = "cuenta_bancaria", length = 50)
+    private String cuentaBancaria;
 
-    @Column(nullable = false, length = 20)
-    private String telefono;
+    @Column(length = 100)
+    private String banco;
+
+    @Column(name = "titular_cuenta", length = 150)
+    private String titularCuenta;
+
+    @Column(nullable = false)
+    private Integer nivel;
 
     @Column(nullable = false)
     private Boolean activo = true;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "socio_padre_id")
-    private CommercialPartner socioPadre;
+    @JoinColumn(name = "user_id", nullable = false)
+    private User socioComercial;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
-    private User usuario;
+    private LocalDateTime createdAt;
 
-    @OneToMany(mappedBy = "socioPadre", cascade = CascadeType.ALL)
-    private List<CommercialPartner> hijos = new ArrayList<>();
+    private LocalDateTime updatedAt;
 
     public CommercialPartner() {
     }
 
-    public CommercialPartner(Long id, String nombre, String correo, String telefono, Boolean activo, CommercialPartner socioPadre) {
+    public CommercialPartner(Long id, String nombre, String cuentaBancaria, String banco, String titularCuenta, Integer nivel, Boolean activo, User socioComercial, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.nombre = nombre;
-        this.correo = correo;
-        this.telefono = telefono;
+        this.cuentaBancaria = cuentaBancaria;
+        this.banco = banco;
+        this.titularCuenta = titularCuenta;
+        this.nivel = nivel;
         this.activo = activo;
-        this.socioPadre = socioPadre;
+        this.socioComercial = socioComercial;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
     }
 
     public Long getId() {
         return id;
     }
 
-    public String getNombre() {
-        return nombre;
-    }
-
-    public String getCorreo() {
-        return correo;
-    }
-
-    public String getTelefono() {
-        return telefono;
-    }
-
-    public Boolean getActivo() {
-        return activo;
-    }
-
-    public CommercialPartner getSocioPadre() {
-        return socioPadre;
-    }
-
-    public List<CommercialPartner> getHijos() {
-        return hijos;
-    }
-
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getNombre() {
+        return nombre;
     }
 
     public void setNombre(String nombre) {
         this.nombre = nombre;
     }
 
-    public void setCorreo(String correo) {
-        this.correo = correo;
+    public String getCuentaBancaria() {
+        return cuentaBancaria;
     }
 
-    public void setTelefono(String telefono) {
-        this.telefono = telefono;
+    public void setCuentaBancaria(String cuentaBancaria) {
+        this.cuentaBancaria = cuentaBancaria;
+    }
+
+    public String getBanco() {
+        return banco;
+    }
+
+    public void setBanco(String banco) {
+        this.banco = banco;
+    }
+
+    public String getTitularCuenta() {
+        return titularCuenta;
+    }
+
+    public void setTitularCuenta(String titularCuenta) {
+        this.titularCuenta = titularCuenta;
+    }
+
+    public Integer getNivel() {
+        return nivel;
+    }
+
+    public void setNivel(Integer nivel) {
+        this.nivel = nivel;
+    }
+
+    public Boolean getActivo() {
+        return activo;
     }
 
     public void setActivo(Boolean activo) {
         this.activo = activo;
     }
 
-    public void setSocioPadre(CommercialPartner socioPadre) {
-        this.socioPadre = socioPadre;
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 
-    public User getUsuario() {
-        return usuario;
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
     }
 
-    public void setUsuario(User usuario) {
-        this.usuario = usuario;
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
     }
 
-    public void setHijos(List<CommercialPartner> hijos) {
-        this.hijos = hijos;
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    public User getSocioComercial() {
+        return socioComercial;
+    }
+
+    public void setSocioComercial(User socioComercial) {
+        this.socioComercial = socioComercial;
     }
 }

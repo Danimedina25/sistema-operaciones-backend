@@ -19,6 +19,10 @@ public class PaymentOperationResponseDto {
     private OperationStatus estatus;
     private Long socioComercialId;
     private String socioComercialNombre;
+    private Long socioComercialNivel2Id;
+    private String socioComercialNivel2Nombre;
+    private Long socioComercialNivel3Id;
+    private String socioComercialNivel3Nombre;
     private Integer nivelesRedComercial;
     private BigDecimal porcentajeComisionAplicado;
     private BigDecimal porcentajeComisionOficina;
@@ -39,34 +43,7 @@ public class PaymentOperationResponseDto {
     public PaymentOperationResponseDto() {
     }
 
-    public PaymentOperationResponseDto(
-            Long id,
-            Long clienteId,
-            String clienteNombre,
-            BigDecimal montoTotal,
-            BigDecimal montoValidado,
-            BigDecimal montoRegistrado,
-            BigDecimal saldoPendientePorValidar,
-            BigDecimal saldoPendientePorRegistrar,
-            OperationStatus estatus,
-            Long socioComercialId,
-            String socioComercialNombre,
-            Integer nivelesRedComercial,
-            BigDecimal porcentajeComisionAplicado,
-            BigDecimal porcentajeComisionOficina,
-            BigDecimal porcentajeComisionRedTotal,
-            BigDecimal montoComisionRedTotal,
-            BigDecimal porcentajeComisionOficinaTotal,
-            BigDecimal montoComisionOficinaTotal,
-            BigDecimal montoTotalDevolverCliente,
-            BigDecimal montoRetornado,
-            BigDecimal saldoPendienteRetornar,
-            BigDecimal montoSolicitadoRetorno,
-            String observaciones,
-            List<OperationPaymentResponseDto> pagos,
-            LocalDateTime createdAt,
-            LocalDateTime updatedAt
-    ) {
+    public PaymentOperationResponseDto(Long id, Long clienteId, String clienteNombre, BigDecimal montoTotal, BigDecimal montoValidado, BigDecimal montoRegistrado, BigDecimal saldoPendientePorValidar, BigDecimal saldoPendientePorRegistrar, OperationStatus estatus, Long socioComercialId, String socioComercialNombre, Long socioComercialNivel2Id, String socioComercialNivel2Nombre, Long socioComercialNivel3Id, String socioComercialNivel3Nombre, Integer nivelesRedComercial, BigDecimal porcentajeComisionAplicado, BigDecimal porcentajeComisionOficina, BigDecimal porcentajeComisionRedTotal, BigDecimal montoComisionRedTotal, BigDecimal porcentajeComisionOficinaTotal, BigDecimal montoComisionOficinaTotal, BigDecimal montoTotalDevolverCliente, BigDecimal montoRetornado, BigDecimal saldoPendienteRetornar, BigDecimal montoSolicitadoRetorno, String observaciones, List<OperationPaymentResponseDto> pagos, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.clienteId = clienteId;
         this.clienteNombre = clienteNombre;
@@ -78,6 +55,10 @@ public class PaymentOperationResponseDto {
         this.estatus = estatus;
         this.socioComercialId = socioComercialId;
         this.socioComercialNombre = socioComercialNombre;
+        this.socioComercialNivel2Id = socioComercialNivel2Id;
+        this.socioComercialNivel2Nombre = socioComercialNivel2Nombre;
+        this.socioComercialNivel3Id = socioComercialNivel3Id;
+        this.socioComercialNivel3Nombre = socioComercialNivel3Nombre;
         this.nivelesRedComercial = nivelesRedComercial;
         this.porcentajeComisionAplicado = porcentajeComisionAplicado;
         this.porcentajeComisionOficina = porcentajeComisionOficina;
@@ -149,6 +130,38 @@ public class PaymentOperationResponseDto {
 
     public String getSocioComercialNombre() {
         return socioComercialNombre;
+    }
+
+    public Long getSocioComercialNivel2Id() {
+        return socioComercialNivel2Id;
+    }
+
+    public void setSocioComercialNivel2Id(Long socioComercialNivel2Id) {
+        this.socioComercialNivel2Id = socioComercialNivel2Id;
+    }
+
+    public String getSocioComercialNivel2Nombre() {
+        return socioComercialNivel2Nombre;
+    }
+
+    public void setSocioComercialNivel2Nombre(String socioComercialNivel2Nombre) {
+        this.socioComercialNivel2Nombre = socioComercialNivel2Nombre;
+    }
+
+    public Long getSocioComercialNivel3Id() {
+        return socioComercialNivel3Id;
+    }
+
+    public void setSocioComercialNivel3Id(Long socioComercialNivel3Id) {
+        this.socioComercialNivel3Id = socioComercialNivel3Id;
+    }
+
+    public String getSocioComercialNivel3Nombre() {
+        return socioComercialNivel3Nombre;
+    }
+
+    public void setSocioComercialNivel3Nombre(String socioComercialNivel3Nombre) {
+        this.socioComercialNivel3Nombre = socioComercialNivel3Nombre;
     }
 
     public Integer getNivelesRedComercial() {

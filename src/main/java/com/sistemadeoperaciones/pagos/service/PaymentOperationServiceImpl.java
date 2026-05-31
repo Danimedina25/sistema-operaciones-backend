@@ -33,6 +33,8 @@ import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.shared.enums.RoleName;
 import com.sistemadeoperaciones.shared.exception.BusinessException;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
+import com.sistemadeoperaciones.socioscomerciales.models.CommercialPartner;
+import com.sistemadeoperaciones.socioscomerciales.repository.CommercialPartnerRepository;
 import com.sistemadeoperaciones.usuarios.model.CommercialPartnerSettings;
 import com.sistemadeoperaciones.usuarios.model.User;
 import com.sistemadeoperaciones.usuarios.repository.CommercialPartnerSettingsRepository;
@@ -68,6 +70,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
     private static final int MONEY_SCALE = 2;
     private final ClientesRepository clientesRepository;
+    private final CommercialPartnerRepository commercialPartnerRepository;
     public PaymentOperationServiceImpl(
             PaymentOperationRepository paymentOperationRepository,
             OperationPaymentRepository operationPaymentRepository,
@@ -77,7 +80,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             AuthenticatedUserService authenticatedUserService,
             CommercialPartnerSettingsRepository commercialPartnerSettingsRepository,
             NotificationService notificationService,
-            ClientesRepository clientesRepository
+            ClientesRepository clientesRepository,
+            CommercialPartnerRepository commercialPartnerRepository
     ) {
         this.paymentOperationRepository = paymentOperationRepository;
         this.operationPaymentRepository = operationPaymentRepository;
@@ -88,27 +92,109 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         this.commercialPartnerSettingsRepository = commercialPartnerSettingsRepository;
         this.notificationService = notificationService;
         this.clientesRepository = clientesRepository;
+        this.commercialPartnerRepository = commercialPartnerRepository;
     }
 
     @Override
     @Transactional
-    public PaymentOperationResponseDto createOperation(CreatePaymentOperationRequestDto request) {
-        User socioComercial = userRepository.findById(request.getSocioComercialId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Socio comercial no encontrado con id: " + request.getSocioComercialId()));
+    public PaymentOperationResponseDto createOperation(
+            CreatePaymentOperationRequestDto request
+    ) {
 
-
-        Clientes cliente = clientesRepository.findById(request.getClienteId())
-                .orElseThrow(() -> new ClienteNotFoundException(request.getClienteId()));
-
-        if (!Boolean.TRUE.equals(cliente.getActivo())) {
-            throw new BusinessException("El cliente seleccionado está inactivo");
+        if (
+                request.getSocioComercialNivel3Id() != null &&
+                        request.getSocioComercialNivel2Id() == null
+        ) {
+            throw new BusinessException(
+                    "No puede existir un socio nivel 3 sin un socio nivel 2"
+            );
         }
+
+        User socioComercial = userRepository.findById(
+                request.getSocioComercialId()
+        ).orElseThrow(() ->
+                new ResourceNotFoundException(
+                        "Socio comercial no encontrado con id: "
+                                + request.getSocioComercialId()
+                )
+        );
+
         if (!Boolean.TRUE.equals(socioComercial.getActivo())) {
             throw new PaymentOperationInactivePartnerException();
         }
 
-        boolean isAllowedUser = socioComercial.getRoles().stream()
+        CommercialPartner socioNivel2 = null;
+        CommercialPartner socioNivel3 = null;
+
+        if (request.getSocioComercialNivel2Id() != null) {
+
+            socioNivel2 = commercialPartnerRepository
+                    .findById(request.getSocioComercialNivel2Id())
+                    .orElseThrow(() ->
+                            new ResourceNotFoundException(
+                                    "Socio comercial nivel 2 no encontrado"
+                            )
+                    );
+
+            if (socioNivel2.getNivel() != 2) {
+                throw new BusinessException(
+                        "El socio seleccionado no es de nivel 2"
+                );
+            }
+
+            if (!Boolean.TRUE.equals(socioNivel2.getActivo())) {
+                throw new BusinessException(
+                        "El socio comercial nivel 2 está inactivo"
+                );
+            }
+        }
+
+        if (request.getSocioComercialNivel3Id() != null) {
+
+            socioNivel3 = commercialPartnerRepository
+                    .findById(request.getSocioComercialNivel3Id())
+                    .orElseThrow(() ->
+                            new ResourceNotFoundException(
+                                    "Socio comercial nivel 3 no encontrado"
+                            )
+                    );
+
+            if (socioNivel3.getNivel() != 3) {
+                throw new BusinessException(
+                        "El socio seleccionado no es de nivel 3"
+                );
+            }
+
+            if (!Boolean.TRUE.equals(socioNivel3.getActivo())) {
+                throw new BusinessException(
+                        "El socio comercial nivel 3 está inactivo"
+                );
+            }
+        }
+
+        validateCommercialPartnersOwnership(
+                socioComercial,
+                socioNivel2,
+                socioNivel3
+        );
+
+        Clientes cliente = clientesRepository.findById(
+                request.getClienteId()
+        ).orElseThrow(() ->
+                new ClienteNotFoundException(
+                        request.getClienteId()
+                )
+        );
+
+        if (!Boolean.TRUE.equals(cliente.getActivo())) {
+            throw new BusinessException(
+                    "El cliente seleccionado está inactivo"
+            );
+        }
+
+
+        boolean isAllowedUser = socioComercial.getRoles()
+                .stream()
                 .anyMatch(role ->
                         role.getName() == RoleName.SOCIO_COMERCIAL
                                 || role.getName() == RoleName.ADMIN
@@ -120,24 +206,45 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             );
         }
 
-        CommercialPartnerSettings settings = commercialPartnerSettingsRepository
-                .findByUsuarioId(socioComercial.getId())
-                .orElseThrow(() -> new BusinessException(
-                        "El socio comercial no tiene configuración de comisión registrada"));
+        CommercialPartnerSettings settings =
+                commercialPartnerSettingsRepository
+                        .findByUsuarioId(socioComercial.getId())
+                        .orElseThrow(() ->
+                                new BusinessException(
+                                        "El socio comercial no tiene configuración de comisión registrada"
+                                )
+                        );
 
         PaymentOperation operation = new PaymentOperation();
+
         operation.setCliente(cliente);
         operation.setMontoTotal(request.getMontoTotal());
         operation.setMontoValidado(BigDecimal.ZERO);
-        //operation.setSaldoPendiente(request.getMontoTotal());
         operation.setEstatus(OperationStatus.PENDIENTE_VALIDACION);
-        operation.setSocioComercial(socioComercial);
-        operation.setNivelesRedComercial(cliente.getNivelesRedComercial());
-        operation.setPorcentajeComisionAplicado(cliente.getPorcentajeComisionAplicado());
-        operation.setPorcentajeComisionOficina(new BigDecimal("1.5"));
-        operation.setObservaciones(request.getObservaciones());
 
-        PaymentOperation saved = paymentOperationRepository.save(operation);
+        operation.setSocioComercial(socioComercial);
+        operation.setSocioComercialNivel2(socioNivel2);
+        operation.setSocioComercialNivel3(socioNivel3);
+
+        operation.setNivelesRedComercial(
+                cliente.getNivelesRedComercial()
+        );
+
+        operation.setPorcentajeComisionAplicado(
+                cliente.getPorcentajeComisionAplicado()
+        );
+
+        operation.setPorcentajeComisionOficina(
+                new BigDecimal("1.5")
+        );
+
+        operation.setObservaciones(
+                request.getObservaciones()
+        );
+
+        PaymentOperation saved =
+                paymentOperationRepository.save(operation);
+
         return mapToOperationResponse(saved);
     }
 
@@ -147,26 +254,50 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             Long operationId,
             UpdatePaymentOperationRequestDto request
     ) {
-        PaymentOperation operation = paymentOperationRepository.findById(operationId)
-                .orElseThrow(() -> new PaymentOperationNotFoundException(operationId));
 
-        Clientes cliente = clientesRepository.findById(request.getClienteId())
-                .orElseThrow(() -> new ClienteNotFoundException(request.getClienteId()));
+        PaymentOperation operation = paymentOperationRepository.findById(operationId)
+                .orElseThrow(() ->
+                        new PaymentOperationNotFoundException(operationId)
+                );
+
+        Clientes cliente = clientesRepository.findById(
+                request.getClienteId()
+        ).orElseThrow(() ->
+                new ClienteNotFoundException(
+                        request.getClienteId()
+                )
+        );
 
         if (!Boolean.TRUE.equals(cliente.getActivo())) {
-            throw new BusinessException("El cliente seleccionado está inactivo");
+            throw new BusinessException(
+                    "El cliente seleccionado está inactivo"
+            );
         }
 
-        User socioComercial = userRepository.findById(request.getSocioComercialId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Socio comercial no encontrado con id: " + request.getSocioComercialId()
-                ));
+        if (
+                request.getSocioComercialNivel3Id() != null &&
+                        request.getSocioComercialNivel2Id() == null
+        ) {
+            throw new BusinessException(
+                    "No puede existir un socio nivel 3 sin un socio nivel 2"
+            );
+        }
+
+        User socioComercial = userRepository.findById(
+                request.getSocioComercialId()
+        ).orElseThrow(() ->
+                new ResourceNotFoundException(
+                        "Socio comercial no encontrado con id: "
+                                + request.getSocioComercialId()
+                )
+        );
 
         if (!Boolean.TRUE.equals(socioComercial.getActivo())) {
             throw new PaymentOperationInactivePartnerException();
         }
 
-        boolean isAllowedUser = socioComercial.getRoles().stream()
+        boolean isAllowedUser = socioComercial.getRoles()
+                .stream()
                 .anyMatch(role ->
                         role.getName() == RoleName.SOCIO_COMERCIAL
                                 || role.getName() == RoleName.ADMIN
@@ -178,15 +309,78 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             );
         }
 
-        List<OperationPayment> payments = operationPaymentRepository.findByOperacionId(operationId);
+        CommercialPartner socioNivel2 = null;
+        CommercialPartner socioNivel3 = null;
+
+        if (request.getSocioComercialNivel2Id() != null) {
+
+            socioNivel2 = commercialPartnerRepository
+                    .findById(request.getSocioComercialNivel2Id())
+                    .orElseThrow(() ->
+                            new ResourceNotFoundException(
+                                    "Socio comercial nivel 2 no encontrado"
+                            )
+                    );
+
+            if (socioNivel2.getNivel() != 2) {
+                throw new BusinessException(
+                        "El socio seleccionado no es de nivel 2"
+                );
+            }
+
+            if (!Boolean.TRUE.equals(socioNivel2.getActivo())) {
+                throw new BusinessException(
+                        "El socio comercial nivel 2 está inactivo"
+                );
+            }
+        }
+
+        if (request.getSocioComercialNivel3Id() != null) {
+
+            socioNivel3 = commercialPartnerRepository
+                    .findById(request.getSocioComercialNivel3Id())
+                    .orElseThrow(() ->
+                            new ResourceNotFoundException(
+                                    "Socio comercial nivel 3 no encontrado"
+                            )
+                    );
+
+            if (socioNivel3.getNivel() != 3) {
+                throw new BusinessException(
+                        "El socio seleccionado no es de nivel 3"
+                );
+            }
+
+            if (!Boolean.TRUE.equals(socioNivel3.getActivo())) {
+                throw new BusinessException(
+                        "El socio comercial nivel 3 está inactivo"
+                );
+            }
+
+
+        }
+
+        validateCommercialPartnersOwnership(
+                socioComercial,
+                socioNivel2,
+                socioNivel3
+        );
+
+        List<OperationPayment> payments =
+                operationPaymentRepository.findByOperacionId(operationId);
 
         BigDecimal totalPagosNoRechazados = payments.stream()
-                .filter(payment -> payment.getEstatus() != PaymentStatus.RECHAZADA)
+                .filter(payment ->
+                        payment.getEstatus() != PaymentStatus.RECHAZADA
+                )
                 .map(OperationPayment::getMonto)
                 .map(this::safe)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        if (request.getMontoTotal().compareTo(totalPagosNoRechazados) < 0) {
+        if (
+                request.getMontoTotal()
+                        .compareTo(totalPagosNoRechazados) < 0
+        ) {
             throw new BusinessException(
                     "El monto total no puede ser menor al total de pagos registrados no rechazados"
             );
@@ -194,19 +388,34 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         operation.setCliente(cliente);
         operation.setMontoTotal(request.getMontoTotal());
+
         operation.setSocioComercial(socioComercial);
-        operation.setNivelesRedComercial(cliente.getNivelesRedComercial());
-        operation.setPorcentajeComisionAplicado(cliente.getPorcentajeComisionAplicado());
-        operation.setPorcentajeComisionOficina(new BigDecimal("1.5"));
-        operation.setObservaciones(request.getObservaciones());
+        operation.setSocioComercialNivel2(socioNivel2);
+        operation.setSocioComercialNivel3(socioNivel3);
+
+        operation.setNivelesRedComercial(
+                cliente.getNivelesRedComercial()
+        );
+
+        operation.setPorcentajeComisionAplicado(
+                cliente.getPorcentajeComisionAplicado()
+        );
+
+        operation.setPorcentajeComisionOficina(
+                new BigDecimal("1.5")
+        );
+
+        operation.setObservaciones(
+                request.getObservaciones()
+        );
 
         recalculateOperation(operation);
 
-        PaymentOperation updated = paymentOperationRepository.save(operation);
+        PaymentOperation updated =
+                paymentOperationRepository.save(operation);
 
         return mapToOperationResponse(updated);
     }
-
     @Override
     @Transactional
     public OperationPaymentResponseDto addPayment(CreateOperationPaymentRequestDto request) {
@@ -805,6 +1014,28 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             dto.setSocioComercialNombre(operation.getSocioComercial().getNombre());
         }
 
+        if (operation.getSocioComercialNivel2() != null) {
+
+            dto.setSocioComercialNivel2Id(
+                    operation.getSocioComercialNivel2().getId()
+            );
+
+            dto.setSocioComercialNivel2Nombre(
+                    operation.getSocioComercialNivel2().getNombre()
+            );
+        }
+
+        if (operation.getSocioComercialNivel3() != null) {
+
+            dto.setSocioComercialNivel3Id(
+                    operation.getSocioComercialNivel3().getId()
+            );
+
+            dto.setSocioComercialNivel3Nombre(
+                    operation.getSocioComercialNivel3().getNombre()
+            );
+        }
+
         dto.setNivelesRedComercial(operation.getNivelesRedComercial());
         dto.setPorcentajeComisionAplicado(operation.getPorcentajeComisionAplicado());
         dto.setPorcentajeComisionOficina(operation.getPorcentajeComisionOficina());
@@ -866,6 +1097,36 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         return dto;
     }
+
+
+    private void validateCommercialPartnersOwnership(
+            User socioComercial,
+            CommercialPartner socioNivel2,
+            CommercialPartner socioNivel3
+    ) {
+
+        if (
+                socioNivel2 != null &&
+                        !socioNivel2.getSocioComercial().getId()
+                                .equals(socioComercial.getId())
+        ) {
+            throw new BusinessException(
+                    "El socio comercial nivel 2 no pertenece al socio comercial de la operación"
+
+            );
+        }
+
+        if (
+                socioNivel3 != null &&
+                        !socioNivel3.getSocioComercial().getId()
+                                .equals(socioComercial.getId())
+        ) {
+            throw new BusinessException(
+                    "El socio comercial nivel 3 no pertenece al socio comercial seleccionado"
+            );
+        }
+    }
+
     private OperationPaymentResponseDto mapToPaymentResponse(OperationPayment payment) {
         Long validadoPorId = payment.getValidadoPor() != null ? payment.getValidadoPor().getId() : null;
         String validadoPorNombre = payment.getValidadoPor() != null ? payment.getValidadoPor().getNombre() : null;
