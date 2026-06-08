@@ -52,7 +52,6 @@ public class CommercialPartnerServiceImpl implements CommercialPartnerService {
         partner.setCuentaBancaria(request.getCuentaBancaria());
         partner.setBanco(request.getBanco());
         partner.setTitularCuenta(request.getTitularCuenta());
-        partner.setNivel(request.getNivel());
         partner.setSocioComercial(socioComercial);
         partner.setActivo(
                 request.getActivo() != null
@@ -151,8 +150,6 @@ public class CommercialPartnerServiceImpl implements CommercialPartnerService {
         partner.setCuentaBancaria(request.getCuentaBancaria());
         partner.setBanco(request.getBanco());
         partner.setTitularCuenta(request.getTitularCuenta());
-        partner.setNivel(request.getNivel());
-
         if (request.getActivo() != null) {
             partner.setActivo(request.getActivo());
         }
@@ -252,7 +249,6 @@ public class CommercialPartnerServiceImpl implements CommercialPartnerService {
                 partner.getCuentaBancaria(),
                 partner.getBanco(),
                 partner.getTitularCuenta(),
-                partner.getNivel(),
                 partner.getActivo(),
                 partner.getSocioComercial() != null
                         ? partner.getSocioComercial().getId()

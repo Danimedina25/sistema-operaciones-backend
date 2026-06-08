@@ -9,6 +9,7 @@ import com.sistemadeoperaciones.pagos.dto.retornos.ReturnPaymentResponseDto;
 import com.sistemadeoperaciones.pagos.enums.OperationStatus;
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
+import com.sistemadeoperaciones.pagos.exceptions.ReturnAmountExceedsPendingBalanceException;
 import com.sistemadeoperaciones.pagos.model.OperationReturnPayment;
 import com.sistemadeoperaciones.pagos.model.PaymentOperation;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
@@ -79,9 +80,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         BigDecimal newTotalRequested = totalRequestedBefore.add(totalRequestedNow);
 
         if (newTotalRequested.compareTo(amountToReturn) > 0) {
-            throw new IllegalArgumentException(
-                    "El monto solicitado para retorno excede el saldo pendiente por devolver"
-            );
+            throw new ReturnAmountExceedsPendingBalanceException();
         }
 
         User currentUser = authenticatedUserService.getCurrentUser();
@@ -423,14 +422,10 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 porcentajeComisionRedTotal
         );
 
-        BigDecimal porcentajeComisionOficinaTotal = calculateTotalPercentageByLevels(
-                operation.getPorcentajeComisionOficina(),
-                operation.getNivelesRedComercial()
-        );
 
         BigDecimal montoComisionOficinaTotal = calculateAmountFromPercentage(
                 montoValidado,
-                porcentajeComisionOficinaTotal
+                operation.getPorcentajeComisionOficina()
         );
 
         return montoValidado
@@ -534,15 +529,15 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
         BigDecimal porcentajeComisionOficinaTotal = calculateTotalPercentageByLevels(
                 operation.getPorcentajeComisionOficina(),
-                operation.getNivelesRedComercial()
+              1
         );
 
         BigDecimal montoComisionOficinaTotal = calculateAmountFromPercentage(
-                montoValidado,
+                montoTotal,
                 porcentajeComisionOficinaTotal
         );
 
-        BigDecimal montoTotalDevolverCliente = montoValidado
+        BigDecimal montoTotalDevolverCliente = montoTotal
                 .subtract(montoComisionRedTotal)
                 .subtract(montoComisionOficinaTotal)
                 .setScale(2, RoundingMode.HALF_UP);

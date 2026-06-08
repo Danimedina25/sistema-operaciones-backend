@@ -24,11 +24,18 @@ public class CommercialPartnerSettings {
     @JoinColumn(name = "user_id", nullable = false)
     private User usuario;
 
-    @Column(name = "commission_percentage", nullable = false, precision = 5, scale = 2)
-    private BigDecimal commissionPercentage;
-
     @Column(name = "applies_to_network", nullable = false)
     private Boolean appliesToNetwork = true;
+
+    @Column(name = "cuenta_bancaria", length = 50)
+    private String cuentaBancaria;
+
+    @Column(length = 100)
+    private String banco;
+
+    @Column(name = "titular_cuenta", length = 150)
+    private String titularCuenta;
+
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updated_by")
@@ -66,10 +73,6 @@ public class CommercialPartnerSettings {
         return usuario;
     }
 
-    public BigDecimal getCommissionPercentage() {
-        return commissionPercentage;
-    }
-
     public Boolean getAppliesToNetwork() {
         return appliesToNetwork;
     }
@@ -94,15 +97,43 @@ public class CommercialPartnerSettings {
         this.usuario = usuario;
     }
 
-    public void setCommissionPercentage(BigDecimal commissionPercentage) {
-        this.commissionPercentage = commissionPercentage;
-    }
-
     public void setAppliesToNetwork(Boolean appliesToNetwork) {
         this.appliesToNetwork = appliesToNetwork;
     }
 
     public void setUpdatedBy(User updatedBy) {
         this.updatedBy = updatedBy;
+    }
+
+    public String getCuentaBancaria() {
+        return cuentaBancaria;
+    }
+
+    public void setCuentaBancaria(String cuentaBancaria) {
+        this.cuentaBancaria = cuentaBancaria;
+    }
+
+    public String getBanco() {
+        return banco;
+    }
+
+    public void setBanco(String banco) {
+        this.banco = banco;
+    }
+
+    public String getTitularCuenta() {
+        return titularCuenta;
+    }
+
+    public void setTitularCuenta(String titularCuenta) {
+        this.titularCuenta = titularCuenta;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }

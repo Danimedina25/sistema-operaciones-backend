@@ -1,5 +1,6 @@
 package com.sistemadeoperaciones.usuarios.dto.request;
 
+import jakarta.persistence.Column;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
@@ -24,23 +25,28 @@ public class CreateUserRequestDto {
     private Long roleId;
 
     // Solo aplica si el rol es SOCIO_COMERCIAL
-    @DecimalMin(value = "0.00", inclusive = false, message = "El porcentaje de comisión debe ser mayor a 0")
-    @DecimalMax(value = "100.00", inclusive = true, message = "El porcentaje de comisión no puede ser mayor a 100")
-    private BigDecimal commissionPercentage;
-
-    // Solo aplica si el rol es SOCIO_COMERCIAL
     private Boolean appliesToNetwork = true;
+
+    @Size(max = 50, message = "La cuenta bancaria no puede exceder 50 caracteres")
+    private String cuentaBancaria;
+
+    @Size(max = 100, message = "El banco no puede exceder 100 caracteres")
+    private String banco;
+
+    @Size(max = 150, message = "El titular de la cuenta no puede exceder 150 caracteres")
+    private String titularCuenta;
 
     public CreateUserRequestDto() {
     }
 
-    public CreateUserRequestDto(String nombre, String correo, Long roleId,
-                                BigDecimal commissionPercentage, Boolean appliesToNetwork) {
+    public CreateUserRequestDto(String nombre, String correo, Long roleId, Boolean appliesToNetwork, String cuentaBancaria, String banco, String titularCuenta) {
         this.nombre = nombre;
         this.correo = correo;
         this.roleId = roleId;
-        this.commissionPercentage = commissionPercentage;
         this.appliesToNetwork = appliesToNetwork;
+        this.cuentaBancaria = cuentaBancaria;
+        this.banco = banco;
+        this.titularCuenta = titularCuenta;
     }
 
     public String getNombre() {
@@ -67,19 +73,35 @@ public class CreateUserRequestDto {
         this.roleId = roleId;
     }
 
-    public BigDecimal getCommissionPercentage() {
-        return commissionPercentage;
-    }
-
-    public void setCommissionPercentage(BigDecimal commissionPercentage) {
-        this.commissionPercentage = commissionPercentage;
-    }
-
     public Boolean getAppliesToNetwork() {
         return appliesToNetwork;
     }
 
     public void setAppliesToNetwork(Boolean appliesToNetwork) {
         this.appliesToNetwork = appliesToNetwork;
+    }
+
+    public String getCuentaBancaria() {
+        return cuentaBancaria;
+    }
+
+    public void setCuentaBancaria(String cuentaBancaria) {
+        this.cuentaBancaria = cuentaBancaria;
+    }
+
+    public String getBanco() {
+        return banco;
+    }
+
+    public void setBanco(String banco) {
+        this.banco = banco;
+    }
+
+    public String getTitularCuenta() {
+        return titularCuenta;
+    }
+
+    public void setTitularCuenta(String titularCuenta) {
+        this.titularCuenta = titularCuenta;
     }
 }

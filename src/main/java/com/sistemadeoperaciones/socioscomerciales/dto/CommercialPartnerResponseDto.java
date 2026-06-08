@@ -12,8 +12,6 @@ public class CommercialPartnerResponseDto {
 
     private String titularCuenta;
 
-    private Integer nivel;
-
     private Boolean activo;
 
     private Long socioComercialId;
@@ -22,13 +20,12 @@ public class CommercialPartnerResponseDto {
     public CommercialPartnerResponseDto() {
     }
 
-    public CommercialPartnerResponseDto(Long id, String nombre, String cuentaBancaria, String banco, String titularCuenta, Integer nivel, Boolean activo, Long socioComercialId, String socioComercialNombre) {
+    public CommercialPartnerResponseDto(Long id, String nombre, String cuentaBancaria, String banco, String titularCuenta, Boolean activo, Long socioComercialId, String socioComercialNombre) {
         this.id = id;
         this.nombre = nombre;
         this.cuentaBancaria = cuentaBancaria;
         this.banco = banco;
         this.titularCuenta = titularCuenta;
-        this.nivel = nivel;
         this.activo = activo;
         this.socioComercialId = socioComercialId;
         this.socioComercialNombre = socioComercialNombre;
@@ -72,14 +69,6 @@ public class CommercialPartnerResponseDto {
 
     public void setTitularCuenta(String titularCuenta) {
         this.titularCuenta = titularCuenta;
-    }
-
-    public Integer getNivel() {
-        return nivel;
-    }
-
-    public void setNivel(Integer nivel) {
-        this.nivel = nivel;
     }
 
     public Boolean getActivo() {

@@ -7,21 +7,26 @@ public class CommercialPartnerSettingsResponseDto {
 
     private Long id;
     private Long userId;
-    private BigDecimal commissionPercentage;
+
     private Boolean appliesToNetwork;
+
+    private String cuentaBancaria;
+    private String banco;
+    private String titularCuenta;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
     public CommercialPartnerSettingsResponseDto() {
     }
 
-    public CommercialPartnerSettingsResponseDto(Long id, Long userId, BigDecimal commissionPercentage,
-                                                Boolean appliesToNetwork, LocalDateTime createdAt,
-                                                LocalDateTime updatedAt) {
+    public CommercialPartnerSettingsResponseDto(Long id, Long userId, Boolean appliesToNetwork, String cuentaBancaria, String banco, String titularCuenta, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.userId = userId;
-        this.commissionPercentage = commissionPercentage;
         this.appliesToNetwork = appliesToNetwork;
+        this.cuentaBancaria = cuentaBancaria;
+        this.banco = banco;
+        this.titularCuenta = titularCuenta;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -34,12 +39,20 @@ public class CommercialPartnerSettingsResponseDto {
         return userId;
     }
 
-    public BigDecimal getCommissionPercentage() {
-        return commissionPercentage;
-    }
-
     public Boolean getAppliesToNetwork() {
         return appliesToNetwork;
+    }
+
+    public String getCuentaBancaria() {
+        return cuentaBancaria;
+    }
+
+    public String getBanco() {
+        return banco;
+    }
+
+    public String getTitularCuenta() {
+        return titularCuenta;
     }
 
     public LocalDateTime getCreatedAt() {
@@ -58,12 +71,20 @@ public class CommercialPartnerSettingsResponseDto {
         this.userId = userId;
     }
 
-    public void setCommissionPercentage(BigDecimal commissionPercentage) {
-        this.commissionPercentage = commissionPercentage;
-    }
-
     public void setAppliesToNetwork(Boolean appliesToNetwork) {
         this.appliesToNetwork = appliesToNetwork;
+    }
+
+    public void setCuentaBancaria(String cuentaBancaria) {
+        this.cuentaBancaria = cuentaBancaria;
+    }
+
+    public void setBanco(String banco) {
+        this.banco = banco;
+    }
+
+    public void setTitularCuenta(String titularCuenta) {
+        this.titularCuenta = titularCuenta;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {

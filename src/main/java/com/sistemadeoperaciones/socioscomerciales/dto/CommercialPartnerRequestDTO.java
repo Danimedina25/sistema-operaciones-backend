@@ -20,11 +20,6 @@ public class CommercialPartnerRequestDTO {
     @Size(max = 150)
     private String titularCuenta;
 
-    @NotNull(message = "El nivel es obligatorio")
-    @Min(value = 2, message = "El nivel debe ser 2 o 3")
-    @Max(value = 3, message = "El nivel debe ser 2 o 3")
-    private Integer nivel;
-
     private Boolean activo = true;
 
     public CommercialPartnerRequestDTO() {
@@ -71,11 +66,4 @@ public class CommercialPartnerRequestDTO {
         this.activo = activo;
     }
 
-    public Integer getNivel() {
-        return nivel;
-    }
-
-    public void setNivel(Integer nivel) {
-        this.nivel = nivel;
-    }
 }

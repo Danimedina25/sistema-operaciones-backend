@@ -28,9 +28,6 @@ public class CommercialPartner {
     private String titularCuenta;
 
     @Column(nullable = false)
-    private Integer nivel;
-
-    @Column(nullable = false)
     private Boolean activo = true;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -44,13 +41,12 @@ public class CommercialPartner {
     public CommercialPartner() {
     }
 
-    public CommercialPartner(Long id, String nombre, String cuentaBancaria, String banco, String titularCuenta, Integer nivel, Boolean activo, User socioComercial, LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public CommercialPartner(Long id, String nombre, String cuentaBancaria, String banco, String titularCuenta, Boolean activo, User socioComercial, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.nombre = nombre;
         this.cuentaBancaria = cuentaBancaria;
         this.banco = banco;
         this.titularCuenta = titularCuenta;
-        this.nivel = nivel;
         this.activo = activo;
         this.socioComercial = socioComercial;
         this.createdAt = createdAt;
@@ -95,14 +91,6 @@ public class CommercialPartner {
 
     public void setTitularCuenta(String titularCuenta) {
         this.titularCuenta = titularCuenta;
-    }
-
-    public Integer getNivel() {
-        return nivel;
-    }
-
-    public void setNivel(Integer nivel) {
-        this.nivel = nivel;
     }
 
     public Boolean getActivo() {

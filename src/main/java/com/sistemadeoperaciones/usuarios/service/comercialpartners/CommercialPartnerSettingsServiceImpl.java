@@ -50,7 +50,6 @@ public class CommercialPartnerSettingsServiceImpl implements CommercialPartnerSe
         CommercialPartnerSettings settings = commercialPartnerSettingsRepository.findByUsuarioId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Configuración comercial no encontrada para el usuario con id: " + userId));
 
-        settings.setCommissionPercentage(request.getCommissionPercentage());
         settings.setAppliesToNetwork(request.getAppliesToNetwork());
         settings.setUpdatedBy(null); // luego puedes poner aquí el admin autenticado
 
@@ -63,8 +62,10 @@ public class CommercialPartnerSettingsServiceImpl implements CommercialPartnerSe
         return new CommercialPartnerSettingsResponseDto(
                 settings.getId(),
                 settings.getUsuario().getId(),
-                settings.getCommissionPercentage(),
                 settings.getAppliesToNetwork(),
+                settings.getCuentaBancaria(),
+                settings.getBanco(),
+                settings.getTitularCuenta(),
                 settings.getCreatedAt(),
                 settings.getUpdatedAt()
         );

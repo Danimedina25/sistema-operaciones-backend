@@ -136,12 +136,6 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                             )
                     );
 
-            if (socioNivel2.getNivel() != 2) {
-                throw new BusinessException(
-                        "El socio seleccionado no es de nivel 2"
-                );
-            }
-
             if (!Boolean.TRUE.equals(socioNivel2.getActivo())) {
                 throw new BusinessException(
                         "El socio comercial nivel 2 está inactivo"
@@ -158,12 +152,6 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                                     "Socio comercial nivel 3 no encontrado"
                             )
                     );
-
-            if (socioNivel3.getNivel() != 3) {
-                throw new BusinessException(
-                        "El socio seleccionado no es de nivel 3"
-                );
-            }
 
             if (!Boolean.TRUE.equals(socioNivel3.getActivo())) {
                 throw new BusinessException(
@@ -322,12 +310,6 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                             )
                     );
 
-            if (socioNivel2.getNivel() != 2) {
-                throw new BusinessException(
-                        "El socio seleccionado no es de nivel 2"
-                );
-            }
-
             if (!Boolean.TRUE.equals(socioNivel2.getActivo())) {
                 throw new BusinessException(
                         "El socio comercial nivel 2 está inactivo"
@@ -344,12 +326,6 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                                     "Socio comercial nivel 3 no encontrado"
                             )
                     );
-
-            if (socioNivel3.getNivel() != 3) {
-                throw new BusinessException(
-                        "El socio seleccionado no es de nivel 3"
-                );
-            }
 
             if (!Boolean.TRUE.equals(socioNivel3.getActivo())) {
                 throw new BusinessException(
@@ -1050,14 +1026,11 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 porcentajeComisionRedTotal
         );
 
-        BigDecimal porcentajeComisionOficinaTotal = calculateTotalPercentageByLevels(
-                operation.getPorcentajeComisionOficina(),
-                operation.getNivelesRedComercial()
-        );
+        BigDecimal porcentajeComisionOficina = operation.getPorcentajeComisionOficina();
 
         BigDecimal montoComisionOficinaTotal = calculateAmountFromPercentage(
                 montoTotal,
-                porcentajeComisionOficinaTotal
+                porcentajeComisionOficina
         );
 
         BigDecimal montoTotalDevolverCliente = montoTotal
@@ -1067,7 +1040,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         dto.setPorcentajeComisionRedTotal(porcentajeComisionRedTotal);
         dto.setMontoComisionRedTotal(montoComisionRedTotal);
-        dto.setPorcentajeComisionOficinaTotal(porcentajeComisionOficinaTotal);
+        dto.setPorcentajeComisionOficinaTotal(porcentajeComisionOficina);
         dto.setMontoComisionOficinaTotal(montoComisionOficinaTotal);
         dto.setMontoTotalDevolverCliente(montoTotalDevolverCliente);
 
@@ -1104,6 +1077,14 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             CommercialPartner socioNivel2,
             CommercialPartner socioNivel3
     ) {
+
+        if (
+                socioComercial.getRoles()
+                        .stream()
+                        .anyMatch(role -> role.getName() == RoleName.ADMIN)
+        ) {
+            return;
+        }
 
         if (
                 socioNivel2 != null &&

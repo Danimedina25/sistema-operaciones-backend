@@ -2,6 +2,7 @@ package com.sistemadeoperaciones.usuarios.service;
 
 import com.sistemadeoperaciones.shared.enums.RoleName;
 import com.sistemadeoperaciones.usuarios.dto.response.CommercialPartnerSettingsResponseDto;
+import com.sistemadeoperaciones.usuarios.exceptions.*;
 import com.sistemadeoperaciones.usuarios.model.CommercialPartnerSettings;
 import com.sistemadeoperaciones.usuarios.model.Role;
 import com.sistemadeoperaciones.usuarios.model.User;
@@ -10,7 +11,6 @@ import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
 import com.sistemadeoperaciones.usuarios.dto.request.*;
 import com.sistemadeoperaciones.usuarios.dto.response.UserCreatedResponseDto;
 import com.sistemadeoperaciones.usuarios.dto.response.UserResponseDto;
-import com.sistemadeoperaciones.usuarios.exceptions.EmailSendException;
 import com.sistemadeoperaciones.usuarios.repository.CommercialPartnerSettingsRepository;
 import com.sistemadeoperaciones.usuarios.repository.RoleRepository;
 import com.sistemadeoperaciones.usuarios.repository.UserRepository;
@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -68,17 +69,30 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         // Si es socio comercial, crear su configuración de comisión
         if (role.getName() == RoleName.SOCIO_COMERCIAL) {
-            if (request.getCommissionPercentage() == null) {
-                throw new BadRequestException("El porcentaje de comisión es obligatorio para usuarios con rol SOCIO_COMERCIAL");
+            if (commercialPartnerSettingsRepository.existsByUsuarioId(savedUser.getId())) {
+                throw new CommercialPartnerSettingsAlreadyExistsException();
             }
 
-            if (commercialPartnerSettingsRepository.existsByUsuarioId(savedUser.getId())) {
-                throw new BadRequestException("El usuario ya cuenta con configuración comercial registrada");
+            if (request.getCuentaBancaria() == null
+                    || request.getCuentaBancaria().isBlank()) {
+                throw new CuentaBancariaRequiredException();
+            }
+
+            if (request.getBanco() == null
+                    || request.getBanco().isBlank()) {
+                throw new BancoRequiredException();
+            }
+
+            if (request.getTitularCuenta() == null
+                    || request.getTitularCuenta().isBlank()) {
+                throw new TitularCuentaRequiredException();
             }
 
             CommercialPartnerSettings settings = new CommercialPartnerSettings();
             settings.setUsuario(savedUser);
-            settings.setCommissionPercentage(request.getCommissionPercentage());
+            settings.setBanco(request.getBanco());
+            settings.setCuentaBancaria(request.getCuentaBancaria());
+            settings.setTitularCuenta(request.getTitularCuenta());
             settings.setAppliesToNetwork(
                     request.getAppliesToNetwork() != null ? request.getAppliesToNetwork() : true
             );
@@ -151,11 +165,19 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Override
     @Transactional
     public UserResponseDto update(Long id, UpdateUserRequestDto request) {
+
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + id));
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Usuario no encontrado con id: " + id
+                        ));
 
         Role role = roleRepository.findById(request.getRoleId())
-                .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado con id: " + request.getRoleId()));
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Rol no encontrado con id: "
+                                        + request.getRoleId()
+                        ));
 
         user.setNombre(request.getNombre().trim());
 
@@ -169,35 +191,96 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         User updatedUser = userRepository.save(user);
 
-        boolean isSocioComercial = role.getName() == RoleName.SOCIO_COMERCIAL;
+        boolean isSocioComercial =
+                role.getName() == RoleName.SOCIO_COMERCIAL;
 
-        var existingSettingsOpt = commercialPartnerSettingsRepository.findByUsuarioId(updatedUser.getId());
+        Optional<CommercialPartnerSettings> existingSettingsOpt =
+                commercialPartnerSettingsRepository.findByUsuarioId(
+                        updatedUser.getId()
+                );
 
         if (isSocioComercial) {
-            if (request.getCommissionPercentage() == null) {
-                throw new BadRequestException("El porcentaje de comisión es obligatorio para usuarios con rol SOCIO_COMERCIAL");
+            if (request.getCuentaBancaria() == null
+                    || request.getCuentaBancaria().isBlank()) {
+                throw new CuentaBancariaRequiredException();
+            }
+
+            if (request.getBanco() == null
+                    || request.getBanco().isBlank()) {
+                throw new BancoRequiredException();
+            }
+
+            if (request.getTitularCuenta() == null
+                    || request.getTitularCuenta().isBlank()) {
+                throw new TitularCuentaRequiredException();
             }
 
             if (existingSettingsOpt.isPresent()) {
-                CommercialPartnerSettings settings = existingSettingsOpt.get();
-                settings.setCommissionPercentage(request.getCommissionPercentage());
+
+                CommercialPartnerSettings settings =
+                        existingSettingsOpt.get();
+
                 settings.setAppliesToNetwork(
-                        request.getAppliesToNetwork() != null ? request.getAppliesToNetwork() : true
+                        request.getAppliesToNetwork() != null
+                                ? request.getAppliesToNetwork()
+                                : true
                 );
-                settings.setUpdatedBy(null); // luego aquí puedes poner el admin autenticado
-                commercialPartnerSettingsRepository.save(settings);
-            } else {
-                CommercialPartnerSettings settings = new CommercialPartnerSettings();
-                settings.setUsuario(updatedUser);
-                settings.setCommissionPercentage(request.getCommissionPercentage());
-                settings.setAppliesToNetwork(
-                        request.getAppliesToNetwork() != null ? request.getAppliesToNetwork() : true
+
+                settings.setCuentaBancaria(
+                        request.getCuentaBancaria().trim()
                 );
+
+                settings.setBanco(
+                        request.getBanco().trim()
+                );
+
+                settings.setTitularCuenta(
+                        request.getTitularCuenta().trim()
+                );
+
                 settings.setUpdatedBy(null);
-                commercialPartnerSettingsRepository.save(settings);
+
+                commercialPartnerSettingsRepository.save(
+                        settings
+                );
+
+            } else {
+
+                CommercialPartnerSettings settings =
+                        new CommercialPartnerSettings();
+
+                settings.setUsuario(updatedUser);
+
+                settings.setAppliesToNetwork(
+                        request.getAppliesToNetwork() != null
+                                ? request.getAppliesToNetwork()
+                                : true
+                );
+
+                settings.setCuentaBancaria(
+                        request.getCuentaBancaria().trim()
+                );
+
+                settings.setBanco(
+                        request.getBanco().trim()
+                );
+
+                settings.setTitularCuenta(
+                        request.getTitularCuenta().trim()
+                );
+
+                settings.setUpdatedBy(null);
+
+                commercialPartnerSettingsRepository.save(
+                        settings
+                );
             }
+
         } else {
-            existingSettingsOpt.ifPresent(commercialPartnerSettingsRepository::delete);
+
+            existingSettingsOpt.ifPresent(
+                    commercialPartnerSettingsRepository::delete
+            );
         }
 
         return mapToResponse(updatedUser);
@@ -248,8 +331,10 @@ public class UserManagementServiceImpl implements UserManagementService {
                     .map(settings -> new CommercialPartnerSettingsResponseDto(
                             settings.getId(),
                             settings.getUsuario().getId(),
-                            settings.getCommissionPercentage(),
                             settings.getAppliesToNetwork(),
+                            settings.getCuentaBancaria(),
+                            settings.getBanco(),
+                            settings.getTitularCuenta(),
                             settings.getCreatedAt(),
                             settings.getUpdatedAt()
                     ))
