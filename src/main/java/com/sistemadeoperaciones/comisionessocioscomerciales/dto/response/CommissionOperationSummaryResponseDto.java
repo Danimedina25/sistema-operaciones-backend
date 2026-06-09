@@ -19,12 +19,14 @@ public class CommissionOperationSummaryResponseDto {
 
     private Boolean pagadaCompletamente;
 
+    private Boolean pagadaParcialmente;
+
     private LocalDate fechaOperacion;
 
     public CommissionOperationSummaryResponseDto() {
     }
 
-    public CommissionOperationSummaryResponseDto(Long operationId, String cliente, Integer nivelesRedComercial, Integer totalBeneficiarios, BigDecimal montoOperacion, BigDecimal totalComisiones, Boolean pagadaCompletamente, LocalDate fechaOperacion) {
+    public CommissionOperationSummaryResponseDto(Long operationId, String cliente, Integer nivelesRedComercial, Integer totalBeneficiarios, BigDecimal montoOperacion, BigDecimal totalComisiones, Boolean pagadaCompletamente, Boolean pagadaParcialmente, LocalDate fechaOperacion) {
         this.operationId = operationId;
         this.cliente = cliente;
         this.nivelesRedComercial = nivelesRedComercial;
@@ -32,6 +34,7 @@ public class CommissionOperationSummaryResponseDto {
         this.montoOperacion = montoOperacion;
         this.totalComisiones = totalComisiones;
         this.pagadaCompletamente = pagadaCompletamente;
+        this.pagadaParcialmente = pagadaParcialmente;
         this.fechaOperacion = fechaOperacion;
     }
 
@@ -97,5 +100,14 @@ public class CommissionOperationSummaryResponseDto {
 
     public void setFechaOperacion(LocalDate fechaOperacion) {
         this.fechaOperacion = fechaOperacion;
+    }
+
+
+    public Boolean getPagadaParcialmente() {
+        return pagadaParcialmente;
+    }
+
+    public void setPagadaParcialmente(Boolean pagadaParcialmente) {
+        this.pagadaParcialmente = pagadaParcialmente;
     }
 }

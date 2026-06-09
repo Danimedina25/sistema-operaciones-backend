@@ -1,11 +1,8 @@
 package com.sistemadeoperaciones.comisionessocioscomerciales.controller;
 
+import com.sistemadeoperaciones.comisionessocioscomerciales.dto.request.PayCommissionBatchRequestDto;
 import com.sistemadeoperaciones.comisionessocioscomerciales.dto.request.PayCommissionRequestDto;
-import com.sistemadeoperaciones.comisionessocioscomerciales.dto.response.CommercialPartnerCommissionResponseDto;
-import com.sistemadeoperaciones.comisionessocioscomerciales.dto.response.CommissionBeneficiaryResponseDto;
-import com.sistemadeoperaciones.comisionessocioscomerciales.dto.response.CommissionOperationDetailResponseDto;
-import com.sistemadeoperaciones.comisionessocioscomerciales.dto.response.CommissionOperationSummaryResponseDto;
-import com.sistemadeoperaciones.comisionessocioscomerciales.dto.response.CommissionSummaryResponseDto;
+import com.sistemadeoperaciones.comisionessocioscomerciales.dto.response.*;
 import com.sistemadeoperaciones.comisionessocioscomerciales.service.CommercialPartnerCommissionService;
 import com.sistemadeoperaciones.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
@@ -62,6 +59,30 @@ public class CommercialPartnerCommissionController {
                 new ApiResponse<>(
                         true,
                         "Resumen obtenido exitosamente",
+                        response,
+                        null
+                )
+        );
+    }
+
+    @GetMapping("/beneficiaries-summary")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS')")
+    public ResponseEntity<ApiResponse<CommissionPartnerSummaryListResponseDto>>
+    getSummaryByBeneficiary(
+            @RequestParam LocalDate startDate,
+            @RequestParam LocalDate endDate
+    ) {
+
+        CommissionPartnerSummaryListResponseDto response =
+                commissionService.getSummaryByBeneficiary(
+                        startDate,
+                        endDate
+                );
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Resumen por beneficiario obtenido exitosamente",
                         response,
                         null
                 )
@@ -157,6 +178,31 @@ public class CommercialPartnerCommissionController {
                         true,
                         "Comisión pagada exitosamente",
                         response,
+                        null
+                )
+        );
+    }
+
+    @PostMapping("/pay-batch")
+    @PreAuthorize(
+            "hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS')"
+    )
+    public ResponseEntity<ApiResponse<Void>>
+    markBatchAsPaid(
+            @Valid
+            @RequestBody
+            PayCommissionBatchRequestDto request
+    ) {
+
+        commissionService.markBatchAsPaid(
+                request
+        );
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Comisiones pagadas exitosamente",
+                        null,
                         null
                 )
         );

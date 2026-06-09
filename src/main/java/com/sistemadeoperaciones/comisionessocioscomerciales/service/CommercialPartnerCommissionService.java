@@ -1,6 +1,7 @@
 package com.sistemadeoperaciones.comisionessocioscomerciales.service;
 
 
+import com.sistemadeoperaciones.comisionessocioscomerciales.dto.request.PayCommissionBatchRequestDto;
 import com.sistemadeoperaciones.comisionessocioscomerciales.dto.request.PayCommissionRequestDto;
 import com.sistemadeoperaciones.comisionessocioscomerciales.dto.response.*;
 
@@ -38,6 +39,10 @@ public interface CommercialPartnerCommissionService {
             PayCommissionRequestDto request
     );
 
+    void markBatchAsPaid(
+            PayCommissionBatchRequestDto request
+    );
+
     /**
      * Obtener comisiones generadas
      * para una semana.
@@ -46,6 +51,13 @@ public interface CommercialPartnerCommissionService {
             LocalDate startDate,
             LocalDate endDate
     );
+
+    CommissionPartnerSummaryListResponseDto
+    getSummaryByBeneficiary(
+            LocalDate startDate,
+            LocalDate endDate
+    );
+
     /**
      * Obtener pendientes.
      */

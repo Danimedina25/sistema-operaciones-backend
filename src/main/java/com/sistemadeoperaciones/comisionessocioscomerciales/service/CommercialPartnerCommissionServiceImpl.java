@@ -1,8 +1,10 @@
 package com.sistemadeoperaciones.comisionessocioscomerciales.service;
 
 
+import com.sistemadeoperaciones.comisionessocioscomerciales.dto.request.PayCommissionBatchRequestDto;
 import com.sistemadeoperaciones.comisionessocioscomerciales.dto.request.PayCommissionRequestDto;
 import com.sistemadeoperaciones.comisionessocioscomerciales.dto.response.*;
+import com.sistemadeoperaciones.comisionessocioscomerciales.enums.CommissionBeneficiaryType;
 import com.sistemadeoperaciones.comisionessocioscomerciales.exceptions.CommissionAlreadyPaidException;
 import com.sistemadeoperaciones.comisionessocioscomerciales.exceptions.CommissionProofRequiredException;
 import com.sistemadeoperaciones.comisionessocioscomerciales.exceptions.CommissionRegenerationNotAllowedException;
@@ -164,6 +166,262 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
 
     @Override
     @Transactional(readOnly = true)
+    public CommissionPartnerSummaryListResponseDto getSummaryByBeneficiary(
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException(
+                    "Las fechas son obligatorias"
+            );
+        }
+
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException(
+                    "La fecha inicial no puede ser mayor a la fecha final"
+            );
+        }
+
+        LocalDateTime start =
+                startDate.atStartOfDay();
+
+        LocalDateTime end =
+                endDate.atTime(
+                        23,
+                        59,
+                        59
+                );
+
+        List<CommercialPartnerCommission> commissions =
+                commissionRepository.findByOperationCreatedAtBetween(
+                        start,
+                        end
+                );
+
+        List<CommissionPartnerSummaryResponseDto> socios =
+                buildBeneficiarySummaries(
+                        commissions
+                );
+
+        BigDecimal totalComisiones =
+                socios.stream()
+                        .map(
+                                CommissionPartnerSummaryResponseDto::getTotalComisiones
+                        )
+                        .reduce(
+                                BigDecimal.ZERO,
+                                BigDecimal::add
+                        );
+
+        BigDecimal totalPagadas =
+                socios.stream()
+                        .map(
+                                CommissionPartnerSummaryResponseDto::getTotalPagadas
+                        )
+                        .reduce(
+                                BigDecimal.ZERO,
+                                BigDecimal::add
+                        );
+
+        BigDecimal totalPendientes =
+                socios.stream()
+                        .map(
+                                CommissionPartnerSummaryResponseDto::getTotalPendientes
+                        )
+                        .reduce(
+                                BigDecimal.ZERO,
+                                BigDecimal::add
+                        );
+        return new CommissionPartnerSummaryListResponseDto(
+                totalComisiones,
+                totalPagadas,
+                totalPendientes,
+                socios.size(),
+                socios
+        );
+    }
+
+    private List<CommissionPartnerSummaryResponseDto>
+    buildBeneficiarySummaries(
+            List<CommercialPartnerCommission> commissions
+    ) {
+
+        return commissions.stream()
+
+                .collect(
+                        java.util.stream.Collectors.groupingBy(
+                                c -> {
+
+                                    if (c.getUser() != null) {
+                                        return "USER_" +
+                                                c.getUser().getId();
+                                    }
+
+                                    return "PARTNER_" +
+                                            c.getCommercialPartner().getId();
+                                }
+                        )
+                )
+
+                .values()
+
+                .stream()
+
+                .filter(group -> !group.isEmpty())
+
+                .map(group -> {
+
+                    CommercialPartnerCommission first =
+                            group.get(0);
+
+                    Long beneficiaryId;
+
+                    CommissionBeneficiaryType beneficiaryType;
+
+                    String nombre;
+
+                    String banco;
+
+                    String cuentaBancaria;
+
+                    String titularCuenta;
+
+                    if (first.getUser() != null) {
+
+                        beneficiaryId =
+                                first.getUser().getId();
+
+                        beneficiaryType =
+                                CommissionBeneficiaryType.USER;
+
+                        nombre =
+                                first.getUser().getNombre();
+
+                        var settings =
+                                commercialPartnerSettingsRepository
+                                        .findByUsuarioId(
+                                                first.getUser().getId()
+                                        )
+                                        .orElse(null);
+
+                        banco =
+                                settings != null
+                                        ? settings.getBanco()
+                                        : null;
+
+                        cuentaBancaria =
+                                settings != null
+                                        ? settings.getCuentaBancaria()
+                                        : null;
+
+                        titularCuenta =
+                                settings != null
+                                        ? settings.getTitularCuenta()
+                                        : null;
+
+                    } else {
+
+                        beneficiaryId =
+                                first.getCommercialPartner().getId();
+
+                        beneficiaryType =
+                                CommissionBeneficiaryType.COMMERCIAL_PARTNER;
+
+                        nombre =
+                                first.getCommercialPartner().getNombre();
+
+                        banco =
+                                first.getCommercialPartner().getBanco();
+
+                        cuentaBancaria =
+                                first.getCommercialPartner()
+                                        .getCuentaBancaria();
+
+                        titularCuenta =
+                                first.getCommercialPartner()
+                                        .getTitularCuenta();
+                    }
+
+                    BigDecimal totalComisiones =
+                            group.stream()
+                                    .map(
+                                            CommercialPartnerCommission::getCommissionAmount
+                                    )
+                                    .reduce(
+                                            BigDecimal.ZERO,
+                                            BigDecimal::add
+                                    );
+
+                    BigDecimal totalPagadas =
+                            group.stream()
+                                    .filter(
+                                            c -> c.getStatus()
+                                                    == CommissionStatus.PAGADA
+                                    )
+                                    .map(
+                                            CommercialPartnerCommission::getCommissionAmount
+                                    )
+                                    .reduce(
+                                            BigDecimal.ZERO,
+                                            BigDecimal::add
+                                    );
+
+                    BigDecimal totalPendientes =
+                            totalComisiones.subtract(
+                                    totalPagadas
+                            );
+
+                    Integer totalOperaciones =
+                            (int) group.stream()
+                                    .map(
+                                            c -> c.getOperation().getId()
+                                    )
+                                    .distinct()
+                                    .count();
+
+                    List<Long> pendingCommissionIds =
+                            group.stream()
+                                    .filter(
+                                            c -> c.getStatus()
+                                                    == CommissionStatus.GENERADA
+                                    )
+                                    .map(
+                                            CommercialPartnerCommission::getId
+                                    )
+                                    .toList();
+
+                    Integer totalComisionesPendientes =
+                            pendingCommissionIds.size();
+
+                    return new CommissionPartnerSummaryResponseDto(
+                            beneficiaryId,
+                            beneficiaryType,
+                            nombre,
+                            banco,
+                            cuentaBancaria,
+                            titularCuenta,
+                            totalOperaciones,
+                            totalComisiones,
+                            totalPendientes,
+                            totalPagadas,
+                            totalComisionesPendientes,
+                            pendingCommissionIds,
+                            first.getPaymentProofUrl()
+                    );
+                })
+
+                .sorted(
+                        Comparator.comparing(
+                                CommissionPartnerSummaryResponseDto::getNombre
+                        )
+                )
+
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public CommissionSummaryResponseDto getPendingCommissions(
             LocalDate startDate,
             LocalDate endDate
@@ -248,6 +506,7 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                             first.getOperation().getMontoTotal(),
                             totalCommissions,
                             isFullyPaid(group),
+                            isPartialPaid(group),
                             first.getOperation().getCreatedAt().toLocalDate()
                     );
                 })
@@ -608,6 +867,79 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
 
     @Override
     @Transactional
+    public void markBatchAsPaid(
+            PayCommissionBatchRequestDto request
+    ) {
+
+        if (request == null) {
+            throw new CommissionProofRequiredException();
+        }
+
+        if (
+                request.getPaymentProofUrl() == null
+                        || request.getPaymentProofUrl().isBlank()
+        ) {
+            throw new CommissionProofRequiredException();
+        }
+
+        if (
+                request.getCommissionIds() == null
+                        || request.getCommissionIds().isEmpty()
+        ) {
+            throw new IllegalArgumentException(
+                    "Debe seleccionar al menos una comisión"
+            );
+        }
+
+        List<CommercialPartnerCommission> commissions =
+                commissionRepository.findAllById(
+                        request.getCommissionIds()
+                );
+
+        if (
+                commissions.size()
+                        != request.getCommissionIds().size()
+        ) {
+            throw new ResourceNotFoundException(
+                    "Una o más comisiones no existen"
+            );
+        }
+
+        LocalDateTime paidAt =
+                LocalDateTime.now();
+
+        for (
+                CommercialPartnerCommission commission
+                : commissions
+        ) {
+
+            if (
+                    commission.getStatus()
+                            == CommissionStatus.PAGADA
+            ) {
+                continue;
+            }
+
+            commission.setStatus(
+                    CommissionStatus.PAGADA
+            );
+
+            commission.setPaymentProofUrl(
+                    request.getPaymentProofUrl()
+            );
+
+            commission.setPaidAt(
+                    paidAt
+            );
+        }
+
+        commissionRepository.saveAll(
+                commissions
+        );
+    }
+
+    @Override
+    @Transactional
     public void regenerateOperationCommissions(
             Long operationId
     ) {
@@ -760,6 +1092,27 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                         c -> c.getStatus()
                                 == CommissionStatus.PAGADA
                 );
+    }
+
+    private boolean isPartialPaid(
+            List<CommercialPartnerCommission> commissions
+    )
+    {
+        boolean hasPaid =
+                commissions.stream()
+                        .anyMatch(
+                                c -> c.getStatus()
+                                        == CommissionStatus.PAGADA
+                        );
+
+        boolean hasPending =
+                commissions.stream()
+                        .anyMatch(
+                                c -> c.getStatus()
+                                        == CommissionStatus.GENERADA
+                        );
+
+        return hasPaid && hasPending;
     }
 
     private void validateOperationNetwork(
