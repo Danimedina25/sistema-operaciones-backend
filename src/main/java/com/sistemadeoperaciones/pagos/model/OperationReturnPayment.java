@@ -55,6 +55,22 @@ public class OperationReturnPayment {
     private String cuentaDestinoCliente;
 
     /**
+     * Cuenta del cliente que recibe el dinero.
+     * La indica el socio comercial cuando solicita el retorno.
+     * Nullable cuando es EFECTIVO.
+     */
+    @Column(name = "cuenta_destino_titular", length = 30)
+    private String cuentaDestinoTitular;
+
+    /**
+     * Cuenta del cliente que recibe el dinero.
+     * La indica el socio comercial cuando solicita el retorno.
+     * Nullable cuando es EFECTIVO.
+     */
+    @Column(name = "cuenta_destino_banco", length = 30)
+    private String cuentaDestinoBanco;
+
+    /**
      * Comprobante del retorno.
      * Lo carga la jefa de cuentas cuando realiza el pago.
      */
@@ -200,6 +216,22 @@ public class OperationReturnPayment {
 
     public void setCuentaDestinoCliente(String cuentaDestinoCliente) {
         this.cuentaDestinoCliente = cuentaDestinoCliente;
+    }
+
+    public String getCuentaDestinoTitular() {
+        return cuentaDestinoTitular;
+    }
+
+    public void setCuentaDestinoTitular(String cuentaDestinoTitular) {
+        this.cuentaDestinoTitular = cuentaDestinoTitular;
+    }
+
+    public String getCuentaDestinoBanco() {
+        return cuentaDestinoBanco;
+    }
+
+    public void setCuentaDestinoBanco(String cuentaDestinoBanco) {
+        this.cuentaDestinoBanco = cuentaDestinoBanco;
     }
 
     public void setComprobanteUrl(String comprobanteUrl) {

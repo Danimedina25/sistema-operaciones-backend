@@ -98,6 +98,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                     returnPayment.setSolicitadoPor(currentUser);
                     returnPayment.setEstatus(ReturnPaymentStatus.SOLICITADO);
                     returnPayment.setFechaSolicitud(LocalDateTime.now());
+                    returnPayment.setCuentaDestinoTitular(paymentRequest.getTitular());
 
                     String cuenta = paymentRequest.getCuenta() != null
                             ? paymentRequest.getCuenta().replaceAll("\\s+", "")
@@ -466,6 +467,8 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         dto.setFechaSolicitud(returnPayment.getFechaSolicitud());
         dto.setFechaPago(returnPayment.getFechaPago());
         dto.setCreatedAt(returnPayment.getCreatedAt());
+        dto.setCuentaDestinoTitular(returnPayment.getCuentaDestinoTitular());
+        dto.setCuentaDestinoBanco(returnPayment.getCuentaDestinoBanco());
 
         if (returnPayment.getCuentaOrigen() != null) {
             dto.setCuentaOrigenId(returnPayment.getCuentaOrigen().getId());

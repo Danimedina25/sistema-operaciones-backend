@@ -4,6 +4,7 @@ package com.sistemadeoperaciones.comisionessocioscomerciales.service;
 import com.sistemadeoperaciones.comisionessocioscomerciales.dto.request.PayCommissionBatchRequestDto;
 import com.sistemadeoperaciones.comisionessocioscomerciales.dto.request.PayCommissionRequestDto;
 import com.sistemadeoperaciones.comisionessocioscomerciales.dto.response.*;
+import com.sistemadeoperaciones.comisionessocioscomerciales.enums.CommissionBeneficiaryType;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -52,6 +53,11 @@ public interface CommercialPartnerCommissionService {
             LocalDate endDate
     );
 
+    MyWeeklyCommissionsResponseDto getMyWeeklyCommissions(
+            LocalDate startDate,
+            LocalDate endDate
+    );
+
     CommissionPartnerSummaryListResponseDto
     getSummaryByBeneficiary(
             LocalDate startDate,
@@ -83,4 +89,11 @@ public interface CommercialPartnerCommissionService {
 
     List<CommissionBeneficiaryResponseDto>
     getOperationBeneficiaries(Long operationId);
+
+    BeneficiaryCommissionDetailResponseDto getBeneficiaryCommissionDetail(
+            Long beneficiaryId,
+            CommissionBeneficiaryType beneficiaryType,
+            LocalDate startDate,
+            LocalDate endDate
+    );
 }

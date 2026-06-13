@@ -3,6 +3,8 @@ package com.sistemadeoperaciones.comisionessocioscomerciales.repository;
 import com.sistemadeoperaciones.comisionessocioscomerciales.models.CommercialPartnerCommission;
 import com.sistemadeoperaciones.pagos.enums.CommissionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -33,38 +35,6 @@ public interface CommercialPartnerCommissionRepository
     );
 
     // =====================================================
-    // USUARIO NIVEL 1
-    // =====================================================
-
-    List<CommercialPartnerCommission> findByUserId(Long userId);
-
-    List<CommercialPartnerCommission> findByUserIdAndStatus(
-            Long userId,
-            CommissionStatus status
-    );
-
-    // =====================================================
-    // SOCIOS NIVEL 2 Y 3
-    // =====================================================
-
-    List<CommercialPartnerCommission> findByCommercialPartnerId(
-            Long commercialPartnerId
-    );
-
-    List<CommercialPartnerCommission> findByCommercialPartnerIdAndStatus(
-            Long commercialPartnerId,
-            CommissionStatus status
-    );
-
-    // =====================================================
-    // ESTATUS
-    // =====================================================
-
-    List<CommercialPartnerCommission> findByStatus(
-            CommissionStatus status
-    );
-
-    // =====================================================
     // SEMANAS
     // =====================================================
 
@@ -79,26 +49,10 @@ public interface CommercialPartnerCommissionRepository
             LocalDateTime end
     );
 
-    List<CommercialPartnerCommission>
-    findByOperationCreatedAtBetweenAndStatus(
-            LocalDateTime start,
-            LocalDateTime end,
-            CommissionStatus status
-    );
-
     List<CommercialPartnerCommission> findByGeneratedAtBetweenAndStatus(
             LocalDateTime start,
             LocalDateTime end,
             CommissionStatus status
-    );
-
-    // =====================================================
-    // PAGADAS
-    // =====================================================
-
-    List<CommercialPartnerCommission> findByPaidAtBetween(
-            LocalDateTime start,
-            LocalDateTime end
     );
 
     // =====================================================
@@ -112,14 +66,49 @@ public interface CommercialPartnerCommissionRepository
             CommissionStatus status
     );
 
-    List<CommercialPartnerCommission>
-    findByStatusOrderByGeneratedAtDesc(
-            CommissionStatus status
-    );
-
     List<CommercialPartnerCommission> findByOperationIdAndStatus(
             Long operationId,
             CommissionStatus status
     );
 
+    @Query("""
+    SELECT c
+    FROM CommercialPartnerCommission c
+    JOIN FETCH c.operation o
+    JOIN FETCH o.cliente
+    WHERE c.user.id = :userId
+    AND o.createdAt BETWEEN :startDate AND :endDate
+    ORDER BY o.createdAt DESC
+""")
+    List<CommercialPartnerCommission> findDetailByUser(
+            @Param("userId") Long userId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
+
+    @Query("""
+    SELECT c
+    FROM CommercialPartnerCommission c
+    JOIN FETCH c.operation o
+    JOIN FETCH o.cliente
+    WHERE c.commercialPartner.id = :partnerId
+    AND o.createdAt BETWEEN :startDate AND :endDate
+    ORDER BY o.createdAt DESC
+""")
+    List<CommercialPartnerCommission> findDetailByPartner(
+            @Param("partnerId") Long partnerId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
+
+    List<CommercialPartnerCommission>
+    findByUserIdAndOperationCreatedAtBetween(
+            Long userId,
+            LocalDateTime start,
+            LocalDateTime end
+    );
+
+    List<CommercialPartnerCommission> findByOperationIdIn(
+            List<Long> operationIds
+    );
 }

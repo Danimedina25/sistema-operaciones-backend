@@ -34,6 +34,16 @@ public class ReturnPaymentResponseDto {
     private String cuentaDestinoCliente;
 
     /**
+     * Titular de la cuenta del cliente
+     */
+    private String cuentaDestinoTitular;
+
+    /**
+     * Banco de la cuenta del cliente
+     */
+    private String cuentaDestinoBanco;
+
+    /**
      * Comprobante del retorno realizado
      */
     private String comprobanteUrl;
@@ -211,5 +221,21 @@ public class ReturnPaymentResponseDto {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getCuentaDestinoTitular() {
+        return cuentaDestinoTitular;
+    }
+
+    public void setCuentaDestinoTitular(String cuentaDestinoTitular) {
+        this.cuentaDestinoTitular = cuentaDestinoTitular;
+    }
+
+    public String getCuentaDestinoBanco() {
+        return cuentaDestinoBanco;
+    }
+
+    public void setCuentaDestinoBanco(String cuentaDestinoBanco) {
+        this.cuentaDestinoBanco = cuentaDestinoBanco;
     }
 }

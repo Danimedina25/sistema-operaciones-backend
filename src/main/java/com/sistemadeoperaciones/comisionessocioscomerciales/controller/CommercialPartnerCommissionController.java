@@ -3,6 +3,7 @@ package com.sistemadeoperaciones.comisionessocioscomerciales.controller;
 import com.sistemadeoperaciones.comisionessocioscomerciales.dto.request.PayCommissionBatchRequestDto;
 import com.sistemadeoperaciones.comisionessocioscomerciales.dto.request.PayCommissionRequestDto;
 import com.sistemadeoperaciones.comisionessocioscomerciales.dto.response.*;
+import com.sistemadeoperaciones.comisionessocioscomerciales.enums.CommissionBeneficiaryType;
 import com.sistemadeoperaciones.comisionessocioscomerciales.service.CommercialPartnerCommissionService;
 import com.sistemadeoperaciones.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
@@ -267,6 +268,58 @@ public class CommercialPartnerCommissionController {
                 new ApiResponse<>(
                         true,
                         "Beneficiarios obtenidos exitosamente",
+                        response,
+                        null
+                )
+        );
+    }
+
+    @GetMapping("/beneficiaries/{beneficiaryId}/detail")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS')")
+    public ResponseEntity<ApiResponse<BeneficiaryCommissionDetailResponseDto>>
+    getBeneficiaryCommissionDetail(
+            @PathVariable Long beneficiaryId,
+            @RequestParam CommissionBeneficiaryType beneficiaryType,
+            @RequestParam LocalDate startDate,
+            @RequestParam LocalDate endDate
+    ) {
+
+        BeneficiaryCommissionDetailResponseDto response =
+                commissionService.getBeneficiaryCommissionDetail(
+                        beneficiaryId,
+                        beneficiaryType,
+                        startDate,
+                        endDate
+                );
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Detalle del beneficiario obtenido exitosamente",
+                        response,
+                        null
+                )
+        );
+    }
+
+    @GetMapping("/my-weekly-commissions")
+    @PreAuthorize("hasAnyRole('ADMIN','SOCIO_COMERCIAL')")
+    public ResponseEntity<ApiResponse<MyWeeklyCommissionsResponseDto>>
+    getMyWeeklyCommissions(
+            @RequestParam LocalDate startDate,
+            @RequestParam LocalDate endDate
+    ) {
+
+        MyWeeklyCommissionsResponseDto response =
+                commissionService.getMyWeeklyCommissions(
+                        startDate,
+                        endDate
+                );
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Comisiones semanales obtenidas exitosamente",
                         response,
                         null
                 )

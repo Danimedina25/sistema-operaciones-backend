@@ -15,7 +15,9 @@ import com.sistemadeoperaciones.pagos.enums.CommissionStatus;
 import com.sistemadeoperaciones.pagos.enums.OperationStatus;
 import com.sistemadeoperaciones.pagos.model.PaymentOperation;
 import com.sistemadeoperaciones.pagos.repository.PaymentOperationRepository;
+import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
+import com.sistemadeoperaciones.usuarios.model.User;
 import com.sistemadeoperaciones.usuarios.repository.CommercialPartnerSettingsRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +28,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -34,15 +38,18 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
     private final CommercialPartnerCommissionRepository commissionRepository;
     private final PaymentOperationRepository operationRepository;
     private final CommercialPartnerSettingsRepository commercialPartnerSettingsRepository;
+    private final AuthenticatedUserService authenticatedUserService;
 
     public CommercialPartnerCommissionServiceImpl(
             CommercialPartnerCommissionRepository commissionRepository,
             PaymentOperationRepository operationRepository,
-            CommercialPartnerSettingsRepository commercialPartnerSettingsRepository
+            CommercialPartnerSettingsRepository commercialPartnerSettingsRepository,
+            AuthenticatedUserService authenticatedUserService
     ) {
         this.commissionRepository = commissionRepository;
         this.operationRepository = operationRepository;
         this.commercialPartnerSettingsRepository = commercialPartnerSettingsRepository;
+        this.authenticatedUserService = authenticatedUserService;
     }
 
 
@@ -160,6 +167,193 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
 
         return buildSummary(
                 commissions,
+                operations
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public MyWeeklyCommissionsResponseDto getMyWeeklyCommissions(
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException(
+                    "Las fechas son obligatorias"
+            );
+        }
+
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException(
+                    "La fecha inicial no puede ser mayor a la fecha final"
+            );
+        }
+
+        User currentUser =
+                authenticatedUserService.getCurrentUser();
+
+        LocalDateTime start =
+                startDate.atStartOfDay();
+
+        LocalDateTime end =
+                endDate.atTime(
+                        23,
+                        59,
+                        59
+                );
+
+        List<CommercialPartnerCommission> myCommissions =
+                commissionRepository
+                        .findByUserIdAndOperationCreatedAtBetween(
+                                currentUser.getId(),
+                                start,
+                                end
+                        );
+
+        if (myCommissions.isEmpty()) {
+
+            return new MyWeeklyCommissionsResponseDto(
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    0,
+                    List.of()
+            );
+        }
+
+        List<Long> operationIds =
+                myCommissions.stream()
+                        .map(c -> c.getOperation().getId())
+                        .distinct()
+                        .toList();
+
+        List<CommercialPartnerCommission> allOperationCommissions =
+                commissionRepository.findByOperationIdIn(
+                        operationIds
+                );
+
+        Map<Long, List<CommercialPartnerCommission>>
+                commissionsByOperation =
+                allOperationCommissions.stream()
+                        .collect(
+                                Collectors.groupingBy(
+                                        c -> c.getOperation().getId()
+                                )
+                        );
+
+        List<MyWeeklyCommissionOperationDto> operations =
+                myCommissions.stream()
+                        .map(myCommission -> {
+
+                            PaymentOperation operation =
+                                    myCommission.getOperation();
+
+                            List<CommercialPartnerCommission>
+                                    operationCommissions =
+                                    commissionsByOperation.getOrDefault(
+                                            operation.getId(),
+                                            List.of()
+                                    );
+
+                            CommercialPartnerCommission nivel2 =
+                                    operationCommissions.stream()
+                                            .filter(c -> c.getNivel() == 2)
+                                            .findFirst()
+                                            .orElse(null);
+
+                            CommercialPartnerCommission nivel3 =
+                                    operationCommissions.stream()
+                                            .filter(c -> c.getNivel() == 3)
+                                            .findFirst()
+                                            .orElse(null);
+
+                            BigDecimal commissionNivel2 =
+                                    nivel2 != null
+                                            ? nivel2.getCommissionAmount()
+                                            : BigDecimal.ZERO;
+
+                            BigDecimal commissionNivel3 =
+                                    nivel3 != null
+                                            ? nivel3.getCommissionAmount()
+                                            : BigDecimal.ZERO;
+                            String socioNivel2 =
+                                    nivel2 != null
+                                            && nivel2.getCommercialPartner() != null
+                                            ? nivel2.getCommercialPartner().getNombre()
+                                            : null;
+
+                            String socioNivel3 =
+                                    nivel3 != null
+                                            && nivel3.getCommercialPartner() != null
+                                            ? nivel3.getCommercialPartner().getNombre()
+                                            : null;
+                            CommissionStatus statusNivel1 =
+                                    myCommission.getStatus();
+
+                            CommissionStatus statusNivel2 =
+                                    nivel2 != null
+                                            ? nivel2.getStatus()
+                                            : null;
+
+                            CommissionStatus statusNivel3 =
+                                    nivel3 != null
+                                            ? nivel3.getStatus()
+                                            : null;
+
+                            BigDecimal totalComisionRed =
+                                    commissionNivel2.add(
+                                            commissionNivel3
+                                    );
+
+                            return new MyWeeklyCommissionOperationDto(
+                                    operation.getId(),
+                                    operation.getCliente().getNombre(),
+                                    operation.getCreatedAt(),
+                                    operation.getMontoTotal(),
+                                    operation.getNivelesRedComercial(),
+                                    operation.getPorcentajeComisionAplicado(),
+                                    myCommission.getCommissionAmount(),
+                                    totalComisionRed,
+                                    commissionNivel2,
+                                    commissionNivel3,
+                                    socioNivel2,
+                                    socioNivel3,
+                                    statusNivel1,
+                                    statusNivel2,
+                                    statusNivel3
+                            );
+                        })
+                        .sorted(
+                                Comparator.comparing(
+                                        MyWeeklyCommissionOperationDto::getFechaOperacion
+                                ).reversed()
+                        )
+                        .toList();
+
+        BigDecimal totalGanado =
+                operations.stream()
+                        .map(
+                                MyWeeklyCommissionOperationDto::getMiComision
+                        )
+                        .reduce(
+                                BigDecimal.ZERO,
+                                BigDecimal::add
+                        );
+
+        BigDecimal totalGanadoRed =
+                operations.stream()
+                        .map(
+                                MyWeeklyCommissionOperationDto::getComisionRed
+                        )
+                        .reduce(
+                                BigDecimal.ZERO,
+                                BigDecimal::add
+                        );
+
+        return new MyWeeklyCommissionsResponseDto(
+                totalGanado,
+                totalGanadoRed,
+                operations.size(),
                 operations
         );
     }
@@ -1197,5 +1391,130 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                     "La operación requiere socio comercial nivel 3"
             );
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BeneficiaryCommissionDetailResponseDto
+    getBeneficiaryCommissionDetail(
+            Long beneficiaryId,
+            CommissionBeneficiaryType beneficiaryType,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException(
+                    "Las fechas son obligatorias"
+            );
+        }
+
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException(
+                    "La fecha inicial no puede ser mayor a la fecha final"
+            );
+        }
+
+        LocalDateTime start =
+                startDate.atStartOfDay();
+
+        LocalDateTime end =
+                endDate.atTime(23, 59, 59);
+
+        List<CommercialPartnerCommission> commissions;
+
+        if (beneficiaryType == CommissionBeneficiaryType.USER) {
+
+            commissions =
+                    commissionRepository.findDetailByUser(
+                            beneficiaryId,
+                            start,
+                            end
+                    );
+
+        } else {
+
+            commissions =
+                    commissionRepository.findDetailByPartner(
+                            beneficiaryId,
+                            start,
+                            end
+                    );
+        }
+
+        if (commissions.isEmpty()) {
+            throw new ResourceNotFoundException(
+                    "No existen comisiones para el beneficiario"
+            );
+        }
+
+        CommercialPartnerCommission first =
+                commissions.get(0);
+
+        String beneficiaryName;
+
+        if (beneficiaryType == CommissionBeneficiaryType.USER) {
+
+            beneficiaryName =
+                    first.getUser().getNombre();
+
+        } else {
+
+            beneficiaryName =
+                    first.getCommercialPartner().getNombre();
+        }
+
+        List<BeneficiaryCommissionOperationDto> operations =
+                commissions.stream()
+                        .map(this::mapBeneficiaryOperation)
+                        .toList();
+
+        BigDecimal totalCommission =
+                commissions.stream()
+                        .map(
+                                CommercialPartnerCommission::getCommissionAmount
+                        )
+                        .reduce(
+                                BigDecimal.ZERO,
+                                BigDecimal::add
+                        );
+
+        Integer totalOperations =
+                (int) commissions.stream()
+                        .map(
+                                c -> c.getOperation().getId()
+                        )
+                        .distinct()
+                        .count();
+
+        return new BeneficiaryCommissionDetailResponseDto(
+                beneficiaryId,
+                beneficiaryName,
+                beneficiaryType,
+                totalOperations,
+                totalCommission,
+                operations
+        );
+    }
+
+    private BeneficiaryCommissionOperationDto
+    mapBeneficiaryOperation(
+            CommercialPartnerCommission commission
+    ) {
+
+        PaymentOperation operation =
+                commission.getOperation();
+
+        return new BeneficiaryCommissionOperationDto(
+                commission.getId(),
+                operation.getId(),
+                operation.getCliente().getNombre(),
+                operation.getCreatedAt(),
+                commission.getNivel(),
+                operation.getMontoTotal(),
+                commission.getCommissionPercentage(),
+                commission.getCommissionAmount(),
+                commission.getStatus()
+        );
     }
 }
