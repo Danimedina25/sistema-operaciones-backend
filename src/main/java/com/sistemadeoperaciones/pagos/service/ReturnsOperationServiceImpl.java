@@ -1,5 +1,10 @@
 package com.sistemadeoperaciones.pagos.service;
 
+import com.sistemadeoperaciones.notifications.enums.NotificationModule;
+import com.sistemadeoperaciones.notifications.enums.NotificationPriority;
+import com.sistemadeoperaciones.notifications.enums.NotificationReferenceType;
+import com.sistemadeoperaciones.notifications.enums.NotificationType;
+import com.sistemadeoperaciones.notifications.service.NotificationService;
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationFilterDto;
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationResponseDto;
 import com.sistemadeoperaciones.pagos.dto.retornos.CreateReturnPaymentBatchRequestDto;
@@ -9,7 +14,7 @@ import com.sistemadeoperaciones.pagos.dto.retornos.ReturnPaymentResponseDto;
 import com.sistemadeoperaciones.pagos.enums.OperationStatus;
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
-import com.sistemadeoperaciones.pagos.exceptions.ReturnAmountExceedsPendingBalanceException;
+import com.sistemadeoperaciones.pagos.exceptions.*;
 import com.sistemadeoperaciones.pagos.model.OperationReturnPayment;
 import com.sistemadeoperaciones.pagos.model.PaymentOperation;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
@@ -41,18 +46,22 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
     private final OperationReturnPaymentRepository operationReturnPaymentRepository;
     private final AuthenticatedUserService authenticatedUserService;
     private final BankAccountRepository bankAccountRepository;
+    private final NotificationService notificationService;
 
     public ReturnsOperationServiceImpl(
             PaymentOperationRepository paymentOperationRepository,
             OperationReturnPaymentRepository operationReturnPaymentRepository,
             AuthenticatedUserService authenticatedUserService,
-            BankAccountRepository bankAccountRepository
+            BankAccountRepository bankAccountRepository,
+            NotificationService notificationService
     ) {
         this.paymentOperationRepository = paymentOperationRepository;
         this.operationReturnPaymentRepository = operationReturnPaymentRepository;
         this.authenticatedUserService = authenticatedUserService;
         this.bankAccountRepository = bankAccountRepository;
+        this.notificationService = notificationService;
     }
+
     @Override
     @Transactional
     public List<ReturnPaymentResponseDto> requestReturnPayment(
@@ -97,20 +106,13 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                     returnPayment.setObservaciones(paymentRequest.getObservaciones());
                     returnPayment.setSolicitadoPor(currentUser);
                     returnPayment.setEstatus(ReturnPaymentStatus.SOLICITADO);
+                    returnPayment.setCuentaDestinoBanco(paymentRequest.getBanco());
                     returnPayment.setFechaSolicitud(LocalDateTime.now());
                     returnPayment.setCuentaDestinoTitular(paymentRequest.getTitular());
 
-                    String cuenta = paymentRequest.getCuenta() != null
-                            ? paymentRequest.getCuenta().replaceAll("\\s+", "")
-                            : null;
-
-                    String clabe = paymentRequest.getClabe() != null
+                    String cuentaDestinoCliente = paymentRequest.getClabe() != null
                             ? paymentRequest.getClabe().replaceAll("\\s+", "")
                             : null;
-
-                    String cuentaDestinoCliente = clabe != null && !clabe.isBlank()
-                            ? clabe
-                            : cuenta;
 
                     returnPayment.setCuentaDestinoCliente(cuentaDestinoCliente);
 
@@ -127,10 +129,98 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
         paymentOperationRepository.save(operation);
 
+        notifyReturnRequested(operation, savedReturns);
+
         return savedReturns
                 .stream()
                 .map(this::mapReturnToResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public ReturnPaymentResponseDto updateRequestReturnPayment(
+            Long returnPaymentId,
+            CreateReturnPaymentRequestDto request
+    ) {
+
+        OperationReturnPayment returnPayment =
+                operationReturnPaymentRepository.findById(returnPaymentId)
+                        .orElseThrow(ReturnPaymentNotFoundException::new);
+
+        validateReturnCanBeEdited(returnPayment);
+
+        validateReturnRequest(request);
+
+        PaymentOperation operation = returnPayment.getOperacion();
+
+        BigDecimal totalRequestedBefore =
+                operationReturnPaymentRepository
+                        .sumRequestedAmountByOperationId(
+                                operation.getId()
+                        );
+
+        if (totalRequestedBefore == null) {
+            totalRequestedBefore = BigDecimal.ZERO;
+        }
+
+        BigDecimal amountToReturn =
+                calculateAmountToReturn(operation);
+
+        // Se resta el monto actual porque será reemplazado
+        BigDecimal totalWithoutCurrentReturn =
+                totalRequestedBefore.subtract(
+                        returnPayment.getMonto()
+                );
+
+        BigDecimal newTotalRequested =
+                totalWithoutCurrentReturn.add(
+                        request.getMonto()
+                );
+
+        if (newTotalRequested.compareTo(amountToReturn) > 0) {
+            throw new ReturnAmountExceedsPendingBalanceException();
+        }
+
+        returnPayment.setMonto(request.getMonto());
+        returnPayment.setTipoPago(request.getTipoPago());
+        returnPayment.setObservaciones(
+                request.getObservaciones()
+        );
+
+        if (request.getTipoPago() == PaymentType.EFECTIVO) {
+
+            returnPayment.setCuentaDestinoBanco(null);
+            returnPayment.setCuentaDestinoTitular(null);
+            returnPayment.setCuentaDestinoCliente(null);
+
+        } else {
+
+            returnPayment.setCuentaDestinoBanco(
+                    request.getBanco()
+            );
+
+            returnPayment.setCuentaDestinoTitular(
+                    request.getTitular()
+            );
+
+            String cuentaDestinoCliente =
+                    request.getClabe() != null
+                            ? request.getClabe()
+                            .replaceAll("\\s+", "")
+                            : null;
+
+            returnPayment.setCuentaDestinoCliente(
+                    cuentaDestinoCliente
+            );
+        }
+
+        OperationReturnPayment updated =
+                operationReturnPaymentRepository.save(
+                        returnPayment
+                );
+
+        return mapReturnToResponse(updated);
     }
 
     private void validateReturnBatchRequest(CreateReturnPaymentBatchRequestDto request) {
@@ -138,6 +228,17 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             throw new IllegalArgumentException("Debe capturarse al menos un pago de retorno");
         }
     }
+
+    private void validateReturnCanBeEdited(
+            OperationReturnPayment returnPayment
+    ) {
+        if (returnPayment.getEstatus()
+                != ReturnPaymentStatus.SOLICITADO) {
+
+            throw new ReturnPaymentCannotBeEditedException();
+        }
+    }
+
 
     @Override
     @Transactional
@@ -149,14 +250,14 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 .orElseThrow(() -> new IllegalArgumentException("Retorno no encontrado"));
 
         if (returnPayment.getEstatus() != ReturnPaymentStatus.SOLICITADO) {
-            throw new IllegalArgumentException("Solo se pueden realizar retornos solicitados");
+            throw new InvalidReturnPaymentStatusException();
         }
 
         validateRealizeReturnRequest(returnPayment, request);
 
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        if (returnPayment.getTipoPago() != PaymentType.EFECTIVO) {
+        if (returnPayment.getTipoPago() == PaymentType.TRANSFERENCIA) {
             BankAccount cuentaOrigen = bankAccountRepository.findById(request.getCuentaOrigenId())
                     .orElseThrow(() -> new IllegalArgumentException("Cuenta origen no encontrada"));
 
@@ -168,7 +269,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         returnPayment.setComprobanteUrl(request.getComprobanteUrl());
         returnPayment.setPagadoPor(currentUser);
         returnPayment.setFechaPago(LocalDateTime.now());
-        returnPayment.setEstatus(ReturnPaymentStatus.REALIZADO);
+        returnPayment.setEstatus(ReturnPaymentStatus.RETORNADO);
 
         if (request.getObservaciones() != null && !request.getObservaciones().isBlank()) {
             returnPayment.setObservaciones(request.getObservaciones());
@@ -178,6 +279,8 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
         updateOperationStatusAfterReturnRealized(returnPayment.getOperacion());
 
+        notifyReturnRealized(savedReturn);
+
         return mapReturnToResponse(savedReturn);
     }
 
@@ -185,7 +288,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             OperationReturnPayment returnPayment,
             RealizeReturnPaymentRequestDto request
     ) {
-        if (returnPayment.getTipoPago() != PaymentType.EFECTIVO && request.getCuentaOrigenId() == null) {
+        if (returnPayment.getTipoPago() == PaymentType.TRANSFERENCIA && request.getCuentaOrigenId() == null) {
             throw new IllegalArgumentException("La cuenta origen es obligatoria");
         }
 
@@ -333,79 +436,62 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         }
     }
 
-    private void validateReturnRequest(CreateReturnPaymentRequestDto request) {
-        if (request.getMonto() == null || request.getMonto().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("El monto del retorno debe ser mayor a 0");
+    private void validateReturnRequest(
+            CreateReturnPaymentRequestDto request
+    ) {
+
+        if (request.getMonto() == null
+                || request.getMonto().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new InvalidReturnAmountException();
         }
 
         if (request.getTipoPago() == null) {
-            throw new IllegalArgumentException("El tipo de pago es obligatorio");
+            throw new ReturnPaymentTypeRequiredException();
         }
 
         if (request.getTipoPago() == PaymentType.EFECTIVO) {
+
             if (
                     hasText(request.getBanco()) ||
                             hasText(request.getTitular()) ||
-                            hasText(request.getCuenta()) ||
                             hasText(request.getClabe())
             ) {
-                throw new IllegalArgumentException(
-                        "Para retornos en efectivo no se deben enviar datos bancarios"
-                );
+                throw new ReturnCashPaymentCannotContainBankDataException();
             }
 
             return;
         }
 
         if (!hasText(request.getBanco())) {
-            throw new IllegalArgumentException("El banco destino es obligatorio");
+            throw new ReturnBankRequiredException();
         }
 
         if (!hasText(request.getTitular())) {
-            throw new IllegalArgumentException("El titular de la cuenta es obligatorio");
+            throw new ReturnAccountHolderRequiredException();
         }
 
-        boolean hasCuenta = hasText(request.getCuenta());
         boolean hasClabe = hasText(request.getClabe());
 
-        if (!hasCuenta && !hasClabe) {
-            throw new IllegalArgumentException(
-                    "Captura al menos número de cuenta o CLABE"
-            );
-        }
-
-        if (hasCuenta) {
-            String cuentaLimpia = request.getCuenta().replaceAll("\\s+", "");
-
-            if (!cuentaLimpia.matches("\\d+")) {
-                throw new IllegalArgumentException(
-                        "La cuenta solo debe contener números"
-                );
-            }
-
-            if (cuentaLimpia.length() < 10 || cuentaLimpia.length() > 16) {
-                throw new IllegalArgumentException(
-                        "La cuenta debe tener entre 10 y 16 dígitos"
-                );
-            }
+        if (!hasClabe) {
+            throw new ReturnAccountOrClabeRequiredException();
         }
 
         if (hasClabe) {
-            String clabeLimpia = request.getClabe().replaceAll("\\s+", "");
+
+            String clabeLimpia =
+                    request.getClabe()
+                            .replaceAll("\\s+", "");
 
             if (!clabeLimpia.matches("\\d+")) {
-                throw new IllegalArgumentException(
-                        "La CLABE solo debe contener números"
-                );
+                throw new InvalidReturnClabeException();
             }
 
             if (clabeLimpia.length() != 18) {
-                throw new IllegalArgumentException(
-                        "La CLABE debe tener exactamente 18 dígitos"
-                );
+                throw new InvalidReturnClabeLengthException();
             }
         }
     }
+
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
@@ -451,6 +537,50 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         return safe(baseAmount)
                 .multiply(safe(percentage))
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+    }
+
+    private void notifyReturnRequested(
+            PaymentOperation operation,
+            List<OperationReturnPayment> returnPayments
+    ) {
+        BigDecimal totalRequested = returnPayments.stream()
+                .map(OperationReturnPayment::getMonto)
+                .map(this::safe)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        notificationService.createForRoles(
+                List.of(RoleName.JEFA_CAJAS, RoleName.GERENTE, RoleName.ADMIN),
+                "Nueva solicitud de retorno",
+                "Se solicitó un retorno por $" + totalRequested
+                        + " para la operación #" + operation.getId() + ".",
+                NotificationType.SYSTEM_ALERT,
+                NotificationModule.PAGOS,
+                NotificationReferenceType.PAYMENT_OPERATION,
+                operation.getId(),
+                "/operaciones/retornos/" + operation.getId(),
+                NotificationPriority.HIGH
+        );
+    }
+
+    private void notifyReturnRealized(OperationReturnPayment returnPayment) {
+        PaymentOperation operation = returnPayment.getOperacion();
+
+        if (operation.getSocioComercial() == null) {
+            return;
+        }
+
+        notificationService.createForUser(
+                operation.getSocioComercial().getId(),
+                "Retorno pagado",
+                "Se registró el pago del retorno por $" + returnPayment.getMonto()
+                        + " para la operación #" + operation.getId() + ".",
+                NotificationType.SYSTEM_ALERT,
+                NotificationModule.PAGOS,
+                NotificationReferenceType.PAYMENT_OPERATION,
+                operation.getId(),
+                "/operaciones/retornos/" + operation.getId(),
+                NotificationPriority.HIGH
+        );
     }
 
     private ReturnPaymentResponseDto mapReturnToResponse(OperationReturnPayment returnPayment) {

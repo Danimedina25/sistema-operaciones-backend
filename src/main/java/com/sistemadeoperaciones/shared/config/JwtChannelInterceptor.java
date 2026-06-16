@@ -30,63 +30,58 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
 
-        if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-            System.out.println("=== STOMP CONNECT recibido ===");
-
-            String authHeader = accessor.getFirstNativeHeader("Authorization");
-            System.out.println("Authorization header: " + authHeader);
-
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                System.out.println("❌ Token JWT no proporcionado o mal formado");
-                throw new IllegalArgumentException("Token JWT no proporcionado");
-            }
-
-            String jwt = authHeader.substring(7);
-
-            try {
-                Claims claims = jwtUtil.extractClaims(jwt);
-
-                Long userId = Long.valueOf(claims.getSubject());
-                String email = claims.get("email", String.class);
-
-                System.out.println("✅ Usuario autenticado en WS: userId=" + userId + ", email=" + email);
-
-                List<String> roles = claims.get("roles", List.class);
-                if (roles == null) {
-                    roles = List.of();
-                }
-
-                System.out.println("Roles en WS: " + roles);
-
-                List<GrantedAuthority> authorities = roles.stream()
-                        .<GrantedAuthority>map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-                        .toList();
-
-                AuthenticatedUser principal = new AuthenticatedUser(userId, email, roles);
-
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                principal,
-                                null,
-                                authorities
-                        );
-
-                accessor.setUser(new StompPrincipal(userId.toString()));
-                System.out.println("Principal asignado a STOMP: " + userId);
-
-                if (accessor.getSessionAttributes() != null) {
-                    accessor.getSessionAttributes().put("auth", authentication);
-                    accessor.getSessionAttributes().put("authenticatedUser", principal);
-                    System.out.println("Session attributes STOMP guardados correctamente");
-                } else {
-                    System.out.println("⚠️ Session attributes es null");
-                }
-            } catch (JwtException | IllegalArgumentException e) {
-                System.out.println("❌ Error autenticando STOMP: " + e.getMessage());
-                throw new IllegalArgumentException("Token JWT inválido", e);
-            }
+        if (!StompCommand.CONNECT.equals(accessor.getCommand())) {
+            return message;
         }
 
-        return message;
+        String authHeader = accessor.getFirstNativeHeader("Authorization");
+
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new IllegalArgumentException("Token JWT no proporcionado");
+        }
+
+        String jwt = authHeader.substring(7);
+
+        try {
+            Claims claims = jwtUtil.extractClaims(jwt);
+
+            Long userId = Long.valueOf(claims.getSubject());
+            String email = claims.get("email", String.class);
+
+            List<String> roles = claims.get("roles", List.class);
+            if (roles == null) {
+                roles = List.of();
+            }
+
+            List<GrantedAuthority> authorities = roles.stream()
+                    .<GrantedAuthority>map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                    .toList();
+
+            AuthenticatedUser authenticatedUser =
+                    new AuthenticatedUser(userId, email, roles);
+
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(
+                            authenticatedUser,
+                            null,
+                            authorities
+                    );
+
+            StompPrincipal stompPrincipal = new StompPrincipal(userId.toString());
+            accessor.setUser(stompPrincipal);
+
+            if (accessor.getSessionAttributes() != null) {
+                accessor.getSessionAttributes().put("auth", authentication);
+                accessor.getSessionAttributes().put("authenticatedUser", authenticatedUser);
+                accessor.getSessionAttributes().put("userId", userId);
+            }
+
+            System.out.println("✅ STOMP autenticado. userId=" + userId);
+            System.out.println("✅ STOMP principal name=" + accessor.getUser().getName());
+
+            return message;
+        } catch (JwtException | IllegalArgumentException e) {
+            throw new IllegalArgumentException("Token JWT inválido", e);
+        }
     }
 }

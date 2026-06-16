@@ -6,6 +6,8 @@ import com.sistemadeoperaciones.notifications.enums.NotificationModule;
 import com.sistemadeoperaciones.notifications.enums.NotificationPriority;
 import com.sistemadeoperaciones.notifications.enums.NotificationReferenceType;
 import com.sistemadeoperaciones.notifications.enums.NotificationType;
+import com.sistemadeoperaciones.notifications.events.NotificationCreatedEvent;
+import com.sistemadeoperaciones.notifications.events.NotificationUnreadCountChangedEvent;
 import com.sistemadeoperaciones.notifications.models.Notification;
 import com.sistemadeoperaciones.notifications.models.UserNotification;
 import com.sistemadeoperaciones.notifications.repository.NotificationRepository;
@@ -15,6 +17,10 @@ import com.sistemadeoperaciones.shared.enums.RoleName;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
 import com.sistemadeoperaciones.usuarios.model.User;
 import com.sistemadeoperaciones.usuarios.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,20 +36,23 @@ public class NotificationServiceImpl implements NotificationService {
     private final UserNotificationRepository userNotificationRepository;
     private final UserRepository userRepository;
     private final AuthenticatedUserService authenticatedUserService;
-    private final NotificationRealtimeService notificationRealtimeService;
+    private static final Logger log =
+            LoggerFactory.getLogger(NotificationServiceImpl.class);
+
+    private final ApplicationEventPublisher eventPublisher;
 
     public NotificationServiceImpl(
             NotificationRepository notificationRepository,
             UserNotificationRepository userNotificationRepository,
             UserRepository userRepository,
             AuthenticatedUserService authenticatedUserService,
-            NotificationRealtimeService notificationRealtimeService
+            ApplicationEventPublisher eventPublisher
     ) {
         this.notificationRepository = notificationRepository;
         this.userNotificationRepository = userNotificationRepository;
         this.userRepository = userRepository;
         this.authenticatedUserService = authenticatedUserService;
-        this.notificationRealtimeService = notificationRealtimeService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -70,11 +79,15 @@ public class NotificationServiceImpl implements NotificationService {
             limit = 50;
         }
 
-        List<UserNotification> notifications = userNotificationRepository
-                .findByUsuarioIdAndArchivadaFalseOrderByNotificationCreatedAtDesc(currentUser.getId());
+        PageRequest pageRequest = PageRequest.of(0, limit);
+
+        List<UserNotification> notifications =
+                userNotificationRepository.findLatestByUserId(
+                        currentUser.getId(),
+                        pageRequest
+                );
 
         return notifications.stream()
-                .limit(limit)
                 .map(this::mapToResponse)
                 .toList();
     }
@@ -109,7 +122,12 @@ public class NotificationServiceImpl implements NotificationService {
         long unreadCount = userNotificationRepository
                 .countByUsuarioIdAndLeidaFalseAndArchivadaFalse(currentUser.getId());
 
-        notificationRealtimeService.sendUnreadCountToUser(currentUser.getId(), unreadCount);
+        eventPublisher.publishEvent(
+                new NotificationUnreadCountChangedEvent(
+                        currentUser.getId(),
+                        unreadCount
+                )
+        );
 
         return mapToResponse(userNotification);
     }
@@ -131,7 +149,12 @@ public class NotificationServiceImpl implements NotificationService {
 
         userNotificationRepository.saveAll(unreadNotifications);
 
-        notificationRealtimeService.sendUnreadCountToUser(currentUser.getId(), 0);
+        eventPublisher.publishEvent(
+                new NotificationUnreadCountChangedEvent(
+                        currentUser.getId(),
+                        0
+                )
+        );
     }
 
     @Override
@@ -173,11 +196,9 @@ public class NotificationServiceImpl implements NotificationService {
             String actionUrl,
             NotificationPriority prioridad
     ) {
-        System.out.println("=== createForUsers ejecutado ===");
-        System.out.println("userIds recibidos: " + userIds);
 
         if (userIds == null || userIds.isEmpty()) {
-            System.out.println("⚠️ userIds vacío o null, no se enviará nada");
+            log.info("⚠️ userIds vacío o null, no se enviará nada");
             return;
         }
 
@@ -185,18 +206,18 @@ public class NotificationServiceImpl implements NotificationService {
 
         List<User> recipients = userRepository.findAllById(uniqueUserIds);
         if (recipients.isEmpty()) {
-            System.out.println("⚠️ No se encontraron recipients en BD");
+            log.info("⚠️ No se encontraron recipients en BD");
             return;
         }
 
-        System.out.println("✅ Recipients encontrados: " + recipients.size());
+        log.info("✅ Recipients encontrados: " + recipients.size());
 
         User createdBy = null;
         try {
             createdBy = authenticatedUserService.getCurrentUser();
-            System.out.println("Notificación creada por userId=" + createdBy.getId());
+            log.info("Notificación creada por userId=" + createdBy.getId());
         } catch (Exception ignored) {
-            System.out.println("⚠️ No hay usuario autenticado creando la notificación");
+            log.info("⚠️ No hay usuario autenticado creando la notificación");
         }
 
         Notification notification = new Notification();
@@ -211,7 +232,7 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setCreatedBy(createdBy);
 
         Notification savedNotification = notificationRepository.save(notification);
-        System.out.println("✅ Notification guardada con id=" + savedNotification.getId());
+        log.info("✅ Notification guardada con id=" + savedNotification.getId());
 
         List<UserNotification> userNotifications = recipients.stream()
                 .map(user -> {
@@ -225,20 +246,24 @@ public class NotificationServiceImpl implements NotificationService {
                 .toList();
 
         List<UserNotification> savedUserNotifications = userNotificationRepository.saveAll(userNotifications);
-        System.out.println("✅ UserNotifications guardadas: " + savedUserNotifications.size());
+        log.info("✅ UserNotifications guardadas: " + savedUserNotifications.size());
 
         for (UserNotification userNotification : savedUserNotifications) {
             NotificationResponseDto dto = mapToResponse(userNotification);
 
             Long recipientUserId = userNotification.getUsuario().getId();
-            System.out.println("➡️ Procesando envío realtime para recipientUserId=" + recipientUserId);
-
-            notificationRealtimeService.sendNotificationToUser(recipientUserId, dto);
+            log.info("➡️ Procesando envío realtime para recipientUserId=" + recipientUserId);
 
             long unreadCount = userNotificationRepository
                     .countByUsuarioIdAndLeidaFalseAndArchivadaFalse(recipientUserId);
 
-            notificationRealtimeService.sendUnreadCountToUser(recipientUserId, unreadCount);
+            eventPublisher.publishEvent(
+                    new NotificationCreatedEvent(
+                            recipientUserId,
+                            dto,
+                            unreadCount
+                    )
+            );
         }
     }
 
@@ -264,6 +289,9 @@ public class NotificationServiceImpl implements NotificationService {
         if (recipients.isEmpty()) {
             return;
         }
+
+        System.out.println("🔥 createForRoles roles=" + roles);
+        System.out.println("🔥 recipients encontrados=" + recipients.size());
 
         List<Long> userIds = recipients.stream()
                 .map(User::getId)

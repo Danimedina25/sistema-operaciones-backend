@@ -22,6 +22,11 @@ public interface ReturnsOperationService {
             CreateReturnPaymentBatchRequestDto request
     );
 
+    ReturnPaymentResponseDto updateRequestReturnPayment(
+            Long operationId,
+            CreateReturnPaymentRequestDto request
+    );
+
     /**
      * JEFA_CAJAS / GERENTE / ADMIN:
      * Marca el retorno como realizado.

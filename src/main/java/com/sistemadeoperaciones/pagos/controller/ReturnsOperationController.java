@@ -87,6 +87,29 @@ public class ReturnsOperationController {
         );
     }
 
+    @PutMapping("/{returnPaymentId}/update")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    public ResponseEntity<ApiResponse<ReturnPaymentResponseDto>>
+    updateRequestReturnPayment(
+            @PathVariable Long returnPaymentId,
+            @Valid @RequestBody CreateReturnPaymentRequestDto request
+    ) {
+        ReturnPaymentResponseDto response =
+                returnsOperationService.updateRequestReturnPayment(
+                        returnPaymentId,
+                        request
+                );
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Solicitud de retorno actualizada exitosamente",
+                        response,
+                        null
+                )
+        );
+    }
+
     @PatchMapping("/payments/{returnPaymentId}/realize")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS')")
     public ResponseEntity<ApiResponse<ReturnPaymentResponseDto>> realizeReturnPayment(

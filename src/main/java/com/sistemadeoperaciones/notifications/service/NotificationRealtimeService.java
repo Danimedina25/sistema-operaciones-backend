@@ -18,9 +18,8 @@ public class NotificationRealtimeService {
         System.out.println("📤 Enviando notificación realtime a userId=" + userId);
         System.out.println("Título: " + notification.getTitulo());
 
-        messagingTemplate.convertAndSendToUser(
-                userId.toString(),
-                "/queue/notifications",
+        messagingTemplate.convertAndSend(
+                "/topic/users/" + userId + "/notifications",
                 notification
         );
     }
@@ -28,9 +27,8 @@ public class NotificationRealtimeService {
     public void sendUnreadCountToUser(Long userId, long unreadCount) {
         System.out.println("📤 Enviando unread-count realtime a userId=" + userId + ", count=" + unreadCount);
 
-        messagingTemplate.convertAndSendToUser(
-                userId.toString(),
-                "/queue/notifications/unread-count",
+        messagingTemplate.convertAndSend(
+                "/topic/users/" + userId + "/notifications/unread-count",
                 new UnreadCountResponseDto(unreadCount)
         );
     }

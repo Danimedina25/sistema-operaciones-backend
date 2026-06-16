@@ -395,6 +395,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Override
     @Transactional
     public OperationPaymentResponseDto addPayment(CreateOperationPaymentRequestDto request) {
+
         PaymentOperation operation = paymentOperationRepository.findById(request.getOperacionId())
                 .orElseThrow(() -> new PaymentOperationNotFoundException(request.getOperacionId()));
 
@@ -433,7 +434,6 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         recalculateOperation(operation);
         notifyPaymentSubmitted(operation, saved);
-
         return mapToPaymentResponse(saved);
     }
 

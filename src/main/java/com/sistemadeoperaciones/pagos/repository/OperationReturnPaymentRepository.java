@@ -40,7 +40,7 @@ public interface OperationReturnPaymentRepository
                 operationId,
                 List.of(
                         ReturnPaymentStatus.SOLICITADO,
-                        ReturnPaymentStatus.REALIZADO
+                        ReturnPaymentStatus.RETORNADO
                 )
         );
     }
@@ -48,7 +48,7 @@ public interface OperationReturnPaymentRepository
     default BigDecimal sumRealizedAmountByOperationId(Long operationId) {
         return sumAmountByOperationIdAndStatuses(
                 operationId,
-                List.of(ReturnPaymentStatus.REALIZADO)
+                List.of(ReturnPaymentStatus.RETORNADO)
         );
     }
 }
