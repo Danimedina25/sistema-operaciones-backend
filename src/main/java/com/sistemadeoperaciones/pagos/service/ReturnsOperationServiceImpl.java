@@ -220,6 +220,8 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                         returnPayment
                 );
 
+        notifyReturnUpdated(updated);
+
         return mapReturnToResponse(updated);
     }
 
@@ -557,7 +559,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 NotificationModule.PAGOS,
                 NotificationReferenceType.PAYMENT_OPERATION,
                 operation.getId(),
-                "/operaciones/retornos/" + operation.getId(),
+                "/operaciones/" + operation.getId() + "?scrollToReturns=true",
                 NotificationPriority.HIGH
         );
     }
@@ -578,7 +580,36 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 NotificationModule.PAGOS,
                 NotificationReferenceType.PAYMENT_OPERATION,
                 operation.getId(),
-                "/operaciones/retornos/" + operation.getId(),
+                "/operaciones/" + operation.getId() + "?scrollToReturns=true",
+                NotificationPriority.HIGH
+        );
+    }
+
+    private void notifyReturnUpdated(
+            OperationReturnPayment returnPayment
+    ) {
+        PaymentOperation operation =
+                returnPayment.getOperacion();
+
+        notificationService.createForRoles(
+                List.of(
+                        RoleName.JEFA_CAJAS,
+                        RoleName.GERENTE,
+                        RoleName.ADMIN
+                ),
+                "Solicitud de retorno actualizada",
+                "Se actualizó la solicitud de retorno por $"
+                        + returnPayment.getMonto()
+                        + " de la operación #"
+                        + operation.getId()
+                        + ".",
+                NotificationType.SYSTEM_ALERT,
+                NotificationModule.PAGOS,
+                NotificationReferenceType.PAYMENT_OPERATION,
+                operation.getId(),
+                "/operaciones/"
+                        + operation.getId()
+                        + "?scrollToReturns=true",
                 NotificationPriority.HIGH
         );
     }

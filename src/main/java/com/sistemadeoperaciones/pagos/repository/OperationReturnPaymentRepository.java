@@ -1,5 +1,6 @@
 package com.sistemadeoperaciones.pagos.repository;
 
+import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
 import com.sistemadeoperaciones.pagos.model.OperationReturnPayment;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -7,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface OperationReturnPaymentRepository
@@ -51,4 +53,17 @@ public interface OperationReturnPaymentRepository
                 List.of(ReturnPaymentStatus.RETORNADO)
         );
     }
+
+    @Query("""
+    SELECT COALESCE(SUM(r.monto), 0)
+    FROM OperationReturnPayment r
+    WHERE r.tipoPago = :tipoPago
+      AND r.estatus = com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus.RETORNADO
+      AND r.fechaPago BETWEEN :inicio AND :fin
+""")
+    BigDecimal sumPaidReturnsByTypeBetween(
+            @Param("tipoPago") PaymentType tipoPago,
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin
+    );
 }

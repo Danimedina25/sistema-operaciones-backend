@@ -893,7 +893,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 NotificationModule.PAGOS,
                 NotificationReferenceType.PAYMENT_OPERATION,
                 operation.getId(),
-                "/operaciones/" + operation.getId(),
+                "/operaciones/" + operation.getId() + "?scrollToPayments=true",
                 NotificationPriority.HIGH
         );
     }
@@ -914,7 +914,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 NotificationModule.PAGOS,
                 NotificationReferenceType.OPERATION_PAYMENT,
                 payment.getId(),
-                "/operaciones/" + operation.getId(),
+                "/operaciones/" + operation.getId() + "?scrollToPayments=true",
                 NotificationPriority.MEDIUM
         );
     }
@@ -935,7 +935,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 NotificationModule.PAGOS,
                 NotificationReferenceType.OPERATION_PAYMENT,
                 payment.getId(),
-                "/operaciones/" + operation.getId(),
+                "/operaciones/" + operation.getId() + "?scrollToPayments=true",
                 NotificationPriority.HIGH
         );
     }
