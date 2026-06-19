@@ -599,6 +599,7 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                             totalComisiones,
                             totalPendientes,
                             totalPagadas,
+                            first.getPaidAt(),
                             totalComisionesPendientes,
                             pendingCommissionIds,
                             first.getPaymentProofUrl()
@@ -1516,5 +1517,34 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                 commission.getCommissionAmount(),
                 commission.getStatus()
         );
+    }
+
+    @Transactional
+    @Override
+    public void generateCommissionsForOperation(Long operationId) {
+
+        PaymentOperation operation =
+                operationRepository.findById(operationId)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Operación no encontrada"
+                                )
+                        );
+
+        if (commissionRepository.existsByOperationId(operationId)) {
+            return;
+        }
+
+        validateOperationNetwork(operation);
+
+        generateCommissionLevel1(operation);
+
+        if (operation.getNivelesRedComercial() >= 2) {
+            generateCommissionLevel2(operation);
+        }
+
+        if (operation.getNivelesRedComercial() >= 3) {
+            generateCommissionLevel3(operation);
+        }
     }
 }

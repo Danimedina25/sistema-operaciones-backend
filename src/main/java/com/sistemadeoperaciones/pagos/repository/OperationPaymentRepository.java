@@ -28,15 +28,31 @@ public interface OperationPaymentRepository extends JpaRepository<OperationPayme
     );
 
     @Query("""
-        SELECT COALESCE(SUM(op.monto), 0)
-        FROM OperationPayment op
-        WHERE op.tipoPago = :tipoPago
-          AND op.estatus = com.sistemadeoperaciones.pagos.enums.PaymentStatus.VALIDADA
-          AND op.fechaValidacion BETWEEN :inicio AND :fin
-    """)
+    SELECT COALESCE(SUM(op.monto), 0)
+    FROM OperationPayment op
+    WHERE op.tipoPago = :tipoPago
+      AND op.estatus = :estatus
+      AND op.fechaValidacion BETWEEN :inicio AND :fin
+""")
     BigDecimal sumValidatedPaymentsByTypeBetween(
             @Param("tipoPago") PaymentType tipoPago,
+            @Param("estatus") PaymentStatus estatus,
             @Param("inicio") LocalDateTime inicio,
             @Param("fin") LocalDateTime fin
+    );
+
+    @Query("""
+    SELECT COALESCE(SUM(
+        p.monto * (op.porcentajeComisionOficina / 100)
+    ), 0)
+    FROM OperationPayment p
+    JOIN p.operacion op
+    WHERE p.estatus = :estatus
+      AND p.fechaValidacion BETWEEN :inicio AND :fin
+""")
+    BigDecimal sumOfficeCommissionsBetween(
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin,
+            @Param("estatus") PaymentStatus estatus
     );
 }

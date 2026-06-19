@@ -12,6 +12,7 @@ import com.sistemadeoperaciones.corte.exceptions.InvalidCashCutDateRangeExceptio
 import com.sistemadeoperaciones.corte.model.DailyCashCut;
 import com.sistemadeoperaciones.corte.repository.DailyCashCutRepository;
 import com.sistemadeoperaciones.pagos.enums.CommissionStatus;
+import com.sistemadeoperaciones.pagos.enums.PaymentStatus;
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import com.sistemadeoperaciones.pagos.repository.OperationPaymentRepository;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
@@ -47,69 +48,13 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
     @Override
     @Transactional(readOnly = true)
     public DailyCashCutResponse calculateDailyCut(LocalDate fecha) {
-
         if (fecha == null) {
             throw new CashCutDateRequiredException();
         }
 
         BigDecimal saldoInicial = obtenerSaldoInicial(fecha);
 
-        LocalDateTime inicio = fecha.atStartOfDay();
-        LocalDateTime fin = fecha.atTime(LocalTime.MAX);
-
-        BigDecimal entradasTransferencia = sumEntradaByTipo(PaymentType.TRANSFERENCIA, inicio, fin);
-        BigDecimal entradasDeposito = sumEntradaByTipo(PaymentType.DEPOSITO, inicio, fin);
-        BigDecimal entradasEfectivo = sumEntradaByTipo(PaymentType.EFECTIVO, inicio, fin);
-
-        BigDecimal totalEntradas = entradasTransferencia
-                .add(entradasDeposito)
-                .add(entradasEfectivo);
-
-        BigDecimal retornosTransferencia = sumRetornoByTipo(PaymentType.TRANSFERENCIA, inicio, fin);
-        BigDecimal retornosDeposito = sumRetornoByTipo(PaymentType.DEPOSITO, inicio, fin);
-        BigDecimal retornosEfectivo = sumRetornoByTipo(PaymentType.EFECTIVO, inicio, fin);
-
-        BigDecimal totalRetornos = retornosTransferencia
-                .add(retornosDeposito)
-                .add(retornosEfectivo);
-
-        BigDecimal totalComisionesSocios = nvl(
-                commercialPartnerCommissionRepository.sumPaidCommissionsBetween(inicio, fin, CommissionStatus.PAGADA)
-        );
-
-        BigDecimal totalComisionesOficina = BigDecimal.ZERO;
-
-        BigDecimal totalSalidas = totalRetornos
-                .add(totalComisionesSocios)
-                .add(totalComisionesOficina);
-
-        BigDecimal saldoFinal = saldoInicial
-                .add(totalEntradas)
-                .subtract(totalSalidas);
-
-        DailyCashCutResponse response = new DailyCashCutResponse();
-
-        response.setFecha(fecha);
-        response.setSaldoInicial(saldoInicial);
-        response.setSaldoFinal(saldoFinal);
-
-        response.setEntradasTransferencia(entradasTransferencia);
-        response.setEntradasDeposito(entradasDeposito);
-        response.setEntradasEfectivo(entradasEfectivo);
-        response.setTotalEntradas(totalEntradas);
-
-        response.setRetornosTransferencia(retornosTransferencia);
-        response.setRetornosDeposito(retornosDeposito);
-        response.setRetornosEfectivo(retornosEfectivo);
-        response.setTotalRetornos(totalRetornos);
-
-        response.setTotalComisionesSocios(totalComisionesSocios);
-        response.setTotalComisionesOficina(totalComisionesOficina);
-
-        response.setTotalSalidas(totalSalidas);
-        response.setRegistrado(false);
-
-        return response;
+        return calculateDailyCut(fecha, saldoInicial);
     }
 
     @Override
@@ -117,13 +62,13 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
     public DailyCashCutResponse registerDailyCut(LocalDate fecha) {
         DailyCashCutRequest request = new DailyCashCutRequest();
         request.setFecha(fecha);
+
         return registerDailyCut(request);
     }
 
     @Override
     @Transactional
     public DailyCashCutResponse registerDailyCut(DailyCashCutRequest request) {
-
         if (request == null || request.getFecha() == null) {
             throw new CashCutDateRequiredException();
         }
@@ -134,11 +79,11 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
             throw new DailyCashCutAlreadyExistsException(fecha);
         }
 
-        BigDecimal saldoInicial = obtenerSaldoInicial(fecha);
-
         boolean esPrimerCorte = dailyCashCutRepository
                 .findTopByFechaBeforeOrderByFechaDesc(fecha)
                 .isEmpty();
+
+        BigDecimal saldoInicial;
 
         if (esPrimerCorte) {
             if (request.getSaldoInicialManual() == null) {
@@ -146,9 +91,11 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
             }
 
             saldoInicial = request.getSaldoInicialManual();
+        } else {
+            saldoInicial = obtenerSaldoInicial(fecha);
         }
 
-        DailyCashCutResponse calculado = calculateDailyCutConSaldoInicial(fecha, saldoInicial);
+        DailyCashCutResponse calculado = calculateDailyCut(fecha, saldoInicial);
 
         DailyCashCut corte = new DailyCashCut();
 
@@ -186,8 +133,10 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
 
     @Override
     @Transactional(readOnly = true)
-    public CashCutRangeResponse calculateRangeCut(LocalDate fechaInicio, LocalDate fechaFin) {
-
+    public CashCutRangeResponse calculateRangeCut(
+            LocalDate fechaInicio,
+            LocalDate fechaFin
+    ) {
         if (fechaInicio == null || fechaFin == null) {
             throw new CashCutDateRequiredException(
                     "La fecha inicio y fecha fin son obligatorias"
@@ -201,7 +150,10 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         }
 
         List<DailyCashCut> cortes = dailyCashCutRepository
-                .findByFechaBetweenOrderByFechaAsc(fechaInicio, fechaFin);
+                .findByFechaBetweenOrderByFechaAsc(
+                        fechaInicio,
+                        fechaFin
+                );
 
         BigDecimal saldoInicial = cortes.isEmpty()
                 ? obtenerSaldoInicial(fechaInicio)
@@ -222,19 +174,38 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         BigDecimal totalSalidas = BigDecimal.ZERO;
 
         for (DailyCashCut corte : cortes) {
-            entradasTransferencia = entradasTransferencia.add(corte.getEntradasTransferencia());
-            entradasDeposito = entradasDeposito.add(corte.getEntradasDeposito());
-            entradasEfectivo = entradasEfectivo.add(corte.getEntradasEfectivo());
-            totalEntradas = totalEntradas.add(corte.getTotalEntradas());
+            entradasTransferencia = entradasTransferencia
+                    .add(corte.getEntradasTransferencia());
 
-            retornosTransferencia = retornosTransferencia.add(corte.getRetornosTransferencia());
-            retornosDeposito = retornosDeposito.add(corte.getRetornosDeposito());
-            retornosEfectivo = retornosEfectivo.add(corte.getRetornosEfectivo());
-            totalRetornos = totalRetornos.add(corte.getTotalRetornos());
+            entradasDeposito = entradasDeposito
+                    .add(corte.getEntradasDeposito());
 
-            totalComisionesSocios = totalComisionesSocios.add(corte.getTotalComisionesSocios());
-            totalComisionesOficina = totalComisionesOficina.add(corte.getTotalComisionesOficina());
-            totalSalidas = totalSalidas.add(corte.getTotalSalidas());
+            entradasEfectivo = entradasEfectivo
+                    .add(corte.getEntradasEfectivo());
+
+            totalEntradas = totalEntradas
+                    .add(corte.getTotalEntradas());
+
+            retornosTransferencia = retornosTransferencia
+                    .add(corte.getRetornosTransferencia());
+
+            retornosDeposito = retornosDeposito
+                    .add(corte.getRetornosDeposito());
+
+            retornosEfectivo = retornosEfectivo
+                    .add(corte.getRetornosEfectivo());
+
+            totalRetornos = totalRetornos
+                    .add(corte.getTotalRetornos());
+
+            totalComisionesSocios = totalComisionesSocios
+                    .add(corte.getTotalComisionesSocios());
+
+            totalComisionesOficina = totalComisionesOficina
+                    .add(corte.getTotalComisionesOficina());
+
+            totalSalidas = totalSalidas
+                    .add(corte.getTotalSalidas());
         }
 
         BigDecimal saldoFinal = saldoInicial
@@ -268,38 +239,73 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         return response;
     }
 
-    private DailyCashCutResponse calculateDailyCutConSaldoInicial(
+    private DailyCashCutResponse calculateDailyCut(
             LocalDate fecha,
             BigDecimal saldoInicial
     ) {
         LocalDateTime inicio = fecha.atStartOfDay();
         LocalDateTime fin = fecha.atTime(LocalTime.MAX);
 
-        BigDecimal entradasTransferencia = sumEntradaByTipo(PaymentType.TRANSFERENCIA, inicio, fin);
-        BigDecimal entradasDeposito = sumEntradaByTipo(PaymentType.DEPOSITO, inicio, fin);
-        BigDecimal entradasEfectivo = sumEntradaByTipo(PaymentType.EFECTIVO, inicio, fin);
+        BigDecimal entradasTransferencia = sumEntradaByTipo(
+                PaymentType.TRANSFERENCIA,
+                inicio,
+                fin
+        );
+
+        BigDecimal entradasDeposito = sumEntradaByTipo(
+                PaymentType.DEPOSITO,
+                inicio,
+                fin
+        );
+
+        BigDecimal entradasEfectivo = sumEntradaByTipo(
+                PaymentType.EFECTIVO,
+                inicio,
+                fin
+        );
+
+        BigDecimal totalComisionesOficina = sumComisionesOficina(
+                inicio,
+                fin
+        );
 
         BigDecimal totalEntradas = entradasTransferencia
                 .add(entradasDeposito)
                 .add(entradasEfectivo);
 
-        BigDecimal retornosTransferencia = sumRetornoByTipo(PaymentType.TRANSFERENCIA, inicio, fin);
-        BigDecimal retornosDeposito = sumRetornoByTipo(PaymentType.DEPOSITO, inicio, fin);
-        BigDecimal retornosEfectivo = sumRetornoByTipo(PaymentType.EFECTIVO, inicio, fin);
+        BigDecimal retornosTransferencia = sumRetornoByTipo(
+                PaymentType.TRANSFERENCIA,
+                inicio,
+                fin
+        );
+
+        BigDecimal retornosDeposito = sumRetornoByTipo(
+                PaymentType.DEPOSITO,
+                inicio,
+                fin
+        );
+
+        BigDecimal retornosEfectivo = sumRetornoByTipo(
+                PaymentType.EFECTIVO,
+                inicio,
+                fin
+        );
 
         BigDecimal totalRetornos = retornosTransferencia
                 .add(retornosDeposito)
                 .add(retornosEfectivo);
 
         BigDecimal totalComisionesSocios = nvl(
-                commercialPartnerCommissionRepository.sumPaidCommissionsBetween(inicio, fin, CommissionStatus.PAGADA)
+                commercialPartnerCommissionRepository
+                        .sumPaidCommissionsBetween(
+                                inicio,
+                                fin,
+                                CommissionStatus.PAGADA
+                        )
         );
 
-        BigDecimal totalComisionesOficina = BigDecimal.ZERO;
-
         BigDecimal totalSalidas = totalRetornos
-                .add(totalComisionesSocios)
-                .add(totalComisionesOficina);
+                .add(totalComisionesSocios);
 
         BigDecimal saldoFinal = saldoInicial
                 .add(totalEntradas)
@@ -342,11 +348,14 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
             LocalDateTime inicio,
             LocalDateTime fin
     ) {
-        return nvl(operationPaymentRepository.sumValidatedPaymentsByTypeBetween(
-                tipoPago,
-                inicio,
-                fin
-        ));
+        return nvl(
+                operationPaymentRepository.sumValidatedPaymentsByTypeBetween(
+                        tipoPago,
+                        PaymentStatus.VALIDADA,
+                        inicio,
+                        fin
+                )
+        );
     }
 
     private BigDecimal sumRetornoByTipo(
@@ -354,11 +363,26 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
             LocalDateTime inicio,
             LocalDateTime fin
     ) {
-        return nvl(operationReturnPaymentRepository.sumPaidReturnsByTypeBetween(
-                tipoPago,
-                inicio,
-                fin
-        ));
+        return nvl(
+                operationReturnPaymentRepository.sumPaidReturnsByTypeBetween(
+                        tipoPago,
+                        inicio,
+                        fin
+                )
+        );
+    }
+
+    private BigDecimal sumComisionesOficina(
+            LocalDateTime inicio,
+            LocalDateTime fin
+    ) {
+        return nvl(
+                operationPaymentRepository.sumOfficeCommissionsBetween(
+                        inicio,
+                        fin,
+                        PaymentStatus.VALIDADA
+                )
+        );
     }
 
     private BigDecimal nvl(BigDecimal value) {

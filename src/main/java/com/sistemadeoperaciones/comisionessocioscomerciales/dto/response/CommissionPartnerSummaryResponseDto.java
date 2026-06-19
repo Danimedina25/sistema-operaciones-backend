@@ -3,6 +3,7 @@ package com.sistemadeoperaciones.comisionessocioscomerciales.dto.response;
 import com.sistemadeoperaciones.comisionessocioscomerciales.enums.CommissionBeneficiaryType;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public class CommissionPartnerSummaryResponseDto {
@@ -27,6 +28,8 @@ public class CommissionPartnerSummaryResponseDto {
 
     private BigDecimal totalPagadas;
 
+    private LocalDateTime fechaPagada;
+
     private Integer totalComisionesPendientes;
 
     private List<Long> commissionIdsToPay;
@@ -36,7 +39,7 @@ public class CommissionPartnerSummaryResponseDto {
     public CommissionPartnerSummaryResponseDto() {
     }
 
-    public CommissionPartnerSummaryResponseDto(Long beneficiaryId, CommissionBeneficiaryType beneficiaryType, String nombre, String banco, String cuentaBancaria, String titularCuenta, Integer totalOperaciones, BigDecimal totalComisiones, BigDecimal totalPendientes, BigDecimal totalPagadas, Integer totalComisionesPendientes, List<Long> commissionIdsToPay, String paymentProofUrl) {
+    public CommissionPartnerSummaryResponseDto(Long beneficiaryId, CommissionBeneficiaryType beneficiaryType, String nombre, String banco, String cuentaBancaria, String titularCuenta, Integer totalOperaciones, BigDecimal totalComisiones, BigDecimal totalPendientes, BigDecimal totalPagadas, LocalDateTime fechaPagada, Integer totalComisionesPendientes, List<Long> commissionIdsToPay, String paymentProofUrl) {
         this.beneficiaryId = beneficiaryId;
         this.beneficiaryType = beneficiaryType;
         this.nombre = nombre;
@@ -47,6 +50,7 @@ public class CommissionPartnerSummaryResponseDto {
         this.totalComisiones = totalComisiones;
         this.totalPendientes = totalPendientes;
         this.totalPagadas = totalPagadas;
+        this.fechaPagada = fechaPagada;
         this.totalComisionesPendientes = totalComisionesPendientes;
         this.commissionIdsToPay = commissionIdsToPay;
         this.paymentProofUrl = paymentProofUrl;
@@ -154,5 +158,13 @@ public class CommissionPartnerSummaryResponseDto {
 
     public void setPaymentProofUrl(String paymentProofUrl) {
         this.paymentProofUrl = paymentProofUrl;
+    }
+
+    public LocalDateTime getFechaPagada() {
+        return fechaPagada;
+    }
+
+    public void setFechaPagada(LocalDateTime fechaPagada) {
+        this.fechaPagada = fechaPagada;
     }
 }

@@ -3,6 +3,7 @@ package com.sistemadeoperaciones.pagos.service;
 import com.sistemadeoperaciones.clientes.exceptions.ClienteNotFoundException;
 import com.sistemadeoperaciones.clientes.model.Clientes;
 import com.sistemadeoperaciones.clientes.repository.ClientesRepository;
+import com.sistemadeoperaciones.comisionessocioscomerciales.service.CommercialPartnerCommissionService;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
 import com.sistemadeoperaciones.notifications.enums.NotificationModule;
@@ -64,6 +65,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     private final BankAccountRepository bankAccountRepository;
     private final UserRepository userRepository;
     private final AuthenticatedUserService authenticatedUserService;
+    private final CommercialPartnerCommissionService commercialPartnerCommissionService;
     private final CommercialPartnerSettingsRepository commercialPartnerSettingsRepository;
     private final OperationReturnPaymentRepository operationReturnPaymentRepository;
     private final NotificationService notificationService;
@@ -78,6 +80,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             BankAccountRepository bankAccountRepository,
             UserRepository userRepository,
             AuthenticatedUserService authenticatedUserService,
+            CommercialPartnerCommissionService commercialPartnerCommissionService,
             CommercialPartnerSettingsRepository commercialPartnerSettingsRepository,
             NotificationService notificationService,
             ClientesRepository clientesRepository,
@@ -89,6 +92,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         this.bankAccountRepository = bankAccountRepository;
         this.userRepository = userRepository;
         this.authenticatedUserService = authenticatedUserService;
+        this.commercialPartnerCommissionService = commercialPartnerCommissionService;
         this.commercialPartnerSettingsRepository = commercialPartnerSettingsRepository;
         this.notificationService = notificationService;
         this.clientesRepository = clientesRepository;
@@ -564,6 +568,18 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         OperationPayment updated = operationPaymentRepository.save(payment);
         recalculateOperation(payment.getOperacion());
+        PaymentOperation operation =
+                paymentOperationRepository
+                        .findById(payment.getOperacion().getId())
+                        .orElseThrow();
+
+        if (operation.getEstatus() == OperationStatus.VALIDADA) {
+
+            commercialPartnerCommissionService
+                    .generateCommissionsForOperation(
+                            operation.getId()
+                    );
+        }
         notifyPaymentValidated(updated);
 
         return mapToPaymentResponse(updated);

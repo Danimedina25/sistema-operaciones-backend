@@ -96,4 +96,6 @@ public interface CommercialPartnerCommissionService {
             LocalDate startDate,
             LocalDate endDate
     );
+
+    void generateCommissionsForOperation(Long operationId);
 }

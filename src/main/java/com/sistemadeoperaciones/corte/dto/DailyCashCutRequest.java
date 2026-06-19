@@ -11,7 +11,7 @@ public class DailyCashCutRequest {
      * Solo se usaría si es el primer corte
      * o si administrativamente permiten capturar saldo inicial.
      */
-    private BigDecimal saldoInicialManual;
+    private BigDecimal saldoInicialManual = BigDecimal.ZERO;
 
     private String observaciones;
 
