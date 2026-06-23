@@ -73,6 +73,18 @@ public class OperationReturnPayment {
     @Column(name = "cuenta_destino_banco", length = 30)
     private String cuentaDestinoBanco;
 
+    @Column(name = "autorizado_para_recibir_efectivo_1", length = 30, nullable = true)
+    private String autorizadoParaRecibirEfectivo1;
+
+    @Column(name = "autorizado_para_recibir_efectivo_2", length = 30, nullable = true)
+    private String autorizadoParaRecibirEfectivo2;
+
+    @Column(name = "autorizado_para_recibir_efectivo_3", length = 30, nullable = true)
+    private String autorizadoParaRecibirEfectivo3;
+
+    @Column(name = "fecha_hora_recoleccion_efectivo")
+    private LocalDateTime fechaHoraRecoleccionEfectivo;
+
     /**
      * Comprobante del retorno.
      * Lo carga la jefa de cuentas cuando realiza el pago.
@@ -279,5 +291,37 @@ public class OperationReturnPayment {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getAutorizadoParaRecibirEfectivo1() {
+        return autorizadoParaRecibirEfectivo1;
+    }
+
+    public void setAutorizadoParaRecibirEfectivo1(String autorizadoParaRecibirEfectivo1) {
+        this.autorizadoParaRecibirEfectivo1 = autorizadoParaRecibirEfectivo1;
+    }
+
+    public String getAutorizadoParaRecibirEfectivo2() {
+        return autorizadoParaRecibirEfectivo2;
+    }
+
+    public void setAutorizadoParaRecibirEfectivo2(String autorizadoParaRecibirEfectivo2) {
+        this.autorizadoParaRecibirEfectivo2 = autorizadoParaRecibirEfectivo2;
+    }
+
+    public String getAutorizadoParaRecibirEfectivo3() {
+        return autorizadoParaRecibirEfectivo3;
+    }
+
+    public void setAutorizadoParaRecibirEfectivo3(String autorizadoParaRecibirEfectivo3) {
+        this.autorizadoParaRecibirEfectivo3 = autorizadoParaRecibirEfectivo3;
+    }
+
+    public LocalDateTime getFechaHoraRecoleccionEfectivo() {
+        return fechaHoraRecoleccionEfectivo;
+    }
+
+    public void setFechaHoraRecoleccionEfectivo(LocalDateTime fechaHoraRecoleccionEfectivo) {
+        this.fechaHoraRecoleccionEfectivo = fechaHoraRecoleccionEfectivo;
     }
 }

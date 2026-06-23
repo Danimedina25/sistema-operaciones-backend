@@ -119,6 +119,9 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
                     returnPayment.setCuentaDestinoCliente(cuentaDestinoCliente);
                     returnPayment.setCuentaClabeCliente(cuentaClabeCliente);
+                    returnPayment.setAutorizadoParaRecibirEfectivo1(paymentRequest.getAutorizadoParaRecibirEfectivo1());
+                    returnPayment.setAutorizadoParaRecibirEfectivo2(paymentRequest.getAutorizadoParaRecibirEfectivo2());
+                    returnPayment.setAutorizadoParaRecibirEfectivo3(paymentRequest.getAutorizadoParaRecibirEfectivo3());
 
                     return returnPayment;
                 })
@@ -284,6 +287,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         returnPayment.setPagadoPor(currentUser);
         returnPayment.setFechaPago(LocalDateTime.now());
         returnPayment.setEstatus(ReturnPaymentStatus.RETORNADO);
+        returnPayment.setFechaHoraRecoleccionEfectivo(request.getFechaHoraRecoleccionEfectivo());
 
         if (request.getObservaciones() != null && !request.getObservaciones().isBlank()) {
             returnPayment.setObservaciones(request.getObservaciones());
@@ -302,6 +306,15 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             OperationReturnPayment returnPayment,
             RealizeReturnPaymentRequestDto request
     ) {
+        if (returnPayment.getTipoPago() == PaymentType.EFECTIVO
+                && request.getFechaHoraRecoleccionEfectivo() == null) {
+            throw new IllegalArgumentException(
+                    "La fecha y hora de recolección del efectivo es obligatoria"
+            );
+        }
+        if (returnPayment.getTipoPago() != PaymentType.EFECTIVO) {
+            request.setFechaHoraRecoleccionEfectivo(null);
+        }
         if (returnPayment.getTipoPago() == PaymentType.TRANSFERENCIA && request.getCuentaOrigenId() == null) {
             throw new IllegalArgumentException("La cuenta origen es obligatoria");
         }
@@ -643,6 +656,10 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         dto.setCreatedAt(returnPayment.getCreatedAt());
         dto.setCuentaDestinoTitular(returnPayment.getCuentaDestinoTitular());
         dto.setCuentaDestinoBanco(returnPayment.getCuentaDestinoBanco());
+        dto.setAutorizadoParaRecibirEfectivo1(returnPayment.getAutorizadoParaRecibirEfectivo1());
+        dto.setAutorizadoParaRecibirEfectivo2(returnPayment.getAutorizadoParaRecibirEfectivo2());
+        dto.setAutorizadoParaRecibirEfectivo3(returnPayment.getAutorizadoParaRecibirEfectivo3());
+        dto.setFechaHoraRecoleccionEfectivo(returnPayment.getFechaHoraRecoleccionEfectivo());
 
         if (returnPayment.getCuentaOrigen() != null) {
             dto.setCuentaOrigenId(returnPayment.getCuentaOrigen().getId());

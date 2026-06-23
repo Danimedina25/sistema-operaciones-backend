@@ -1,6 +1,7 @@
 package com.sistemadeoperaciones.pagos.dto.retornos;
 
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
+import jakarta.persistence.Column;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -30,6 +31,15 @@ public class CreateReturnPaymentRequestDto {
 
     @Size(max = 500, message = "Las observaciones no pueden superar los 500 caracteres")
     private String observaciones;
+
+    @Size(max = 30, message = "El nombre del autorizado 1 no debe superar los 30 carácteres")
+    private String autorizadoParaRecibirEfectivo1;
+
+    @Size(max = 30, message = "El nombre del autorizado 2 no debe superar los 30 carácteres")
+    private String autorizadoParaRecibirEfectivo2;
+
+    @Size(max = 30, message = "El nombre del autorizado 3 no debe superar los 30 carácteres")
+    private String autorizadoParaRecibirEfectivo3;
 
     public BigDecimal getMonto() {
         return monto;
@@ -85,5 +95,29 @@ public class CreateReturnPaymentRequestDto {
 
     public void setObservaciones(String observaciones) {
         this.observaciones = observaciones;
+    }
+
+    public String getAutorizadoParaRecibirEfectivo1() {
+        return autorizadoParaRecibirEfectivo1;
+    }
+
+    public void setAutorizadoParaRecibirEfectivo1(String autorizadoParaRecibirEfectivo1) {
+        this.autorizadoParaRecibirEfectivo1 = autorizadoParaRecibirEfectivo1;
+    }
+
+    public String getAutorizadoParaRecibirEfectivo2() {
+        return autorizadoParaRecibirEfectivo2;
+    }
+
+    public void setAutorizadoParaRecibirEfectivo2(String autorizadoParaRecibirEfectivo2) {
+        this.autorizadoParaRecibirEfectivo2 = autorizadoParaRecibirEfectivo2;
+    }
+
+    public String getAutorizadoParaRecibirEfectivo3() {
+        return autorizadoParaRecibirEfectivo3;
+    }
+
+    public void setAutorizadoParaRecibirEfectivo3(String autorizadoParaRecibirEfectivo3) {
+        this.autorizadoParaRecibirEfectivo3 = autorizadoParaRecibirEfectivo3;
     }
 }

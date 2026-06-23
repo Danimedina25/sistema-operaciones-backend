@@ -2,11 +2,15 @@ package com.sistemadeoperaciones.pagos.dto.retornos;
 
 import jakarta.validation.constraints.Size;
 
+import java.time.LocalDateTime;
+
 public class RealizeReturnPaymentRequestDto {
 
     private Long cuentaOrigenId;
 
     private String comprobanteUrl;
+
+    private LocalDateTime fechaHoraRecoleccionEfectivo;
 
     @Size(max = 500, message = "Las observaciones no pueden superar los 500 caracteres")
     private String observaciones;
@@ -33,5 +37,13 @@ public class RealizeReturnPaymentRequestDto {
 
     public void setObservaciones(String observaciones) {
         this.observaciones = observaciones;
+    }
+
+    public LocalDateTime getFechaHoraRecoleccionEfectivo() {
+        return fechaHoraRecoleccionEfectivo;
+    }
+
+    public void setFechaHoraRecoleccionEfectivo(LocalDateTime fechaHoraRecoleccionEfectivo) {
+        this.fechaHoraRecoleccionEfectivo = fechaHoraRecoleccionEfectivo;
     }
 }

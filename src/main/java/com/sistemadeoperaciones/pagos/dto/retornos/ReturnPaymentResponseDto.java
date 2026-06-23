@@ -2,6 +2,7 @@ package com.sistemadeoperaciones.pagos.dto.retornos;
 
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
+import jakarta.persistence.Column;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -76,6 +77,14 @@ public class ReturnPaymentResponseDto {
     private LocalDateTime fechaPago;
 
     private LocalDateTime createdAt;
+
+    private String autorizadoParaRecibirEfectivo1;
+
+    private String autorizadoParaRecibirEfectivo2;
+
+    private String autorizadoParaRecibirEfectivo3;
+
+    private LocalDateTime fechaHoraRecoleccionEfectivo;
 
     public ReturnPaymentResponseDto() {
     }
@@ -246,5 +255,38 @@ public class ReturnPaymentResponseDto {
 
     public void setCuentaDestinoBanco(String cuentaDestinoBanco) {
         this.cuentaDestinoBanco = cuentaDestinoBanco;
+    }
+
+
+    public String getAutorizadoParaRecibirEfectivo1() {
+        return autorizadoParaRecibirEfectivo1;
+    }
+
+    public void setAutorizadoParaRecibirEfectivo1(String autorizadoParaRecibirEfectivo1) {
+        this.autorizadoParaRecibirEfectivo1 = autorizadoParaRecibirEfectivo1;
+    }
+
+    public String getAutorizadoParaRecibirEfectivo2() {
+        return autorizadoParaRecibirEfectivo2;
+    }
+
+    public void setAutorizadoParaRecibirEfectivo2(String autorizadoParaRecibirEfectivo2) {
+        this.autorizadoParaRecibirEfectivo2 = autorizadoParaRecibirEfectivo2;
+    }
+
+    public String getAutorizadoParaRecibirEfectivo3() {
+        return autorizadoParaRecibirEfectivo3;
+    }
+
+    public void setAutorizadoParaRecibirEfectivo3(String autorizadoParaRecibirEfectivo3) {
+        this.autorizadoParaRecibirEfectivo3 = autorizadoParaRecibirEfectivo3;
+    }
+
+    public LocalDateTime getFechaHoraRecoleccionEfectivo() {
+        return fechaHoraRecoleccionEfectivo;
+    }
+
+    public void setFechaHoraRecoleccionEfectivo(LocalDateTime fechaHoraRecoleccionEfectivo) {
+        this.fechaHoraRecoleccionEfectivo = fechaHoraRecoleccionEfectivo;
     }
 }
