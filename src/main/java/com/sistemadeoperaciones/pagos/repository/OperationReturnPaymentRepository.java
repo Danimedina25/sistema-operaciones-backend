@@ -66,4 +66,29 @@ public interface OperationReturnPaymentRepository
             @Param("inicio") LocalDateTime inicio,
             @Param("fin") LocalDateTime fin
     );
+
+    @Query("""
+SELECT COALESCE(SUM(op.monto),0)
+FROM OperationReturnPayment op
+WHERE op.cuentaOrigen.id = :bankAccountId
+AND op.fechaPago BETWEEN :inicio AND :fin
+""")
+    BigDecimal sumSalidasByCuenta(
+            Long bankAccountId,
+            LocalDateTime inicio,
+            LocalDateTime fin
+    );
+
+    @Query("""
+    SELECT COALESCE(SUM(r.monto), 0)
+    FROM OperationReturnPayment r
+    WHERE r.cuentaOrigen.id = :bankAccountId
+      AND r.estatus = com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus.RETORNADO
+      AND r.fechaPago BETWEEN :inicio AND :fin
+""")
+    BigDecimal sumRetornosCuenta(
+            @Param("bankAccountId") Long bankAccountId,
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin
+    );
 }

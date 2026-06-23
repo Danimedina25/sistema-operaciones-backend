@@ -77,8 +77,9 @@ public class UserActivationServiceImpl implements UserActivationService {
                 .map(role -> switch (role.getName()) {
                     case ADMIN -> "Administrador";
                     case GERENTE -> "Gerente";
+                    case DIRECCION -> "Director";
                     case SOCIO_COMERCIAL -> "Socio comercial";
-                    case VALIDADOR -> "Validador";
+                    case JEFA_CUENTAS -> "Jefa de cuentas";
                     case JEFA_CAJAS -> "Jefa de cajas";
                     case AUXILIAR_CUENTAS -> "Auxiliar de cuentas";
                 })

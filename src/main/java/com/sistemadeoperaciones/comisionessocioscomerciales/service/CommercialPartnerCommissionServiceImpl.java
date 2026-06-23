@@ -1351,14 +1351,14 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
             );
         }
 
-        if (
+        /*if (
                 operation.getPorcentajeComisionAplicado()
                         .compareTo(BigDecimal.ZERO) <= 0
         ) {
             throw new InvalidCommissionStructureException(
                     "El porcentaje de comisión debe ser mayor a cero"
             );
-        }
+        }*/
 
         if (
                 operation.getPorcentajeComisionAplicado()

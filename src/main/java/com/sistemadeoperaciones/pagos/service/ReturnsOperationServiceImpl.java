@@ -110,11 +110,15 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                     returnPayment.setFechaSolicitud(LocalDateTime.now());
                     returnPayment.setCuentaDestinoTitular(paymentRequest.getTitular());
 
-                    String cuentaDestinoCliente = paymentRequest.getClabe() != null
+                    String cuentaDestinoCliente = paymentRequest.getCuenta() != null
+                            ? paymentRequest.getCuenta().replaceAll("\\s+", "")
+                            : null;
+                    String cuentaClabeCliente = paymentRequest.getClabe() != null
                             ? paymentRequest.getClabe().replaceAll("\\s+", "")
                             : null;
 
                     returnPayment.setCuentaDestinoCliente(cuentaDestinoCliente);
+                    returnPayment.setCuentaClabeCliente(cuentaClabeCliente);
 
                     return returnPayment;
                 })
@@ -205,6 +209,11 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             );
 
             String cuentaDestinoCliente =
+                    request.getCuenta()!= null
+                            ? request.getCuenta()
+                            .replaceAll("\\s+", "")
+                            : null;
+            String cuentaClabeCliente =
                     request.getClabe() != null
                             ? request.getClabe()
                             .replaceAll("\\s+", "")
@@ -212,6 +221,9 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
             returnPayment.setCuentaDestinoCliente(
                     cuentaDestinoCliente
+            );
+            returnPayment.setCuentaClabeCliente(
+                    cuentaClabeCliente
             );
         }
 
@@ -622,6 +634,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         dto.setMonto(returnPayment.getMonto());
         dto.setTipoPago(returnPayment.getTipoPago());
         dto.setCuentaDestinoCliente(returnPayment.getCuentaDestinoCliente());
+        dto.setCuentaClabeCliente(returnPayment.getCuentaClabeCliente());
         dto.setComprobanteUrl(returnPayment.getComprobanteUrl());
         dto.setObservaciones(returnPayment.getObservaciones());
         dto.setEstatus(returnPayment.getEstatus());

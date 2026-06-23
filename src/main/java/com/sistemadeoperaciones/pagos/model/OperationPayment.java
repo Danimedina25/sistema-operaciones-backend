@@ -35,6 +35,9 @@ public class OperationPayment {
     @Column(name = "comprobante_url", nullable = false, length = 500)
     private String comprobanteUrl;
 
+    @Column(name = "comprobante_validacion_url", nullable = true, length = 500)
+    private String comprobanteValidacionUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private PaymentStatus estatus;
@@ -52,6 +55,9 @@ public class OperationPayment {
 
     @Column(name = "fecha_pago", nullable = false)
     private LocalDateTime fechaPago;
+
+    @Column(name = "fecha_comprobante", nullable = false)
+    private LocalDateTime fechaComprobante;
 
     @Column(name = "fecha_validacion")
     private LocalDateTime fechaValidacion;
@@ -164,6 +170,14 @@ public class OperationPayment {
         this.comprobanteUrl = comprobanteUrl;
     }
 
+    public String getComprobanteValidacionUrl() {
+        return comprobanteValidacionUrl;
+    }
+
+    public void setComprobanteValidacionUrl(String comprobanteValidacionUrl) {
+        this.comprobanteValidacionUrl = comprobanteValidacionUrl;
+    }
+
     public void setEstatus(PaymentStatus estatus) {
         this.estatus = estatus;
     }
@@ -182,6 +196,14 @@ public class OperationPayment {
 
     public void setFechaPago(LocalDateTime fechaPago) {
         this.fechaPago = fechaPago;
+    }
+
+    public LocalDateTime getFechaComprobante() {
+        return fechaComprobante;
+    }
+
+    public void setFechaComprobante(LocalDateTime fechaComprobante) {
+        this.fechaComprobante = fechaComprobante;
     }
 
     public void setFechaValidacion(LocalDateTime fechaValidacion) {

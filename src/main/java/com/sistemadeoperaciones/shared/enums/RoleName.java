@@ -4,7 +4,8 @@ public enum RoleName {
     ADMIN,
     GERENTE,
     SOCIO_COMERCIAL,
-    VALIDADOR,
+    DIRECCION,
+    JEFA_CUENTAS,
     JEFA_CAJAS,
     AUXILIAR_CUENTAS
 }

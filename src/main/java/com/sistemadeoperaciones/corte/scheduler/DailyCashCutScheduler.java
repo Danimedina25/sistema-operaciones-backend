@@ -2,6 +2,7 @@ package com.sistemadeoperaciones.corte.scheduler;
 
 import com.sistemadeoperaciones.corte.exceptions.DailyCashCutAlreadyExistsException;
 import com.sistemadeoperaciones.corte.exceptions.InitialCashBalanceRequiredException;
+import com.sistemadeoperaciones.corte.service.BankAccountDailyCutService;
 import com.sistemadeoperaciones.corte.service.DailyCashCutService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -16,10 +17,14 @@ public class DailyCashCutScheduler {
 
     private final DailyCashCutService dailyCashCutService;
 
+    private final BankAccountDailyCutService bankAccountDailyCutService;
+
     public DailyCashCutScheduler(
-            DailyCashCutService dailyCashCutService
+            DailyCashCutService dailyCashCutService,
+            BankAccountDailyCutService bankAccountDailyCutService
     ) {
         this.dailyCashCutService = dailyCashCutService;
+        this.bankAccountDailyCutService = bankAccountDailyCutService;
     }
 
     /**
@@ -39,12 +44,16 @@ public class DailyCashCutScheduler {
         System.out.println("Scheduler ejecutado");
 
         LocalDate fechaACerrar = LocalDate
-                .now(ZoneId.of("America/Mexico_City"));
-                //.minusDays(1);
+                .now(ZoneId.of("America/Mexico_City"))
+                .minusDays(1);
 
         try {
 
             dailyCashCutService.registerDailyCut(
+                    fechaACerrar
+            );
+
+            bankAccountDailyCutService.registerDailyCut(
                     fechaACerrar
             );
 

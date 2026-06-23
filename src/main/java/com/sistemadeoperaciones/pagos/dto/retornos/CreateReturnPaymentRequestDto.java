@@ -25,6 +25,9 @@ public class CreateReturnPaymentRequestDto {
     @Size(max = 18, message = "La CLABE no puede superar los 18 caracteres")
     private String clabe;
 
+    @Size(max = 18, message = "La cuenta no puede superar los 18 caracteres")
+    private String cuenta;
+
     @Size(max = 500, message = "Las observaciones no pueden superar los 500 caracteres")
     private String observaciones;
 
@@ -66,6 +69,14 @@ public class CreateReturnPaymentRequestDto {
 
     public void setClabe(String clabe) {
         this.clabe = clabe;
+    }
+
+    public String getCuenta() {
+        return cuenta;
+    }
+
+    public void setCuenta(String cuenta) {
+        this.cuenta = cuenta;
     }
 
     public String getObservaciones() {

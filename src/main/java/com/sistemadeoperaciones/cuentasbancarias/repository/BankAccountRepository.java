@@ -3,6 +3,7 @@ package com.sistemadeoperaciones.cuentasbancarias.repository;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface BankAccountRepository extends JpaRepository<BankAccount, Long> {
@@ -18,4 +19,6 @@ public interface BankAccountRepository extends JpaRepository<BankAccount, Long> 
     boolean existsByNumeroCuentaAndIdNot(String numeroCuenta, Long id);
 
     boolean existsByClabeAndIdNot(String clabe, Long id);
+
+    List<BankAccount> findByActivoTrue();
 }

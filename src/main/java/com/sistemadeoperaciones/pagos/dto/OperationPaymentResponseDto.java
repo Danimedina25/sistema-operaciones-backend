@@ -12,6 +12,7 @@ public class OperationPaymentResponseDto {
     private BigDecimal monto;
     private PaymentType tipoPago;
     private String comprobanteUrl;
+    private String comprobanteValidacionUrl;
     private Long cuentaDestinoId;
     private String cuentaDestinoBanco;
     private String cuentaDestinoTitular;
@@ -23,6 +24,7 @@ public class OperationPaymentResponseDto {
     private String validadoPorNombre;
     private LocalDateTime fechaPago;
     private LocalDateTime fechaValidacion;
+    private LocalDateTime fechaComprobante;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -34,6 +36,7 @@ public class OperationPaymentResponseDto {
             BigDecimal monto,
             PaymentType tipoPago,
             String comprobanteUrl,
+            String comprobanteValidacionUrl,
             Long cuentaDestinoId,
             String cuentaDestinoBanco,
             String cuentaDestinoTitular,
@@ -45,6 +48,7 @@ public class OperationPaymentResponseDto {
             String validadoPorNombre,
             LocalDateTime fechaPago,
             LocalDateTime fechaValidacion,
+            LocalDateTime fechaComprobante,
             LocalDateTime createdAt,
             LocalDateTime updatedAt
     ) {
@@ -52,6 +56,7 @@ public class OperationPaymentResponseDto {
         this.monto = monto;
         this.tipoPago = tipoPago;
         this.comprobanteUrl = comprobanteUrl;
+        this.comprobanteValidacionUrl = comprobanteValidacionUrl;
         this.cuentaDestinoId = cuentaDestinoId;
         this.cuentaDestinoBanco = cuentaDestinoBanco;
         this.cuentaDestinoTitular = cuentaDestinoTitular;
@@ -63,6 +68,7 @@ public class OperationPaymentResponseDto {
         this.validadoPorNombre = validadoPorNombre;
         this.fechaPago = fechaPago;
         this.fechaValidacion = fechaValidacion;
+        this.fechaComprobante = fechaComprobante;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -81,6 +87,10 @@ public class OperationPaymentResponseDto {
 
     public String getComprobanteUrl() {
         return comprobanteUrl;
+    }
+
+    public String getComprobanteValidacionUrl() {
+        return comprobanteValidacionUrl;
     }
 
     public Long getCuentaDestinoId() {
@@ -151,6 +161,10 @@ public class OperationPaymentResponseDto {
         this.comprobanteUrl = comprobanteUrl;
     }
 
+    public void setComprobanteValidacionUrl(String comprobanteValidacionUrl) {
+        this.comprobanteValidacionUrl = comprobanteValidacionUrl;
+    }
+
     public void setCuentaDestinoId(Long cuentaDestinoId) {
         this.cuentaDestinoId = cuentaDestinoId;
     }
@@ -193,6 +207,14 @@ public class OperationPaymentResponseDto {
 
     public void setFechaValidacion(LocalDateTime fechaValidacion) {
         this.fechaValidacion = fechaValidacion;
+    }
+
+    public LocalDateTime getFechaComprobante() {
+        return fechaComprobante;
+    }
+
+    public void setFechaComprobante(LocalDateTime fechaComprobante) {
+        this.fechaComprobante = fechaComprobante;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {

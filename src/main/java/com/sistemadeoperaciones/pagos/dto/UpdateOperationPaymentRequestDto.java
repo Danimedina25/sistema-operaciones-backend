@@ -4,6 +4,7 @@ import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 public class UpdateOperationPaymentRequestDto {
 
@@ -19,6 +20,9 @@ public class UpdateOperationPaymentRequestDto {
     @NotBlank(message = "El comprobante es obligatorio")
     @Size(max = 500, message = "La URL del comprobante no puede exceder 500 caracteres")
     private String comprobanteUrl;
+
+    @NotNull(message = "La fecha del comprobante es obligatoria")
+    private LocalDateTime fechaComprobante;
 
     @Size(max = 500, message = "Las observaciones no pueden exceder 500 caracteres")
     private String observaciones;
@@ -62,6 +66,14 @@ public class UpdateOperationPaymentRequestDto {
 
     public void setComprobanteUrl(String comprobanteUrl) {
         this.comprobanteUrl = comprobanteUrl;
+    }
+
+    public LocalDateTime getFechaComprobante() {
+        return fechaComprobante;
+    }
+
+    public void setFechaComprobante(LocalDateTime fechaComprobante) {
+        this.fechaComprobante = fechaComprobante;
     }
 
     public String getObservaciones() {

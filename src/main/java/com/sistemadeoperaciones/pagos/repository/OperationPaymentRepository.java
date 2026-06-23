@@ -55,4 +55,52 @@ public interface OperationPaymentRepository extends JpaRepository<OperationPayme
             @Param("fin") LocalDateTime fin,
             @Param("estatus") PaymentStatus estatus
     );
+
+    @Query("""
+SELECT COALESCE(SUM(p.monto),0)
+FROM OperationPayment p
+WHERE p.cuentaDestino.id = :bankAccountId
+AND p.estatus = :status
+AND p.tipoPago IN (
+    com.sistemadeoperaciones.pagos.enums.PaymentType.TRANSFERENCIA,
+    com.sistemadeoperaciones.pagos.enums.PaymentType.DEPOSITO
+)
+AND p.fechaValidacion BETWEEN :inicio AND :fin
+""")
+    BigDecimal sumEntradasCuenta(
+            Long bankAccountId,
+            PaymentStatus status,
+            LocalDateTime inicio,
+            LocalDateTime fin
+    );
+
+    @Query("""
+SELECT COALESCE(SUM(p.monto),0)
+FROM OperationPayment p
+WHERE p.cuentaDestino.id = :bankAccountId
+AND p.estatus = :status
+AND p.tipoPago = com.sistemadeoperaciones.pagos.enums.PaymentType.TRANSFERENCIA
+AND p.fechaValidacion BETWEEN :inicio AND :fin
+""")
+    BigDecimal sumEntradasTransferenciaCuenta(
+            @Param("bankAccountId") Long bankAccountId,
+            @Param("status") PaymentStatus status,
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin
+    );
+
+    @Query("""
+SELECT COALESCE(SUM(p.monto),0)
+FROM OperationPayment p
+WHERE p.cuentaDestino.id = :bankAccountId
+AND p.estatus = :status
+AND p.tipoPago = com.sistemadeoperaciones.pagos.enums.PaymentType.DEPOSITO
+AND p.fechaValidacion BETWEEN :inicio AND :fin
+""")
+    BigDecimal sumEntradasDepositoCuenta(
+            @Param("bankAccountId") Long bankAccountId,
+            @Param("status") PaymentStatus status,
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin
+    );
 }

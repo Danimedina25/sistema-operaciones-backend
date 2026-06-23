@@ -47,14 +47,106 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
 
     @Override
     @Transactional(readOnly = true)
-    public DailyCashCutResponse calculateDailyCut(LocalDate fecha) {
+    public DailyCashCutResponse calculateDailyCut(
+            LocalDate fecha
+    ) {
         if (fecha == null) {
             throw new CashCutDateRequiredException();
         }
 
-        BigDecimal saldoInicial = obtenerSaldoInicial(fecha);
+        LocalDate hoy = LocalDate.now();
 
-        return calculateDailyCut(fecha, saldoInicial);
+        if (fecha.isEqual(hoy)) {
+
+            BigDecimal saldoInicial =
+                    obtenerSaldoInicial(fecha);
+
+            return calculateDailyCut(
+                    fecha,
+                    saldoInicial
+            );
+        }
+
+        DailyCashCut corte =
+                dailyCashCutRepository
+                        .findByFecha(fecha)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "No existe corte registrado para la fecha "
+                                                + fecha
+                                )
+                        );
+
+        return mapToResponse(corte);
+    }
+
+    private DailyCashCutResponse mapToResponse(
+            DailyCashCut corte
+    ) {
+        DailyCashCutResponse response =
+                new DailyCashCutResponse();
+
+        response.setFecha(corte.getFecha());
+
+        response.setSaldoInicial(
+                corte.getSaldoInicial()
+        );
+
+        response.setSaldoFinal(
+                corte.getSaldoFinal()
+        );
+
+        response.setEntradasTransferencia(
+                corte.getEntradasTransferencia()
+        );
+
+        response.setEntradasDeposito(
+                corte.getEntradasDeposito()
+        );
+
+        response.setEntradasEfectivo(
+                corte.getEntradasEfectivo()
+        );
+
+        response.setTotalEntradas(
+                corte.getTotalEntradas()
+        );
+
+        response.setRetornosTransferencia(
+                corte.getRetornosTransferencia()
+        );
+
+        response.setRetornosDeposito(
+                corte.getRetornosDeposito()
+        );
+
+        response.setRetornosEfectivo(
+                corte.getRetornosEfectivo()
+        );
+
+        response.setTotalRetornos(
+                corte.getTotalRetornos()
+        );
+
+        response.setTotalComisionesSocios(
+                corte.getTotalComisionesSocios()
+        );
+
+        response.setTotalComisionesOficina(
+                corte.getTotalComisionesOficina()
+        );
+
+        response.setTotalSalidas(
+                corte.getTotalSalidas()
+        );
+
+        response.setRegistrado(true);
+
+        response.setFechaCierre(
+                corte.getFechaCierre()
+        );
+
+        return response;
     }
 
     @Override
@@ -149,15 +241,52 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
             );
         }
 
-        List<DailyCashCut> cortes = dailyCashCutRepository
-                .findByFechaBetweenOrderByFechaAsc(
-                        fechaInicio,
-                        fechaFin
-                );
+        LocalDate hoy = LocalDate.now();
 
-        BigDecimal saldoInicial = cortes.isEmpty()
-                ? obtenerSaldoInicial(fechaInicio)
-                : cortes.get(0).getSaldoInicial();
+        boolean incluyeHoy =
+                !fechaInicio.isAfter(hoy)
+                        && !fechaFin.isBefore(hoy);
+
+        List<DailyCashCut> cortes;
+
+        if (incluyeHoy) {
+
+            LocalDate fechaFinHistorica = hoy.minusDays(1);
+
+            cortes = fechaInicio.isAfter(fechaFinHistorica)
+                    ? List.of()
+                    : dailyCashCutRepository
+                    .findByFechaBetweenOrderByFechaAsc(
+                            fechaInicio,
+                            fechaFinHistorica
+                    );
+
+        } else {
+
+            cortes = dailyCashCutRepository
+                    .findByFechaBetweenOrderByFechaAsc(
+                            fechaInicio,
+                            fechaFin
+                    );
+        }
+
+        BigDecimal saldoInicial;
+
+        if (!cortes.isEmpty()) {
+
+            saldoInicial = cortes.get(0).getSaldoInicial();
+
+        } else if (incluyeHoy
+                && fechaInicio.equals(hoy)
+                && fechaFin.equals(hoy)) {
+
+            saldoInicial = calculateDailyCut(hoy)
+                    .getSaldoInicial();
+
+        } else {
+
+            saldoInicial = obtenerSaldoInicial(fechaInicio);
+        }
 
         BigDecimal entradasTransferencia = BigDecimal.ZERO;
         BigDecimal entradasDeposito = BigDecimal.ZERO;
@@ -208,6 +337,67 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
                     .add(corte.getTotalSalidas());
         }
 
+        if (incluyeHoy) {
+
+            DailyCashCutResponse corteHoy =
+                    calculateDailyCut(hoy);
+
+            entradasTransferencia =
+                    entradasTransferencia.add(
+                            corteHoy.getEntradasTransferencia()
+                    );
+
+            entradasDeposito =
+                    entradasDeposito.add(
+                            corteHoy.getEntradasDeposito()
+                    );
+
+            entradasEfectivo =
+                    entradasEfectivo.add(
+                            corteHoy.getEntradasEfectivo()
+                    );
+
+            totalEntradas =
+                    totalEntradas.add(
+                            corteHoy.getTotalEntradas()
+                    );
+
+            retornosTransferencia =
+                    retornosTransferencia.add(
+                            corteHoy.getRetornosTransferencia()
+                    );
+
+            retornosDeposito =
+                    retornosDeposito.add(
+                            corteHoy.getRetornosDeposito()
+                    );
+
+            retornosEfectivo =
+                    retornosEfectivo.add(
+                            corteHoy.getRetornosEfectivo()
+                    );
+
+            totalRetornos =
+                    totalRetornos.add(
+                            corteHoy.getTotalRetornos()
+                    );
+
+            totalComisionesSocios =
+                    totalComisionesSocios.add(
+                            corteHoy.getTotalComisionesSocios()
+                    );
+
+            totalComisionesOficina =
+                    totalComisionesOficina.add(
+                            corteHoy.getTotalComisionesOficina()
+                    );
+
+            totalSalidas =
+                    totalSalidas.add(
+                            corteHoy.getTotalSalidas()
+                    );
+        }
+
         BigDecimal saldoFinal = saldoInicial
                 .add(totalEntradas)
                 .subtract(totalSalidas);
@@ -234,7 +424,7 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         response.setTotalComisionesOficina(totalComisionesOficina);
         response.setTotalSalidas(totalSalidas);
 
-        response.setIncluyeDiaActualEnVivo(false);
+        response.setIncluyeDiaActualEnVivo(incluyeHoy);
 
         return response;
     }

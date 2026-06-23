@@ -29,9 +29,10 @@ public class ReturnPaymentResponseDto {
     private String cuentaOrigenBanco;
 
     /**
-     * Cuenta o CLABE del cliente
+     * Cuenta y CLABE del cliente
      */
     private String cuentaDestinoCliente;
+    private String cuentaClabeCliente;
 
     /**
      * Titular de la cuenta del cliente
@@ -185,6 +186,14 @@ public class ReturnPaymentResponseDto {
 
     public void setCuentaDestinoCliente(String cuentaDestinoCliente) {
         this.cuentaDestinoCliente = cuentaDestinoCliente;
+    }
+
+    public String getCuentaClabeCliente() {
+        return cuentaClabeCliente;
+    }
+
+    public void setCuentaClabeCliente(String cuentaClabeCliente) {
+        this.cuentaClabeCliente = cuentaClabeCliente;
     }
 
     public void setComprobanteUrl(String comprobanteUrl) {

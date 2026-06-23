@@ -433,6 +433,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         payment.setObservaciones(request.getObservaciones());
         payment.setRegistradoPor(registradoPor);
         payment.setFechaPago(LocalDateTime.now());
+        payment.setFechaComprobante(request.getFechaComprobante());
 
         OperationPayment saved = operationPaymentRepository.save(payment);
 
@@ -492,6 +493,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         payment.setComprobanteUrl(request.getComprobanteUrl());
         payment.setFechaPago(LocalDateTime.now());
         payment.setObservaciones(request.getObservaciones());
+        payment.setFechaComprobante(request.getFechaComprobante());
 
         OperationPayment updated = operationPaymentRepository.save(payment);
 
@@ -561,6 +563,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         payment.setEstatus(PaymentStatus.VALIDADA);
         payment.setValidadoPor(validadoPor);
         payment.setFechaValidacion(LocalDateTime.now());
+        payment.setComprobanteValidacionUrl(request.getComprobanteValidacionUrl());
 
         if (request.getObservaciones() != null && !request.getObservaciones().isBlank()) {
             payment.setObservaciones(request.getObservaciones());
@@ -1137,6 +1140,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 payment.getMonto(),
                 payment.getTipoPago(),
                 payment.getComprobanteUrl(),
+                payment.getComprobanteValidacionUrl(),
                 cuentaDestinoId,
                 cuentaDestinoBanco,
                 cuentaDestinoTitular,
@@ -1148,6 +1152,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 validadoPorNombre,
                 payment.getFechaPago(),
                 payment.getFechaValidacion(),
+                payment.getFechaComprobante(),
                 payment.getCreatedAt(),
                 payment.getUpdatedAt()
         );

@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 public class CreateOperationPaymentRequestDto {
 
@@ -26,6 +27,9 @@ public class CreateOperationPaymentRequestDto {
     @NotBlank(message = "El comprobante es obligatorio")
     @Size(max = 500, message = "La URL del comprobante no puede exceder 500 caracteres")
     private String comprobanteUrl;
+
+    @NotNull(message = "La fecha del comprobante es obligatoria")
+    private LocalDateTime fechaComprobante;
 
     @Size(max = 500, message = "Las observaciones no pueden exceder 500 caracteres")
     private String observaciones;
@@ -76,5 +80,13 @@ public class CreateOperationPaymentRequestDto {
 
     public void setObservaciones(String observaciones) {
         this.observaciones = observaciones;
+    }
+
+    public LocalDateTime getFechaComprobante() {
+        return fechaComprobante;
+    }
+
+    public void setFechaComprobante(LocalDateTime fechaComprobante) {
+        this.fechaComprobante = fechaComprobante;
     }
 }

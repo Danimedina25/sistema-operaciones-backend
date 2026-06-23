@@ -54,6 +54,9 @@ public class OperationReturnPayment {
     @Column(name = "cuenta_destino_cliente", length = 30)
     private String cuentaDestinoCliente;
 
+    @Column(name = "cuenta_clabe_cliente", length = 30)
+    private String cuentaClabeCliente;
+
     /**
      * Cuenta del cliente que recibe el dinero.
      * La indica el socio comercial cuando solicita el retorno.
@@ -216,6 +219,14 @@ public class OperationReturnPayment {
 
     public void setCuentaDestinoCliente(String cuentaDestinoCliente) {
         this.cuentaDestinoCliente = cuentaDestinoCliente;
+    }
+
+    public String getCuentaClabeCliente() {
+        return cuentaClabeCliente;
+    }
+
+    public void setCuentaClabeCliente(String cuentaClabeCliente) {
+        this.cuentaClabeCliente = cuentaClabeCliente;
     }
 
     public String getCuentaDestinoTitular() {
