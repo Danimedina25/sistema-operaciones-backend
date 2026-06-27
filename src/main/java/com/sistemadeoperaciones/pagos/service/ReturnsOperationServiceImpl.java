@@ -7,10 +7,7 @@ import com.sistemadeoperaciones.notifications.enums.NotificationType;
 import com.sistemadeoperaciones.notifications.service.NotificationService;
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationFilterDto;
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationResponseDto;
-import com.sistemadeoperaciones.pagos.dto.retornos.CreateReturnPaymentBatchRequestDto;
-import com.sistemadeoperaciones.pagos.dto.retornos.CreateReturnPaymentRequestDto;
-import com.sistemadeoperaciones.pagos.dto.retornos.RealizeReturnPaymentRequestDto;
-import com.sistemadeoperaciones.pagos.dto.retornos.ReturnPaymentResponseDto;
+import com.sistemadeoperaciones.pagos.dto.retornos.*;
 import com.sistemadeoperaciones.pagos.enums.OperationStatus;
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
@@ -130,8 +127,15 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         List<OperationReturnPayment> savedReturns =
                 operationReturnPaymentRepository.saveAll(returnPayments);
 
-        if (operation.getEstatus() == OperationStatus.VALIDADA) {
-            operation.setEstatus(OperationStatus.RETORNO_SOLICITADO);
+        if (
+                operation.getEstatus() == OperationStatus.VALIDADA ||
+                        operation.getEstatus() == OperationStatus.RETORNO_PARCIAL_SOLICITADO
+        ) {
+            if (newTotalRequested.compareTo(amountToReturn) < 0) {
+                operation.setEstatus(OperationStatus.RETORNO_PARCIAL_SOLICITADO);
+            } else {
+                operation.setEstatus(OperationStatus.RETORNO_TOTAL_SOLICITADO);
+            }
         }
 
         paymentOperationRepository.save(operation);
@@ -235,6 +239,20 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                         returnPayment
                 );
 
+        if (
+                operation.getEstatus() == OperationStatus.VALIDADA ||
+                        operation.getEstatus() == OperationStatus.RETORNO_PARCIAL_SOLICITADO ||
+                        operation.getEstatus() == OperationStatus.RETORNO_TOTAL_SOLICITADO
+        ) {
+            if (newTotalRequested.compareTo(amountToReturn) < 0) {
+                operation.setEstatus(OperationStatus.RETORNO_PARCIAL_SOLICITADO);
+            } else {
+                operation.setEstatus(OperationStatus.RETORNO_TOTAL_SOLICITADO);
+            }
+
+            paymentOperationRepository.save(operation);
+        }
+
         notifyReturnUpdated(updated);
 
         return mapReturnToResponse(updated);
@@ -331,9 +349,9 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 operationReturnPaymentRepository.sumRealizedAmountByOperationId(operation.getId());
 
         if (totalRealized.compareTo(amountToReturn) >= 0) {
-            operation.setEstatus(OperationStatus.COMPLETADA);
+            operation.setEstatus(OperationStatus.RETORNADA);
         } else {
-            operation.setEstatus(OperationStatus.RETORNO_PARCIAL);
+            operation.setEstatus(OperationStatus.RETORNO_PARCIAL_ENTREGADO);
         }
 
         paymentOperationRepository.save(operation);
@@ -372,8 +390,8 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                         filter,
                         List.of(
                                 OperationStatus.VALIDADA,
-                                OperationStatus.RETORNO_SOLICITADO,
-                                OperationStatus.RETORNO_PARCIAL
+                                OperationStatus.RETORNO_PARCIAL_SOLICITADO,
+                                OperationStatus.RETORNO_PARCIAL_ENTREGADO
                         )
                 );
 
@@ -402,10 +420,6 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
         List<PaymentOperationResponseDto> filteredContent = page.getContent()
                 .stream()
-                .filter(operation ->
-                        operation.getMontoSolicitadoRetorno()
-                                .compareTo(operation.getMontoTotalDevolverCliente()) < 0
-                )
                 .toList();
 
         return new PageImpl<>(
@@ -428,13 +442,23 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         Specification<PaymentOperation> specification = buildReturnOperationSpecification(
                 filter,
                 List.of(
-                        OperationStatus.RETORNO_SOLICITADO,
-                        OperationStatus.RETORNO_PARCIAL
+                        OperationStatus.RETORNO_PARCIAL_SOLICITADO,
+                        OperationStatus.RETORNO_TOTAL_SOLICITADO,
+                        OperationStatus.RETORNO_PARCIAL_ENTREGADO
                 )
         ).and(PaymentOperationSpecification.hasReturnWithStatus(ReturnPaymentStatus.SOLICITADO));
 
         return paymentOperationRepository.findAll(specification, pageable)
                 .map(this::mapOperationToResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ReturnDestinationAccountSuggestionDto> findReturnDestinationSuggestionsByClienteId(
+            Long clienteId
+    ) {
+        return operationReturnPaymentRepository
+                .findTop10DestinationAccountsByClienteId(clienteId);
     }
 
     private Specification<PaymentOperation> buildReturnOperationSpecification(
@@ -454,8 +478,9 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
     private void validateOperationCanReceiveReturn(PaymentOperation operation) {
         if (
                 operation.getEstatus() != OperationStatus.VALIDADA &&
-                operation.getEstatus() != OperationStatus.RETORNO_SOLICITADO &&
-                        operation.getEstatus() != OperationStatus.RETORNO_PARCIAL
+                operation.getEstatus() != OperationStatus.RETORNO_PARCIAL_SOLICITADO &&
+                        operation.getEstatus() != OperationStatus.RETORNO_PARCIAL_ENTREGADO
+
         ) {
             throw new IllegalArgumentException(
                     "La operación no está lista para solicitar retornos"
@@ -644,6 +669,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
         dto.setId(returnPayment.getId());
         dto.setOperationId(returnPayment.getOperacion().getId());
+        dto.setClientId(returnPayment.getOperacion().getCliente().getId());
         dto.setMonto(returnPayment.getMonto());
         dto.setTipoPago(returnPayment.getTipoPago());
         dto.setCuentaDestinoCliente(returnPayment.getCuentaDestinoCliente());
@@ -755,7 +781,10 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 operationReturnPaymentRepository
                         .sumRequestedAmountByOperationId(operation.getId())
         );
+        long numeroRetornosSolicitados =
+                operationReturnPaymentRepository.countByOperacionId(operation.getId());
         dto.setMontoSolicitadoRetorno(montoSolicitadoRetorno);
+        dto.setNumeroRetornosSolicitados(numeroRetornosSolicitados);
         dto.setMontoRetornado(montoRetornado);
         dto.setSaldoPendienteRetornar(saldoPendienteRetornar);
 

@@ -34,8 +34,8 @@ public class BankAccountServiceImpl implements BankAccountService {
         BankAccount bankAccount = new BankAccount();
         bankAccount.setBanco(request.getBanco());
         bankAccount.setTitular(request.getTitular());
-        bankAccount.setNumeroCuenta(cryptoService.encrypt(request.getNumeroCuenta()));
-        bankAccount.setClabe(cryptoService.encrypt(request.getClabe()));
+        bankAccount.setNumeroCuenta(request.getNumeroCuenta());
+        bankAccount.setClabe(request.getClabe());
         bankAccount.setActivo(request.getActivo() != null ? request.getActivo() : true);
 
         BankAccount saved = bankAccountRepository.save(bankAccount);
@@ -70,8 +70,8 @@ public class BankAccountServiceImpl implements BankAccountService {
 
         bankAccount.setBanco(request.getBanco());
         bankAccount.setTitular(request.getTitular());
-        bankAccount.setNumeroCuenta(cryptoService.encrypt(request.getNumeroCuenta()));
-        bankAccount.setClabe(cryptoService.encrypt(request.getClabe()));
+        bankAccount.setNumeroCuenta(request.getNumeroCuenta());
+        bankAccount.setClabe(request.getClabe());
 
         if (request.getActivo() != null) {
             bankAccount.setActivo(request.getActivo());
@@ -112,29 +112,31 @@ public class BankAccountServiceImpl implements BankAccountService {
     }
 
     private void validateUniqueFields(BankAccountRequestDto request, Long id) {
-        String encryptedNumeroCuenta = cryptoService.encrypt(request.getNumeroCuenta());
-        String encryptedClabe = cryptoService.encrypt(request.getClabe());
+        String numeroCuenta = request.getNumeroCuenta();
+        String clabe = request.getClabe();
 
         if (id == null) {
-            if (bankAccountRepository.existsByNumeroCuenta(encryptedNumeroCuenta)) {
+            if (bankAccountRepository.existsByNumeroCuenta(numeroCuenta)) {
                 throw new BadRequestException("Ya existe una cuenta con ese número de cuenta");
             }
-            if (bankAccountRepository.existsByClabe(encryptedClabe)) {
+
+            if (bankAccountRepository.existsByClabe(clabe)) {
                 throw new BadRequestException("Ya existe una cuenta con esa CLABE");
             }
         } else {
-            if (bankAccountRepository.existsByNumeroCuentaAndIdNot(encryptedNumeroCuenta, id)) {
+            if (bankAccountRepository.existsByNumeroCuentaAndIdNot(numeroCuenta, id)) {
                 throw new BadRequestException("Ya existe otra cuenta con ese número de cuenta");
             }
-            if (bankAccountRepository.existsByClabeAndIdNot(encryptedClabe, id)) {
+
+            if (bankAccountRepository.existsByClabeAndIdNot(clabe, id)) {
                 throw new BadRequestException("Ya existe otra cuenta con esa CLABE");
             }
         }
     }
 
     private BankAccountResponseDto mapToResponseFull(BankAccount bankAccount) {
-        String numeroCuenta = cryptoService.decrypt(bankAccount.getNumeroCuenta());
-        String clabe = cryptoService.decrypt(bankAccount.getClabe());
+        String numeroCuenta = bankAccount.getNumeroCuenta();
+        String clabe = bankAccount.getClabe();
 
         return new BankAccountResponseDto(
                 bankAccount.getId(),
@@ -149,8 +151,8 @@ public class BankAccountServiceImpl implements BankAccountService {
     }
 
     private BankAccountResponseDto mapToResponseMasked(BankAccount bankAccount) {
-        String numeroCuenta = cryptoService.decrypt(bankAccount.getNumeroCuenta());
-        String clabe = cryptoService.decrypt(bankAccount.getClabe());
+        String numeroCuenta = bankAccount.getNumeroCuenta();
+        String clabe = bankAccount.getClabe();
 
         return new BankAccountResponseDto(
                 bankAccount.getId(),

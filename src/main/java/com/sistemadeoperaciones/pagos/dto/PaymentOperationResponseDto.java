@@ -35,6 +35,7 @@ public class PaymentOperationResponseDto {
     private BigDecimal montoRetornado;
     private BigDecimal saldoPendienteRetornar;
     private BigDecimal montoSolicitadoRetorno;
+    private long numeroRetornosSolicitados;
     private String observaciones;
     private List<OperationPaymentResponseDto> pagos;
     private LocalDateTime createdAt;
@@ -43,7 +44,7 @@ public class PaymentOperationResponseDto {
     public PaymentOperationResponseDto() {
     }
 
-    public PaymentOperationResponseDto(Long id, Long clienteId, String clienteNombre, BigDecimal montoTotal, BigDecimal montoValidado, BigDecimal montoRegistrado, BigDecimal saldoPendientePorValidar, BigDecimal saldoPendientePorRegistrar, OperationStatus estatus, Long socioComercialId, String socioComercialNombre, Long socioComercialNivel2Id, String socioComercialNivel2Nombre, Long socioComercialNivel3Id, String socioComercialNivel3Nombre, Integer nivelesRedComercial, BigDecimal porcentajeComisionAplicado, BigDecimal porcentajeComisionOficina, BigDecimal porcentajeComisionRedTotal, BigDecimal montoComisionRedTotal, BigDecimal porcentajeComisionOficinaTotal, BigDecimal montoComisionOficinaTotal, BigDecimal montoTotalDevolverCliente, BigDecimal montoRetornado, BigDecimal saldoPendienteRetornar, BigDecimal montoSolicitadoRetorno, String observaciones, List<OperationPaymentResponseDto> pagos, LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public PaymentOperationResponseDto(Long id, Long clienteId, String clienteNombre, BigDecimal montoTotal, BigDecimal montoValidado, BigDecimal montoRegistrado, BigDecimal saldoPendientePorValidar, BigDecimal saldoPendientePorRegistrar, OperationStatus estatus, Long socioComercialId, String socioComercialNombre, Long socioComercialNivel2Id, String socioComercialNivel2Nombre, Long socioComercialNivel3Id, String socioComercialNivel3Nombre, Integer nivelesRedComercial, BigDecimal porcentajeComisionAplicado, BigDecimal porcentajeComisionOficina, BigDecimal porcentajeComisionRedTotal, BigDecimal montoComisionRedTotal, BigDecimal porcentajeComisionOficinaTotal, BigDecimal montoComisionOficinaTotal, BigDecimal montoTotalDevolverCliente, BigDecimal montoRetornado, BigDecimal saldoPendienteRetornar, BigDecimal montoSolicitadoRetorno, long numeroRetornosSolicitados, String observaciones, List<OperationPaymentResponseDto> pagos, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.clienteId = clienteId;
         this.clienteNombre = clienteNombre;
@@ -70,6 +71,7 @@ public class PaymentOperationResponseDto {
         this.montoRetornado = montoRetornado;
         this.saldoPendienteRetornar = saldoPendienteRetornar;
         this.montoSolicitadoRetorno = montoSolicitadoRetorno;
+        this.numeroRetornosSolicitados = numeroRetornosSolicitados;
         this.observaciones = observaciones;
         this.pagos = pagos;
         this.createdAt = createdAt;
@@ -298,6 +300,14 @@ public class PaymentOperationResponseDto {
 
     public void setMontoSolicitadoRetorno(BigDecimal montoSolicitadoRetorno) {
         this.montoSolicitadoRetorno = montoSolicitadoRetorno;
+    }
+
+    public long getNumeroRetornosSolicitados() {
+        return numeroRetornosSolicitados;
+    }
+
+    public void setNumeroRetornosSolicitados(long numeroRetornosSolicitados) {
+        this.numeroRetornosSolicitados = numeroRetornosSolicitados;
     }
 
     public void setObservaciones(String observaciones) {

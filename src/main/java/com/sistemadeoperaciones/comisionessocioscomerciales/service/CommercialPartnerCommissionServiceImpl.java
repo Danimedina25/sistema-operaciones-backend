@@ -975,8 +975,10 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                         List.of(
                                 OperationStatus.VALIDADA,
                                 OperationStatus.COMPLETADA,
-                                OperationStatus.RETORNO_SOLICITADO,
-                                OperationStatus.RETORNO_PARCIAL,
+                                OperationStatus.RETORNO_PARCIAL_SOLICITADO,
+                                OperationStatus.RETORNO_TOTAL_SOLICITADO,
+                                OperationStatus.RETORNO_PARCIAL_ENTREGADO,
+                                OperationStatus.RETORNADA,
                                 OperationStatus.COMPLETADA
                         )
                 );

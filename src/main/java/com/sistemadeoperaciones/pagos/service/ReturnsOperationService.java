@@ -2,10 +2,7 @@ package com.sistemadeoperaciones.pagos.service;
 
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationFilterDto;
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationResponseDto;
-import com.sistemadeoperaciones.pagos.dto.retornos.CreateReturnPaymentBatchRequestDto;
-import com.sistemadeoperaciones.pagos.dto.retornos.CreateReturnPaymentRequestDto;
-import com.sistemadeoperaciones.pagos.dto.retornos.RealizeReturnPaymentRequestDto;
-import com.sistemadeoperaciones.pagos.dto.retornos.ReturnPaymentResponseDto;
+import com.sistemadeoperaciones.pagos.dto.retornos.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -62,5 +59,9 @@ public interface ReturnsOperationService {
     Page<PaymentOperationResponseDto> findOperationsWithRequestedReturns(
             PaymentOperationFilterDto filter,
             Pageable pageable
+    );
+
+    List<ReturnDestinationAccountSuggestionDto> findReturnDestinationSuggestionsByClienteId(
+            Long clienteId
     );
 }

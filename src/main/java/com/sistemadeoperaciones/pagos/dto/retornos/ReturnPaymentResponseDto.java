@@ -13,6 +13,8 @@ public class ReturnPaymentResponseDto {
 
     private Long operationId;
 
+    private Long clientId;
+
     private BigDecimal monto;
 
     private PaymentType tipoPago;
@@ -95,6 +97,14 @@ public class ReturnPaymentResponseDto {
 
     public Long getOperationId() {
         return operationId;
+    }
+
+    public Long getClientId() {
+        return clientId;
+    }
+
+    public void setClientId(Long clientdId) {
+        this.clientId = clientdId;
     }
 
     public BigDecimal getMonto() {

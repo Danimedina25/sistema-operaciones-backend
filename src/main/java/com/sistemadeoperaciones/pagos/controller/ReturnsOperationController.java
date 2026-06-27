@@ -2,10 +2,7 @@ package com.sistemadeoperaciones.pagos.controller;
 
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationFilterDto;
 import com.sistemadeoperaciones.pagos.dto.PaymentOperationResponseDto;
-import com.sistemadeoperaciones.pagos.dto.retornos.CreateReturnPaymentBatchRequestDto;
-import com.sistemadeoperaciones.pagos.dto.retornos.CreateReturnPaymentRequestDto;
-import com.sistemadeoperaciones.pagos.dto.retornos.RealizeReturnPaymentRequestDto;
-import com.sistemadeoperaciones.pagos.dto.retornos.ReturnPaymentResponseDto;
+import com.sistemadeoperaciones.pagos.dto.retornos.*;
 import com.sistemadeoperaciones.pagos.service.ReturnsOperationService;
 import com.sistemadeoperaciones.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
@@ -159,6 +156,27 @@ public class ReturnsOperationController {
                 new ApiResponse<>(
                         true,
                         "Pagos de retorno obtenidos exitosamente",
+                        response,
+                        null
+                )
+        );
+    }
+
+    @GetMapping("/clients/{clientId}/destination-accounts")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    public ResponseEntity<ApiResponse<List<ReturnDestinationAccountSuggestionDto>>>
+    findReturnDestinationAccounts(
+            @PathVariable Long clientId
+    ) {
+        List<ReturnDestinationAccountSuggestionDto> response =
+                returnsOperationService.findReturnDestinationSuggestionsByClienteId(
+                        clientId
+                );
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Cuentas de retorno obtenidas exitosamente",
                         response,
                         null
                 )

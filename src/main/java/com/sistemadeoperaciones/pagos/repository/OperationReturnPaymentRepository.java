@@ -1,8 +1,10 @@
 package com.sistemadeoperaciones.pagos.repository;
 
+import com.sistemadeoperaciones.pagos.dto.retornos.ReturnDestinationAccountSuggestionDto;
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
 import com.sistemadeoperaciones.pagos.model.OperationReturnPayment;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -91,4 +93,42 @@ AND op.fechaPago BETWEEN :inicio AND :fin
             @Param("inicio") LocalDateTime inicio,
             @Param("fin") LocalDateTime fin
     );
+
+    @Query("""
+    SELECT new com.sistemadeoperaciones.pagos.dto.retornos.ReturnDestinationAccountSuggestionDto(
+        r.cuentaDestinoBanco,
+        r.cuentaDestinoTitular,
+        r.cuentaDestinoCliente,
+        r.cuentaClabeCliente,
+        COUNT(r.id)
+    )
+    FROM OperationReturnPayment r
+    WHERE r.operacion.cliente.id = :clienteId
+      AND r.tipoPago <> com.sistemadeoperaciones.pagos.enums.PaymentType.EFECTIVO
+      AND r.cuentaDestinoBanco IS NOT NULL
+      AND r.cuentaDestinoTitular IS NOT NULL
+      AND (
+        r.cuentaDestinoCliente IS NOT NULL
+        OR r.cuentaClabeCliente IS NOT NULL
+      )
+    GROUP BY
+        r.cuentaDestinoBanco,
+        r.cuentaDestinoTitular,
+        r.cuentaDestinoCliente,
+        r.cuentaClabeCliente
+    ORDER BY COUNT(r.id) DESC, MAX(r.fechaSolicitud) DESC
+""")
+    List<ReturnDestinationAccountSuggestionDto> findTopDestinationAccountsByClienteId(
+            @Param("clienteId") Long clienteId,
+            Pageable pageable
+    );
+
+    default List<ReturnDestinationAccountSuggestionDto> findTop10DestinationAccountsByClienteId(
+            Long clienteId
+    ) {
+        return findTopDestinationAccountsByClienteId(
+                clienteId,
+                org.springframework.data.domain.PageRequest.of(0, 10)
+        );
+    }
 }

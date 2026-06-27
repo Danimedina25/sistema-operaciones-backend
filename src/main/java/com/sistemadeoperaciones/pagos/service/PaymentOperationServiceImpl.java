@@ -807,9 +807,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                     "No se pueden agregar comprobantes a una operación rechazada");
         }
 
-        if (operation.getEstatus() == OperationStatus.VALIDADA
-                || operation.getEstatus() == OperationStatus.RETORNO_PARCIAL
-                || operation.getEstatus() == OperationStatus.COMPLETADA) {
+        if (operation.getEstatus() != OperationStatus.PENDIENTE_VALIDACION) {
             throw new OperationDoesNotAcceptPaymentsException(
                     "La operación ya no admite nuevos comprobantes en su estatus actual");
         }

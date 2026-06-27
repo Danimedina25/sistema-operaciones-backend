@@ -117,7 +117,7 @@ public class PaymentOperationController {
     }
 
     @GetMapping("/by-commercial-partner/{socioComercialId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CAJAS')")
     public ResponseEntity<ApiResponse<Page<PaymentOperationResponseDto>>> findAllBySocioComercialId(
             @PathVariable Long socioComercialId,
             PaymentOperationFilterDto filter,
