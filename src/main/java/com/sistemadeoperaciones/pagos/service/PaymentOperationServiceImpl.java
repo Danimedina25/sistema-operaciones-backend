@@ -1085,6 +1085,21 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         dto.setCreatedAt(operation.getCreatedAt());
         dto.setUpdatedAt(operation.getUpdatedAt());
 
+        boolean contieneRetornosEnEfectivo =
+                operationReturnPaymentRepository.existsByOperacionIdAndTipoPago(
+                        operation.getId(),
+                        PaymentType.EFECTIVO
+                );
+
+        boolean contieneRetornosEnTransferencia =
+                operationReturnPaymentRepository.existsByOperacionIdAndTipoPago(
+                        operation.getId(),
+                        PaymentType.TRANSFERENCIA
+                );
+
+        dto.setContieneRetornosEnEfectivo(contieneRetornosEnEfectivo);
+        dto.setContieneRetornosEnTransferencia(contieneRetornosEnTransferencia);
+
         return dto;
     }
 

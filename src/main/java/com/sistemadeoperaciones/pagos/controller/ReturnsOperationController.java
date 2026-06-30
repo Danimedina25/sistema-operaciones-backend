@@ -47,7 +47,7 @@ public class ReturnsOperationController {
     }
 
     @GetMapping("/requested")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS', 'JEFA_CUENTAS')")
     public ResponseEntity<ApiResponse<Page<PaymentOperationResponseDto>>> findOperationsWithRequestedReturns(
             PaymentOperationFilterDto filter,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
@@ -108,7 +108,7 @@ public class ReturnsOperationController {
     }
 
     @PatchMapping("/payments/{returnPaymentId}/realize")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS', 'JEFA_CUENTAS')")
     public ResponseEntity<ApiResponse<ReturnPaymentResponseDto>> realizeReturnPayment(
             @PathVariable Long returnPaymentId,
             @Valid @RequestBody RealizeReturnPaymentRequestDto request
@@ -127,7 +127,7 @@ public class ReturnsOperationController {
     }
 
     @GetMapping("/{operationId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS', 'JEFA_CUENTAS')")
     public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> findReturnDetailByOperationId(
             @PathVariable Long operationId
     ) {
@@ -145,7 +145,7 @@ public class ReturnsOperationController {
     }
 
     @GetMapping("/{operationId}/payments")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS', 'JEFA_CUENTAS')")
     public ResponseEntity<ApiResponse<List<ReturnPaymentResponseDto>>> findReturnsByOperationId(
             @PathVariable Long operationId
     ) {
@@ -163,7 +163,7 @@ public class ReturnsOperationController {
     }
 
     @GetMapping("/clients/{clientId}/destination-accounts")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'JEFA_CUENTAS')")
     public ResponseEntity<ApiResponse<List<ReturnDestinationAccountSuggestionDto>>>
     findReturnDestinationAccounts(
             @PathVariable Long clientId
@@ -177,6 +177,28 @@ public class ReturnsOperationController {
                 new ApiResponse<>(
                         true,
                         "Cuentas de retorno obtenidas exitosamente",
+                        response,
+                        null
+                )
+        );
+    }
+
+    @PatchMapping("/payments/{returnPaymentId}/cash-pickup-time")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CAJAS')")
+    public ResponseEntity<ApiResponse<ReturnPaymentResponseDto>> scheduleCashReturnPickup(
+            @PathVariable Long returnPaymentId,
+            @Valid @RequestBody ScheduleCashReturnPickupRequestDto request
+    ) {
+        ReturnPaymentResponseDto response =
+                returnsOperationService.scheduleCashReturnPickup(
+                        returnPaymentId,
+                        request
+                );
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Fecha y hora de recolección registrada exitosamente",
                         response,
                         null
                 )

@@ -284,6 +284,10 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         OperationReturnPayment returnPayment = operationReturnPaymentRepository.findById(returnPaymentId)
                 .orElseThrow(() -> new IllegalArgumentException("Retorno no encontrado"));
 
+        if (returnPayment.getTipoPago() == PaymentType.EFECTIVO) {
+            throw new CashReturnMustBeScheduledException();
+        }
+
         if (returnPayment.getEstatus() != ReturnPaymentStatus.SOLICITADO) {
             throw new InvalidReturnPaymentStatusException();
         }
@@ -792,6 +796,21 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         dto.setCreatedAt(operation.getCreatedAt());
         dto.setUpdatedAt(operation.getUpdatedAt());
 
+        boolean contieneRetornosEnEfectivo =
+                operationReturnPaymentRepository.existsByOperacionIdAndTipoPago(
+                        operation.getId(),
+                        PaymentType.EFECTIVO
+                );
+
+        boolean contieneRetornosEnTransferencia =
+                operationReturnPaymentRepository.existsByOperacionIdAndTipoPago(
+                        operation.getId(),
+                        PaymentType.TRANSFERENCIA
+                );
+
+        dto.setContieneRetornosEnEfectivo(contieneRetornosEnEfectivo);
+        dto.setContieneRetornosEnTransferencia(contieneRetornosEnTransferencia);
+
         return dto;
     }
 
@@ -834,5 +853,41 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
     private LocalDateTime toEndOfDay(LocalDate date) {
         return date != null ? date.plusDays(1).atStartOfDay().minusNanos(1) : null;
+    }
+
+    @Override
+    @Transactional
+    public ReturnPaymentResponseDto scheduleCashReturnPickup(
+            Long returnPaymentId,
+            ScheduleCashReturnPickupRequestDto request
+    ) {
+        OperationReturnPayment returnPayment =
+                operationReturnPaymentRepository.findById(returnPaymentId)
+                        .orElseThrow(ReturnPaymentNotFoundException::new);
+
+        if (returnPayment.getEstatus() != ReturnPaymentStatus.SOLICITADO) {
+            throw new InvalidReturnPaymentStatusException();
+        }
+
+        if (returnPayment.getTipoPago() != PaymentType.EFECTIVO) {
+            throw new InvalidCashReturnPaymentTypeException();
+        }
+
+        if (request.getFechaHoraRecoleccionEfectivo() == null) {
+            throw new CashReturnPickupDateRequiredException();
+        }
+
+        returnPayment.setFechaHoraRecoleccionEfectivo(
+                request.getFechaHoraRecoleccionEfectivo()
+        );
+
+        if (request.getObservaciones() != null && !request.getObservaciones().isBlank()) {
+            returnPayment.setObservaciones(request.getObservaciones());
+        }
+
+        OperationReturnPayment saved =
+                operationReturnPaymentRepository.save(returnPayment);
+
+        return mapReturnToResponse(saved);
     }
 }

@@ -131,4 +131,6 @@ AND op.fechaPago BETWEEN :inicio AND :fin
                 org.springframework.data.domain.PageRequest.of(0, 10)
         );
     }
+
+    boolean existsByOperacionIdAndTipoPago(Long operacionId, PaymentType tipoPago);
 }

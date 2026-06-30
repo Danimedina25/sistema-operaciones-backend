@@ -64,4 +64,9 @@ public interface ReturnsOperationService {
     List<ReturnDestinationAccountSuggestionDto> findReturnDestinationSuggestionsByClienteId(
             Long clienteId
     );
+
+    ReturnPaymentResponseDto scheduleCashReturnPickup(
+            Long returnPaymentId,
+            ScheduleCashReturnPickupRequestDto request
+    );
 }

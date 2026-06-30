@@ -52,17 +52,21 @@ public class SecurityConfig {
                         .requestMatchers("/api/cuentas/**").hasAnyRole(RoleName.JEFA_CAJAS.name(), RoleName.AUXILIAR_CUENTAS.name())
                         .requestMatchers("/api/clientes/**").hasAnyRole(
                                 RoleName.ADMIN.name(),
+                                RoleName.DIRECCION.name(),
                                 RoleName.GERENTE.name(),
                                 RoleName.JEFA_CAJAS.name(),
                                 RoleName.AUXILIAR_CUENTAS.name(),
-                                RoleName.SOCIO_COMERCIAL.name()
+                                RoleName.SOCIO_COMERCIAL.name(),
+                                RoleName.JEFA_CUENTAS.name()
                         )
                         .requestMatchers("/api/bank-accounts/**").hasAnyRole(
                                 RoleName.ADMIN.name(),
+                                RoleName.DIRECCION.name(),
                                 RoleName.GERENTE.name(),
                                 RoleName.JEFA_CAJAS.name(),
                                 RoleName.AUXILIAR_CUENTAS.name(),
-                                RoleName.SOCIO_COMERCIAL.name()
+                                RoleName.SOCIO_COMERCIAL.name(),
+                                RoleName.JEFA_CUENTAS.name()
                         )
                         .anyRequest().authenticated()
                 )

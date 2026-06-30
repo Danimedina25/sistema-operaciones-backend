@@ -35,7 +35,7 @@ public class BankAccountController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<List<BankAccountResponseDto>>> getAllBankAccounts() {
         List<BankAccountResponseDto> response = bankAccountService.findAll();
 
@@ -45,7 +45,7 @@ public class BankAccountController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS', 'JEFA_CUENTAS')")
     public ResponseEntity<ApiResponse<BankAccountResponseDto>> getBankAccountById(@PathVariable Long id) {
         BankAccountResponseDto response = bankAccountService.findById(id);
 

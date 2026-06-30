@@ -78,7 +78,7 @@ public class PaymentOperationController {
     }
 
     @PatchMapping("/payments/{paymentId}/validate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CAJAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<OperationPaymentResponseDto>> validatePayment(
             @PathVariable Long paymentId,
             @Valid @RequestBody UpdatePaymentStatusRequestDto request
@@ -91,7 +91,7 @@ public class PaymentOperationController {
     }
 
     @PatchMapping("/payments/{paymentId}/reject")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CAJAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<OperationPaymentResponseDto>> rejectPayment(
             @PathVariable Long paymentId,
             @Valid @RequestBody UpdatePaymentStatusRequestDto request
@@ -104,7 +104,7 @@ public class PaymentOperationController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<Page<PaymentOperationResponseDto>>> findAll(
             PaymentOperationFilterDto filter,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
@@ -145,7 +145,7 @@ public class PaymentOperationController {
     }
 
     @GetMapping("/frequent-clients")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<List<String>>> findFrequentClientNames() {
         List<String> response = paymentOperationService.findFrequentClientNames();
 
@@ -155,7 +155,7 @@ public class PaymentOperationController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> findById(@PathVariable Long id) {
         PaymentOperationResponseDto response = paymentOperationService.findById(id);
 
@@ -165,7 +165,7 @@ public class PaymentOperationController {
     }
 
     @PatchMapping("/{operationId}/invoice")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS', 'JEFA_CUENTAS')")
     public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> markAsInvoiced(
             @PathVariable Long operationId
     ) {
