@@ -974,6 +974,34 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         OperationReturnPayment saved =
                 operationReturnPaymentRepository.save(returnPayment);
 
+        notifyCashReturnPickupScheduled(saved);
+
         return mapReturnToResponse(saved);
+    }
+
+    private void notifyCashReturnPickupScheduled(OperationReturnPayment returnPayment) {
+        PaymentOperation operation = returnPayment.getOperacion();
+
+        if (operation.getSocioComercial() == null) {
+            return;
+        }
+
+        notificationService.createForUser(
+                operation.getSocioComercial().getId(),
+                "Recolección de retorno programada",
+                "Se programó la recolección de tu retorno en efectivo por $"
+                        + returnPayment.getMonto()
+                        + " de la operación #"
+                        + operation.getId()
+                        + " para el "
+                        + returnPayment.getFechaHoraRecoleccionEfectivo()
+                        + ".",
+                NotificationType.SYSTEM_ALERT,
+                NotificationModule.PAGOS,
+                NotificationReferenceType.PAYMENT_OPERATION,
+                operation.getId(),
+                "/operaciones/" + operation.getId() + "?scrollToReturns=true",
+                NotificationPriority.HIGH
+        );
     }
 }
