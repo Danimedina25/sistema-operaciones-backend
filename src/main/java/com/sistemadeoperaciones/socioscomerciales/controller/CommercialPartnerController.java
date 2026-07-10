@@ -24,7 +24,7 @@ public class CommercialPartnerController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<CommercialPartnerResponseDto>> create(
             @Valid @RequestBody CommercialPartnerRequestDTO request
     ) {
@@ -43,7 +43,7 @@ public class CommercialPartnerController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'VALIDADOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<Page<CommercialPartnerResponseDto>>> findAll(
 
             @RequestParam(defaultValue = "0")
@@ -90,7 +90,7 @@ public class CommercialPartnerController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'VALIDADOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<CommercialPartnerResponseDto>> findById(
             @PathVariable Long id
     ) {
@@ -109,7 +109,7 @@ public class CommercialPartnerController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<CommercialPartnerResponseDto>> update(
 
             @PathVariable Long id,
@@ -131,7 +131,7 @@ public class CommercialPartnerController {
     }
 
     @PatchMapping("/{id}/deactivate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<CommercialPartnerResponseDto>>
     deactivateCommercialPartner(
             @PathVariable Long id
@@ -151,7 +151,7 @@ public class CommercialPartnerController {
     }
 
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<CommercialPartnerResponseDto>>
     activateCommercialPartner(
             @PathVariable Long id

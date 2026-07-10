@@ -23,7 +23,7 @@ public class BankAccountController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<BankAccountResponseDto>> createBankAccount(
             @Valid @RequestBody BankAccountRequestDto request
     ) {
@@ -35,7 +35,7 @@ public class BankAccountController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<List<BankAccountResponseDto>>> getAllBankAccounts() {
         List<BankAccountResponseDto> response = bankAccountService.findAll();
 
@@ -45,7 +45,7 @@ public class BankAccountController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS', 'JEFA_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS', 'JEFA_CUENTAS')")
     public ResponseEntity<ApiResponse<BankAccountResponseDto>> getBankAccountById(@PathVariable Long id) {
         BankAccountResponseDto response = bankAccountService.findById(id);
 
@@ -55,7 +55,7 @@ public class BankAccountController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<BankAccountResponseDto>> updateBankAccount(
             @PathVariable Long id,
             @Valid @RequestBody BankAccountRequestDto request
@@ -68,7 +68,7 @@ public class BankAccountController {
     }
 
     @PatchMapping("/{id}/deactivate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<BankAccountResponseDto>> deactivateBankAccount(@PathVariable Long id) {
         BankAccountResponseDto response = bankAccountService.deactivate(id);
 
@@ -78,7 +78,7 @@ public class BankAccountController {
     }
 
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<BankAccountResponseDto>> activateBankAccount(@PathVariable Long id) {
         BankAccountResponseDto response = bankAccountService.activate(id);
 

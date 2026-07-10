@@ -456,6 +456,25 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 )
         ).and(PaymentOperationSpecification.hasReturnWithStatus(ReturnPaymentStatus.SOLICITADO));
 
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        boolean isSocioComercial = currentUser.getRoles()
+                .stream()
+                .anyMatch(role -> role.getName() == RoleName.SOCIO_COMERCIAL);
+
+        boolean isAdminOrGerente = currentUser.getRoles()
+                .stream()
+                .anyMatch(role ->
+                        role.getName() == RoleName.ADMIN ||
+                                role.getName() == RoleName.GERENTE
+                );
+
+        if (isSocioComercial && !isAdminOrGerente) {
+            specification = specification.and(
+                    PaymentOperationSpecification.hasSocioComercialId(currentUser.getId())
+            );
+        }
+
         return paymentOperationRepository.findAll(specification, pageable)
                 .map(this::mapOperationToResponse);
     }

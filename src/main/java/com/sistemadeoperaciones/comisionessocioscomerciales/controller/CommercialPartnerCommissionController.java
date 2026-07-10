@@ -27,7 +27,7 @@ public class CommercialPartnerCommissionController {
     }
 
     @PostMapping("/generate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE','JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<Void>> generatePendingCommissions() {
 
         commissionService.generatePendingCommissions();
@@ -43,7 +43,7 @@ public class CommercialPartnerCommissionController {
     }
 
     @GetMapping("/summary")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<CommissionSummaryResponseDto>>
     getSummary(
             @RequestParam LocalDate startDate,
@@ -67,7 +67,7 @@ public class CommercialPartnerCommissionController {
     }
 
     @GetMapping("/beneficiaries-summary")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<CommissionPartnerSummaryListResponseDto>>
     getSummaryByBeneficiary(
             @RequestParam LocalDate startDate,
@@ -91,7 +91,7 @@ public class CommercialPartnerCommissionController {
     }
 
     @GetMapping("/pending")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<CommissionSummaryResponseDto>>
     getPendingCommissions(
             @RequestParam LocalDate startDate,
@@ -115,7 +115,7 @@ public class CommercialPartnerCommissionController {
     }
 
     @GetMapping("/paid")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<CommissionSummaryResponseDto>>
     getPaidCommissions(
             @RequestParam LocalDate startDate,
@@ -139,7 +139,7 @@ public class CommercialPartnerCommissionController {
     }
 
     @GetMapping("/{commissionId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<CommercialPartnerCommissionResponseDto>>
     findById(
             @PathVariable Long commissionId
@@ -161,7 +161,7 @@ public class CommercialPartnerCommissionController {
     }
 
     @PatchMapping("/{commissionId}/pay")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<CommercialPartnerCommissionResponseDto>>
     markAsPaid(
             @PathVariable Long commissionId,
@@ -186,7 +186,7 @@ public class CommercialPartnerCommissionController {
 
     @PostMapping("/pay-batch")
     @PreAuthorize(
-            "hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')"
+            "hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')"
     )
     public ResponseEntity<ApiResponse<Void>>
     markBatchAsPaid(
@@ -210,7 +210,7 @@ public class CommercialPartnerCommissionController {
     }
 
     @PostMapping("/operations/{operationId}/regenerate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<Void>>
     regenerateOperationCommissions(
             @PathVariable Long operationId
@@ -231,7 +231,7 @@ public class CommercialPartnerCommissionController {
     }
 
     @GetMapping("/operations/{operationId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<CommissionOperationDetailResponseDto>>
     getOperationDetail(
             @PathVariable Long operationId
@@ -253,7 +253,7 @@ public class CommercialPartnerCommissionController {
     }
 
     @GetMapping("/operations/{operationId}/beneficiaries")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<List<CommissionBeneficiaryResponseDto>>>
     getOperationBeneficiaries(
             @PathVariable Long operationId
@@ -275,7 +275,7 @@ public class CommercialPartnerCommissionController {
     }
 
     @GetMapping("/beneficiaries/{beneficiaryId}/detail")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<BeneficiaryCommissionDetailResponseDto>>
     getBeneficiaryCommissionDetail(
             @PathVariable Long beneficiaryId,

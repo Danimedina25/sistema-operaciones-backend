@@ -20,7 +20,7 @@ public class CommercialPartnerSettingsController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<CommercialPartnerSettingsResponseDto>> findByUserId(
             @PathVariable Long userId
     ) {
@@ -38,7 +38,7 @@ public class CommercialPartnerSettingsController {
     }
 
     @PutMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<CommercialPartnerSettingsResponseDto>> updateByUserId(
             @PathVariable Long userId,
             @Valid @RequestBody UpdateCommercialPartnerSettingsRequestDto request

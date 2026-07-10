@@ -26,7 +26,7 @@ public class PaymentOperationController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> createOperation(
             @Valid @RequestBody CreatePaymentOperationRequestDto request
     ) {
@@ -38,7 +38,7 @@ public class PaymentOperationController {
     }
 
     @PutMapping("/{operationId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> updateOperation(
             @PathVariable Long operationId,
             @Valid @RequestBody UpdatePaymentOperationRequestDto request
@@ -52,7 +52,7 @@ public class PaymentOperationController {
     }
 
     @PostMapping("/payments")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<OperationPaymentResponseDto>> addPayment(
             @Valid @RequestBody CreateOperationPaymentRequestDto request
     ) {
@@ -64,7 +64,7 @@ public class PaymentOperationController {
     }
 
     @PutMapping("/payments/{paymentId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<OperationPaymentResponseDto>> updatePayment(
             @PathVariable Long paymentId,
             @Valid @RequestBody UpdateOperationPaymentRequestDto request
@@ -78,7 +78,7 @@ public class PaymentOperationController {
     }
 
     @PatchMapping("/payments/{paymentId}/validate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<OperationPaymentResponseDto>> validatePayment(
             @PathVariable Long paymentId,
             @Valid @RequestBody UpdatePaymentStatusRequestDto request
@@ -91,7 +91,7 @@ public class PaymentOperationController {
     }
 
     @PatchMapping("/payments/{paymentId}/reject")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<OperationPaymentResponseDto>> rejectPayment(
             @PathVariable Long paymentId,
             @Valid @RequestBody UpdatePaymentStatusRequestDto request
@@ -117,7 +117,7 @@ public class PaymentOperationController {
     }
 
     @GetMapping("/by-commercial-partner/{socioComercialId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'JEFA_CAJAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CAJAS')")
     public ResponseEntity<ApiResponse<Page<PaymentOperationResponseDto>>> findAllBySocioComercialId(
             @PathVariable Long socioComercialId,
             PaymentOperationFilterDto filter,
@@ -145,7 +145,7 @@ public class PaymentOperationController {
     }
 
     @GetMapping("/frequent-clients")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<List<String>>> findFrequentClientNames() {
         List<String> response = paymentOperationService.findFrequentClientNames();
 
@@ -185,7 +185,7 @@ public class PaymentOperationController {
     }
 
     @PatchMapping("/{operationId}/invoice")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS', 'JEFA_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS', 'JEFA_CUENTAS')")
     public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> markAsInvoiced(
             @PathVariable Long operationId
     ) {

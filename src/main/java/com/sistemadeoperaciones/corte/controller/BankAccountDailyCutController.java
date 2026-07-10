@@ -28,7 +28,7 @@ public class BankAccountDailyCutController {
      * Consulta el saldo detallado de una cuenta bancaria específica.
      */
     @GetMapping("/account/{bankAccountId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<BankAccountBalanceDetailResponseDto>>
     calculateBalance(
             @PathVariable Long bankAccountId,
@@ -55,7 +55,7 @@ public class BankAccountDailyCutController {
      * Consulta el saldo de todas las cuentas bancarias activas.
      */
     @GetMapping("/accounts")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<List<BankAccountBalanceResponseDto>>>
     calculateBalances(
             @RequestParam(required = false) LocalDate fecha
@@ -78,7 +78,7 @@ public class BankAccountDailyCutController {
      * Consulta saldos agrupados por banco.
      */
     @GetMapping("/grouped")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<List<BankGroupBalanceResponseDto>>>
     calculateBalancesGrouped(
             @RequestParam(required = false) LocalDate fecha
@@ -102,7 +102,7 @@ public class BankAccountDailyCutController {
      * Normalmente lo usará el scheduler automático.
      */
     @PostMapping("/register")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<Void>>
     registerDailyCut(
             @RequestParam LocalDate fecha

@@ -24,7 +24,7 @@ public class ClientesController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<ClienteResponseDto>> create(
             @Valid @RequestBody CreateClienteRequestDto request
     ) {
@@ -36,7 +36,7 @@ public class ClientesController {
     }
 
     @GetMapping("/my_clients/{user_id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<List<ClienteResponseDto>>> findAllByUserId(@PathVariable("user_id") Long userId) {
         List<ClienteResponseDto> response = clientesService.findAllByUserId(userId);
 
@@ -46,7 +46,7 @@ public class ClientesController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<List<ClienteResponseDto>>> findAll() {
         List<ClienteResponseDto> response = clientesService.findAll();
 
@@ -56,7 +56,7 @@ public class ClientesController {
     }
 
     @GetMapping("/active")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<List<ClienteResponseDto>>> findActive() {
         List<ClienteResponseDto> response = clientesService.findActive();
 
@@ -66,7 +66,7 @@ public class ClientesController {
     }
 
     @GetMapping("/search")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<List<ClienteResponseDto>>> search(
             @RequestParam(required = false) String nombre
     ) {
@@ -78,7 +78,7 @@ public class ClientesController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<ClienteResponseDto>> findById(@PathVariable Long id) {
         ClienteResponseDto response = clientesService.findById(id);
 
@@ -88,7 +88,7 @@ public class ClientesController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<ClienteResponseDto>> update(
             @PathVariable Long id,
             @Valid @RequestBody UpdateClienteRequestDto request
@@ -101,7 +101,7 @@ public class ClientesController {
     }
 
     @PatchMapping("/{id}/deactivate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<ClienteResponseDto>> deactivate(@PathVariable Long id) {
         ClienteResponseDto response = clientesService.deactivate(id);
 
@@ -111,7 +111,7 @@ public class ClientesController {
     }
 
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<ClienteResponseDto>> activate(@PathVariable Long id) {
         ClienteResponseDto response = clientesService.activate(id);
 

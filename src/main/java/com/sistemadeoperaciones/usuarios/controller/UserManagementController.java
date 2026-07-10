@@ -25,7 +25,7 @@ public class UserManagementController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<UserCreatedResponseDto>> create(
             @Valid @RequestBody CreateUserRequestDto request
     ) {
@@ -53,7 +53,7 @@ public class UserManagementController {
     }
 
     @PostMapping("/{id}/resend-activation-email")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<Void>> resendActivationEmail(@PathVariable Long id) {
         userManagementService.resendActivationEmail(id);
 
@@ -63,7 +63,7 @@ public class UserManagementController {
     }
 
     @PatchMapping("/{id}/email")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<Void>> updateUserEmail(
             @PathVariable Long id,
             @Valid @RequestBody UpdateUserEmailRequestDto request
@@ -85,7 +85,7 @@ public class UserManagementController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<List<UserResponseDto>>> findAll() {
         List<UserResponseDto> response = userManagementService.findAll();
 
@@ -95,7 +95,7 @@ public class UserManagementController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<UserResponseDto>> findById(@PathVariable Long id) {
         UserResponseDto response = userManagementService.findById(id);
 
@@ -105,7 +105,7 @@ public class UserManagementController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<UserResponseDto>> update(
             @PathVariable Long id,
             @Valid @RequestBody UpdateUserRequestDto request
@@ -118,7 +118,7 @@ public class UserManagementController {
     }
 
     @PatchMapping("/{id}/deactivate")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<UserResponseDto>> deactivate(@PathVariable Long id) {
         UserResponseDto response = userManagementService.deactivate(id);
 
@@ -128,7 +128,7 @@ public class UserManagementController {
     }
 
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<UserResponseDto>> activate(@PathVariable Long id) {
         UserResponseDto response = userManagementService.activate(id);
 
