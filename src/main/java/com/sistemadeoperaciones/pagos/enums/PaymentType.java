@@ -4,5 +4,6 @@ public enum PaymentType {
     TRANSFERENCIA,
     DEPOSITO,
     EFECTIVO,
-    CHEQUE
+    CHEQUE,
+    RETIRO_SIN_TARJETA
 }

@@ -9,6 +9,8 @@ public class ScheduleCashReturnPickupRequestDto {
     @NotNull(message = "La fecha y hora de recolección es obligatoria")
     private LocalDateTime fechaHoraRecoleccionEfectivo;
 
+    private Long cuentaOrigenId;
+
     private String observaciones;
 
     public LocalDateTime getFechaHoraRecoleccionEfectivo() {
@@ -17,6 +19,14 @@ public class ScheduleCashReturnPickupRequestDto {
 
     public void setFechaHoraRecoleccionEfectivo(LocalDateTime fechaHoraRecoleccionEfectivo) {
         this.fechaHoraRecoleccionEfectivo = fechaHoraRecoleccionEfectivo;
+    }
+
+    public Long getCuentaOrigenId() {
+        return cuentaOrigenId;
+    }
+
+    public void setCuentaOrigenId(Long cuentaOrigenId) {
+        this.cuentaOrigenId = cuentaOrigenId;
     }
 
     public String getObservaciones() {

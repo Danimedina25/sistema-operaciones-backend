@@ -103,4 +103,18 @@ public final class PaymentOperationSpecification {
             return root.get("estatus").in(statuses);
         };
     }
+
+    public static Specification<PaymentOperation> matchesActivoFilter(String activoFilter) {
+        return (root, query, cb) -> {
+            if (activoFilter == null || activoFilter.isBlank() || "ACTIVE".equalsIgnoreCase(activoFilter)) {
+                return cb.isTrue(root.get("activo"));
+            }
+
+            if ("INACTIVE".equalsIgnoreCase(activoFilter)) {
+                return cb.isFalse(root.get("activo"));
+            }
+
+            return cb.conjunction();
+        };
+    }
 }

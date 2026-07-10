@@ -1,6 +1,8 @@
 package com.sistemadeoperaciones.pagos.dto;
 
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
@@ -21,6 +23,11 @@ public class UpdatePaymentOperationRequestDto {
     private Long socioComercialNivel2Id;
 
     private Long socioComercialNivel3Id;
+
+    @NotNull(message = "Los niveles de socios comerciales son obligatorios")
+    @Min(value = 1, message = "El nivel mínimo de red comercial es 1")
+    @Max(value = 3, message = "El nivel máximo de red comercial es 3")
+    private Integer nivelesRedComercial;
 
     @Size(max = 500, message = "Las observaciones no pueden exceder 500 caracteres")
     private String observaciones;
@@ -64,6 +71,14 @@ public class UpdatePaymentOperationRequestDto {
 
     public void setSocioComercialNivel3Id(Long socioComercialNivel3Id) {
         this.socioComercialNivel3Id = socioComercialNivel3Id;
+    }
+
+    public Integer getNivelesRedComercial() {
+        return nivelesRedComercial;
+    }
+
+    public void setNivelesRedComercial(Integer nivelesRedComercial) {
+        this.nivelesRedComercial = nivelesRedComercial;
     }
 
     public String getObservaciones() {

@@ -104,7 +104,7 @@ public class PaymentOperationController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<Page<PaymentOperationResponseDto>>> findAll(
             PaymentOperationFilterDto filter,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
@@ -155,12 +155,32 @@ public class PaymentOperationController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> findById(@PathVariable Long id) {
         PaymentOperationResponseDto response = paymentOperationService.findById(id);
 
         return ResponseEntity.ok(
                 new ApiResponse<>(true, "Operación obtenida exitosamente", response, null)
+        );
+    }
+
+    @PatchMapping("/{id}/activate")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
+    public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> activate(@PathVariable Long id) {
+        PaymentOperationResponseDto response = paymentOperationService.activate(id);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Operación activada exitosamente", response, null)
+        );
+    }
+
+    @PatchMapping("/{id}/deactivate")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
+    public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> deactivate(@PathVariable Long id) {
+        PaymentOperationResponseDto response = paymentOperationService.deactivate(id);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Operación desactivada exitosamente", response, null)
         );
     }
 

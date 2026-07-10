@@ -31,12 +31,17 @@ public interface PaymentOperationRepository extends
     @Query("""
         SELECT op.cliente.nombre
         FROM PaymentOperation op
+        WHERE op.activo = true
         GROUP BY op.cliente.nombre
         ORDER BY COUNT(op.id) DESC
     """)
     List<String> findMostFrequentClientNames(Pageable pageable);
 
     List<PaymentOperation> findByEstatusIn(
+            Collection<OperationStatus> statuses
+    );
+
+    List<PaymentOperation> findByEstatusInAndActivoTrue(
             Collection<OperationStatus> statuses
     );
 

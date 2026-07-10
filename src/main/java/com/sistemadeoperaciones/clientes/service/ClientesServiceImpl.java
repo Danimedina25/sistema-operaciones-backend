@@ -9,6 +9,9 @@ import com.sistemadeoperaciones.clientes.exceptions.ClienteNameRequiredException
 import com.sistemadeoperaciones.clientes.exceptions.ClienteNotFoundException;
 import com.sistemadeoperaciones.clientes.model.Clientes;
 import com.sistemadeoperaciones.clientes.repository.ClientesRepository;
+import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
+import com.sistemadeoperaciones.shared.enums.RoleName;
+import com.sistemadeoperaciones.shared.exception.BadRequestException;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
 import com.sistemadeoperaciones.usuarios.model.User;
 import com.sistemadeoperaciones.usuarios.repository.UserRepository;
@@ -23,10 +26,16 @@ public class ClientesServiceImpl implements ClientesService {
 
     private final ClientesRepository clientesRepository;
     private final UserRepository userRepository;
+    private final AuthenticatedUserService authenticatedUserService;
 
-    public ClientesServiceImpl(ClientesRepository clientesRepository, UserRepository userRepository) {
+    public ClientesServiceImpl(
+            ClientesRepository clientesRepository,
+            UserRepository userRepository,
+            AuthenticatedUserService authenticatedUserService
+    ) {
         this.clientesRepository = clientesRepository;
         this.userRepository = userRepository;
+        this.authenticatedUserService = authenticatedUserService;
     }
 
     @Override
@@ -90,6 +99,20 @@ public class ClientesServiceImpl implements ClientesService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<ClienteResponseDto> searchActive(String nombre) {
+        if (nombre == null || nombre.trim().length() < 2) {
+            return List.of();
+        }
+
+        return clientesRepository
+                .findTop20ByActivoTrueAndNombreContainingIgnoreCaseOrderByNombreAsc(nombre.trim())
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public ClienteResponseDto findById(Long id) {
         Clientes cliente = findClienteById(id);
         return mapToResponse(cliente);
@@ -99,6 +122,26 @@ public class ClientesServiceImpl implements ClientesService {
     @Transactional
     public ClienteResponseDto update(Long id, UpdateClienteRequestDto request) {
         Clientes cliente = findClienteById(id);
+
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        boolean isAdminOrManager = currentUser.getRoles().stream()
+                .anyMatch(role ->
+                        role.getName() == RoleName.ADMIN
+                                || role.getName() == RoleName.GERENTE
+                );
+
+        if (!isAdminOrManager) {
+            Long ownerId = cliente.getUser() != null
+                    ? cliente.getUser().getId()
+                    : null;
+
+            if (!currentUser.getId().equals(ownerId)) {
+                throw new BadRequestException(
+                        "No tiene permisos para acceder a este cliente"
+                );
+            }
+        }
 
         if (request.getNombre() == null || request.getNombre().trim().isEmpty()) {
             throw new ClienteNameRequiredException();

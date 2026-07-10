@@ -70,6 +70,9 @@ public class PaymentOperation {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(nullable = false)
+    private Boolean activo = true;
+
     @PrePersist
     public void prePersist() {
         this.createdAt = LocalDateTime.now();
@@ -85,6 +88,10 @@ public class PaymentOperation {
 
         if (this.nivelesRedComercial == null) {
             this.nivelesRedComercial = 1;
+        }
+
+        if (this.activo == null) {
+            this.activo = true;
         }
     }
 
@@ -222,5 +229,13 @@ public class PaymentOperation {
 
     public void setPagos(List<OperationPayment> pagos) {
         this.pagos = pagos;
+    }
+
+    public Boolean getActivo() {
+        return activo;
+    }
+
+    public void setActivo(Boolean activo) {
+        this.activo = activo;
     }
 }

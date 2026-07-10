@@ -35,4 +35,8 @@ public interface PaymentOperationService {
     List<String> findFrequentClientNames();
 
     PaymentOperationResponseDto markAsInvoiced(Long operationId);
+
+    PaymentOperationResponseDto activate(Long id);
+
+    PaymentOperationResponseDto deactivate(Long id);
 }

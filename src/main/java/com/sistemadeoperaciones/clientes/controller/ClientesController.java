@@ -65,6 +65,18 @@ public class ClientesController {
         );
     }
 
+    @GetMapping("/search")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
+    public ResponseEntity<ApiResponse<List<ClienteResponseDto>>> search(
+            @RequestParam(required = false) String nombre
+    ) {
+        List<ClienteResponseDto> response = clientesService.searchActive(nombre);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Búsqueda de clientes obtenida exitosamente", response, null)
+        );
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<ApiResponse<ClienteResponseDto>> findById(@PathVariable Long id) {
@@ -76,7 +88,7 @@ public class ClientesController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<ClienteResponseDto>> update(
             @PathVariable Long id,
             @Valid @RequestBody UpdateClienteRequestDto request

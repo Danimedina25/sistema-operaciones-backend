@@ -41,12 +41,14 @@ public class PaymentOperationResponseDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private boolean contieneRetornosEnEfectivo;
+    private boolean contieneRetornosRetiroSinTarjeta;
     private boolean contieneRetornosEnTransferencia;
+    private Boolean activo;
 
     public PaymentOperationResponseDto() {
     }
 
-    public PaymentOperationResponseDto(Long id, Long clienteId, String clienteNombre, BigDecimal montoTotal, BigDecimal montoValidado, BigDecimal montoRegistrado, BigDecimal saldoPendientePorValidar, BigDecimal saldoPendientePorRegistrar, OperationStatus estatus, Long socioComercialId, String socioComercialNombre, Long socioComercialNivel2Id, String socioComercialNivel2Nombre, Long socioComercialNivel3Id, String socioComercialNivel3Nombre, Integer nivelesRedComercial, BigDecimal porcentajeComisionAplicado, BigDecimal porcentajeComisionOficina, BigDecimal porcentajeComisionRedTotal, BigDecimal montoComisionRedTotal, BigDecimal porcentajeComisionOficinaTotal, BigDecimal montoComisionOficinaTotal, BigDecimal montoTotalDevolverCliente, BigDecimal montoRetornado, BigDecimal saldoPendienteRetornar, BigDecimal montoSolicitadoRetorno, long numeroRetornosSolicitados, String observaciones, List<OperationPaymentResponseDto> pagos, LocalDateTime createdAt, LocalDateTime updatedAt, boolean contieneRetornosEnEfectivo, boolean contieneRetornosEnTransferencia) {
+    public PaymentOperationResponseDto(Long id, Long clienteId, String clienteNombre, BigDecimal montoTotal, BigDecimal montoValidado, BigDecimal montoRegistrado, BigDecimal saldoPendientePorValidar, BigDecimal saldoPendientePorRegistrar, OperationStatus estatus, Long socioComercialId, String socioComercialNombre, Long socioComercialNivel2Id, String socioComercialNivel2Nombre, Long socioComercialNivel3Id, String socioComercialNivel3Nombre, Integer nivelesRedComercial, BigDecimal porcentajeComisionAplicado, BigDecimal porcentajeComisionOficina, BigDecimal porcentajeComisionRedTotal, BigDecimal montoComisionRedTotal, BigDecimal porcentajeComisionOficinaTotal, BigDecimal montoComisionOficinaTotal, BigDecimal montoTotalDevolverCliente, BigDecimal montoRetornado, BigDecimal saldoPendienteRetornar, BigDecimal montoSolicitadoRetorno, long numeroRetornosSolicitados, String observaciones, List<OperationPaymentResponseDto> pagos, LocalDateTime createdAt, LocalDateTime updatedAt, boolean contieneRetornosEnEfectivo, boolean contieneRetornosRetiroSinTarjeta, boolean contieneRetornosEnTransferencia) {
         this.id = id;
         this.clienteId = clienteId;
         this.clienteNombre = clienteNombre;
@@ -79,6 +81,7 @@ public class PaymentOperationResponseDto {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
         this.contieneRetornosEnEfectivo = contieneRetornosEnEfectivo;
+        this.contieneRetornosRetiroSinTarjeta = contieneRetornosRetiroSinTarjeta;
         this.contieneRetornosEnTransferencia = contieneRetornosEnTransferencia;
     }
 
@@ -344,5 +347,21 @@ public class PaymentOperationResponseDto {
 
     public void setContieneRetornosEnTransferencia(boolean contieneRetornosEnTransferencia) {
         this.contieneRetornosEnTransferencia = contieneRetornosEnTransferencia;
+    }
+
+    public boolean isContieneRetornosRetiroSinTarjeta() {
+        return contieneRetornosRetiroSinTarjeta;
+    }
+
+    public void setContieneRetornosRetiroSinTarjeta(boolean contieneRetornosRetiroSinTarjeta) {
+        this.contieneRetornosRetiroSinTarjeta = contieneRetornosRetiroSinTarjeta;
+    }
+
+    public Boolean getActivo() {
+        return activo;
+    }
+
+    public void setActivo(Boolean activo) {
+        this.activo = activo;
     }
 }

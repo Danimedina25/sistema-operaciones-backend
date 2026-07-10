@@ -199,7 +199,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 request.getObservaciones()
         );
 
-        if (request.getTipoPago() == PaymentType.EFECTIVO) {
+        if (request.getTipoPago() == PaymentType.EFECTIVO || request.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA) {
 
             returnPayment.setCuentaDestinoBanco(null);
             returnPayment.setCuentaDestinoTitular(null);
@@ -284,7 +284,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         OperationReturnPayment returnPayment = operationReturnPaymentRepository.findById(returnPaymentId)
                 .orElseThrow(() -> new IllegalArgumentException("Retorno no encontrado"));
 
-        if (returnPayment.getTipoPago() == PaymentType.EFECTIVO) {
+        if (returnPayment.getTipoPago() == PaymentType.EFECTIVO || returnPayment.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA) {
             throw new CashReturnMustBeScheduledException();
         }
 
@@ -328,13 +328,13 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             OperationReturnPayment returnPayment,
             RealizeReturnPaymentRequestDto request
     ) {
-        if (returnPayment.getTipoPago() == PaymentType.EFECTIVO
+        if ((returnPayment.getTipoPago() == PaymentType.EFECTIVO || returnPayment.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA)
                 && request.getFechaHoraRecoleccionEfectivo() == null) {
             throw new IllegalArgumentException(
                     "La fecha y hora de recolección del efectivo es obligatoria"
             );
         }
-        if (returnPayment.getTipoPago() != PaymentType.EFECTIVO) {
+        if (returnPayment.getTipoPago() != PaymentType.EFECTIVO || returnPayment.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA) {
             request.setFechaHoraRecoleccionEfectivo(null);
         }
         if (returnPayment.getTipoPago() == PaymentType.TRANSFERENCIA && request.getCuentaOrigenId() == null) {
@@ -375,6 +375,10 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
     public PaymentOperationResponseDto findReturnDetailByOperationId(Long operationId) {
         PaymentOperation operation = paymentOperationRepository.findById(operationId)
                 .orElseThrow(() -> new IllegalArgumentException("Operación no encontrada"));
+
+        if (!Boolean.TRUE.equals(operation.getActivo())) {
+            throw new PaymentOperationInactiveException();
+        }
 
         return mapOperationToResponse(operation);
     }
@@ -476,19 +480,22 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 .and(PaymentOperationSpecification.createdAtBetween(
                         toStartOfDay(resolveStartDate(filter)),
                         toEndOfDay(resolveEndDate(filter))
-                ));
+                ))
+                .and(PaymentOperationSpecification.matchesActivoFilter(filter.getActivo()));
     }
 
     private void validateOperationCanReceiveReturn(PaymentOperation operation) {
-        if (
-                operation.getEstatus() != OperationStatus.VALIDADA &&
-                operation.getEstatus() != OperationStatus.RETORNO_PARCIAL_SOLICITADO &&
-                        operation.getEstatus() != OperationStatus.RETORNO_PARCIAL_ENTREGADO
+        if (operation.getEstatus() == OperationStatus.RETORNO_TOTAL_SOLICITADO
+                || operation.getEstatus() == OperationStatus.RETORNO_PARCIAL_ENTREGADO
+                || operation.getEstatus() == OperationStatus.RETORNADA
+                || operation.getEstatus() == OperationStatus.COMPLETADA) {
+            throw new OperationAlreadyHasFullReturnRequestedException();
+        }
 
-        ) {
-            throw new IllegalArgumentException(
-                    "La operación no está lista para solicitar retornos"
-            );
+        if (operation.getEstatus() != OperationStatus.VALIDADA
+                && operation.getEstatus() != OperationStatus.RETORNO_PARCIAL_SOLICITADO
+                && operation.getEstatus() != OperationStatus.RETORNO_PARCIAL_ENTREGADO) {
+            throw new OperationCannotReceiveReturnException();
         }
     }
 
@@ -505,7 +512,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             throw new ReturnPaymentTypeRequiredException();
         }
 
-        if (request.getTipoPago() == PaymentType.EFECTIVO) {
+        if (request.getTipoPago() == PaymentType.EFECTIVO || request.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA) {
 
             if (
                     hasText(request.getBanco()) ||
@@ -595,9 +602,53 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     }
 
+    private List<RoleName> resolveReturnNotificationRoles(PaymentType tipoPago) {
+        if (tipoPago == PaymentType.TRANSFERENCIA || tipoPago == PaymentType.DEPOSITO) {
+            return List.of(RoleName.JEFA_CUENTAS, RoleName.ADMIN);
+        }
+
+        return List.of(RoleName.JEFA_CAJAS, RoleName.ADMIN);
+    }
+
     private void notifyReturnRequested(
             PaymentOperation operation,
             List<OperationReturnPayment> returnPayments
+    ) {
+        List<OperationReturnPayment> transferPayments = returnPayments.stream()
+                .filter(payment ->
+                        payment.getTipoPago() == PaymentType.TRANSFERENCIA
+                                || payment.getTipoPago() == PaymentType.DEPOSITO
+                )
+                .toList();
+
+        List<OperationReturnPayment> cashPayments = returnPayments.stream()
+                .filter(payment ->
+                        payment.getTipoPago() == PaymentType.EFECTIVO
+                                || payment.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA
+                )
+                .toList();
+
+        if (!transferPayments.isEmpty()) {
+            sendReturnRequestedNotification(
+                    operation,
+                    transferPayments,
+                    List.of(RoleName.JEFA_CUENTAS, RoleName.ADMIN)
+            );
+        }
+
+        if (!cashPayments.isEmpty()) {
+            sendReturnRequestedNotification(
+                    operation,
+                    cashPayments,
+                    List.of(RoleName.JEFA_CAJAS, RoleName.ADMIN)
+            );
+        }
+    }
+
+    private void sendReturnRequestedNotification(
+            PaymentOperation operation,
+            List<OperationReturnPayment> returnPayments,
+            List<RoleName> roles
     ) {
         BigDecimal totalRequested = returnPayments.stream()
                 .map(OperationReturnPayment::getMonto)
@@ -605,7 +656,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         notificationService.createForRoles(
-                List.of(RoleName.JEFA_CAJAS, RoleName.GERENTE, RoleName.ADMIN),
+                roles,
                 "Nueva solicitud de retorno",
                 "Se solicitó un retorno por $" + totalRequested
                         + " para la operación #" + operation.getId() + ".",
@@ -646,11 +697,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 returnPayment.getOperacion();
 
         notificationService.createForRoles(
-                List.of(
-                        RoleName.JEFA_CAJAS,
-                        RoleName.GERENTE,
-                        RoleName.ADMIN
-                ),
+                resolveReturnNotificationRoles(returnPayment.getTipoPago()),
                 "Solicitud de retorno actualizada",
                 "Se actualizó la solicitud de retorno por $"
                         + returnPayment.getMonto()
@@ -721,6 +768,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         PaymentOperationResponseDto dto = new PaymentOperationResponseDto();
 
         dto.setId(operation.getId());
+        dto.setActivo(operation.getActivo());
 
         if (operation.getCliente() != null) {
             dto.setClienteId(operation.getCliente().getId());
@@ -802,6 +850,12 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                         PaymentType.EFECTIVO
                 );
 
+        boolean contieneRetornosRetiroSinTarjeta =
+                operationReturnPaymentRepository.existsByOperacionIdAndTipoPago(
+                operation.getId(),
+                PaymentType.RETIRO_SIN_TARJETA
+        );
+
         boolean contieneRetornosEnTransferencia =
                 operationReturnPaymentRepository.existsByOperacionIdAndTipoPago(
                         operation.getId(),
@@ -809,6 +863,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 );
 
         dto.setContieneRetornosEnEfectivo(contieneRetornosEnEfectivo);
+        dto.setContieneRetornosRetiroSinTarjeta(contieneRetornosRetiroSinTarjeta);
         dto.setContieneRetornosEnTransferencia(contieneRetornosEnTransferencia);
 
         return dto;
@@ -869,12 +924,24 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             throw new InvalidReturnPaymentStatusException();
         }
 
-        if (returnPayment.getTipoPago() != PaymentType.EFECTIVO) {
+        if (returnPayment.getTipoPago() != PaymentType.EFECTIVO
+                && returnPayment.getTipoPago() != PaymentType.RETIRO_SIN_TARJETA) {
             throw new InvalidCashReturnPaymentTypeException();
         }
 
         if (request.getFechaHoraRecoleccionEfectivo() == null) {
             throw new CashReturnPickupDateRequiredException();
+        }
+
+        if (returnPayment.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA) {
+            if (request.getCuentaOrigenId() == null) {
+                throw new CashReturnOriginAccountRequiredException();
+            }
+
+            BankAccount cuentaOrigen = bankAccountRepository.findById(request.getCuentaOrigenId())
+                    .orElseThrow(() -> new IllegalArgumentException("Cuenta origen no encontrada"));
+
+            returnPayment.setCuentaOrigen(cuentaOrigen);
         }
 
         returnPayment.setFechaHoraRecoleccionEfectivo(

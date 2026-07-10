@@ -12,6 +12,7 @@ public class PaymentOperationFilterDto {
     private OperationStatus status;
     private Long socioComercialId;
     private OperationDateFilter dateFilter;
+    private String activo;
 
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate startDate;
@@ -66,5 +67,13 @@ public class PaymentOperationFilterDto {
 
     public void setEndDate(LocalDate endDate) {
         this.endDate = endDate;
+    }
+
+    public String getActivo() {
+        return activo;
+    }
+
+    public void setActivo(String activo) {
+        this.activo = activo;
     }
 }

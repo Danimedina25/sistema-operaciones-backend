@@ -1,6 +1,7 @@
 package com.sistemadeoperaciones.pagos.dto;
 
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -33,6 +34,15 @@ public class CreateOperationPaymentRequestDto {
 
     @Size(max = 500, message = "Las observaciones no pueden exceder 500 caracteres")
     private String observaciones;
+
+    @AssertTrue(message = "La cuenta destino es obligatoria para transferencias, depósitos y cheques")
+    public boolean isCuentaDestinoValid() {
+        if (tipoPago == PaymentType.EFECTIVO) {
+            return true;
+        }
+
+        return cuentaDestinoId != null && cuentaDestinoId > 0;
+    }
 
     public Long getOperacionId() {
         return operacionId;

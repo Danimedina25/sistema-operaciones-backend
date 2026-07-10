@@ -971,7 +971,7 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
     public void generatePendingCommissions() {
 
         List<PaymentOperation> operations =
-                operationRepository.findByEstatusIn(
+                operationRepository.findByEstatusInAndActivoTrue(
                         List.of(
                                 OperationStatus.VALIDADA,
                                 OperationStatus.COMPLETADA,

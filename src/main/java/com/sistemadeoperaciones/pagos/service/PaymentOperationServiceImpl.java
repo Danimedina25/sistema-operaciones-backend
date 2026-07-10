@@ -23,6 +23,7 @@ import com.sistemadeoperaciones.pagos.exceptions.OperationDoesNotAcceptPaymentsE
 import com.sistemadeoperaciones.pagos.exceptions.OperationPaymentNotFoundException;
 import com.sistemadeoperaciones.pagos.exceptions.PaymentAmountExceededException;
 import com.sistemadeoperaciones.pagos.exceptions.PaymentOperationInactiveAccountException;
+import com.sistemadeoperaciones.pagos.exceptions.PaymentOperationInactiveException;
 import com.sistemadeoperaciones.pagos.exceptions.PaymentOperationInactivePartnerException;
 import com.sistemadeoperaciones.pagos.exceptions.PaymentOperationNotFoundException;
 import com.sistemadeoperaciones.pagos.model.OperationPayment;
@@ -170,6 +171,37 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 socioNivel3
         );
 
+        Integer nivelesRedComercial = request.getNivelesRedComercial();
+
+        if (nivelesRedComercial < 2) {
+            socioNivel2 = null;
+        }
+
+        if (nivelesRedComercial < 3) {
+            socioNivel3 = null;
+        }
+
+        if (nivelesRedComercial >= 2 && socioNivel2 == null) {
+            throw new BusinessException(
+                    "La operación requiere socio comercial nivel 2"
+            );
+        }
+
+        if (nivelesRedComercial >= 3 && socioNivel3 == null) {
+            throw new BusinessException(
+                    "La operación requiere socio comercial nivel 3"
+            );
+        }
+
+        if (
+                socioNivel2 != null && socioNivel3 != null
+                        && socioNivel2.getId().equals(socioNivel3.getId())
+        ) {
+            throw new BusinessException(
+                    "El socio comercial nivel 2 y nivel 3 no pueden ser el mismo"
+            );
+        }
+
         Clientes cliente = clientesRepository.findById(
                 request.getClienteId()
         ).orElseThrow(() ->
@@ -219,7 +251,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         operation.setSocioComercialNivel3(socioNivel3);
 
         operation.setNivelesRedComercial(
-                cliente.getNivelesRedComercial()
+                nivelesRedComercial
         );
 
         operation.setPorcentajeComisionAplicado(
@@ -346,6 +378,37 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 socioNivel3
         );
 
+        Integer nivelesRedComercial = request.getNivelesRedComercial();
+
+        if (nivelesRedComercial < 2) {
+            socioNivel2 = null;
+        }
+
+        if (nivelesRedComercial < 3) {
+            socioNivel3 = null;
+        }
+
+        if (nivelesRedComercial >= 2 && socioNivel2 == null) {
+            throw new BusinessException(
+                    "La operación requiere socio comercial nivel 2"
+            );
+        }
+
+        if (nivelesRedComercial >= 3 && socioNivel3 == null) {
+            throw new BusinessException(
+                    "La operación requiere socio comercial nivel 3"
+            );
+        }
+
+        if (
+                socioNivel2 != null && socioNivel3 != null
+                        && socioNivel2.getId().equals(socioNivel3.getId())
+        ) {
+            throw new BusinessException(
+                    "El socio comercial nivel 2 y nivel 3 no pueden ser el mismo"
+            );
+        }
+
         List<OperationPayment> payments =
                 operationPaymentRepository.findByOperacionId(operationId);
 
@@ -374,7 +437,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         operation.setSocioComercialNivel3(socioNivel3);
 
         operation.setNivelesRedComercial(
-                cliente.getNivelesRedComercial()
+                nivelesRedComercial
         );
 
         operation.setPorcentajeComisionAplicado(
@@ -621,10 +684,50 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Override
     @Transactional(readOnly = true)
     public PaymentOperationResponseDto findById(Long id) {
-        PaymentOperation operation = paymentOperationRepository.findById(id)
-                .orElseThrow(() -> new PaymentOperationNotFoundException(id));
+        PaymentOperation operation = getOperationOrThrow(id);
+
+        if (!Boolean.TRUE.equals(operation.getActivo())) {
+            throw new PaymentOperationInactiveException();
+        }
 
         return mapToOperationResponse(operation);
+    }
+
+    private PaymentOperation getOperationOrThrow(Long id) {
+        return paymentOperationRepository.findById(id)
+                .orElseThrow(() -> new PaymentOperationNotFoundException(id));
+    }
+
+    @Override
+    @Transactional
+    public PaymentOperationResponseDto activate(Long id) {
+        PaymentOperation operation = getOperationOrThrow(id);
+
+        if (Boolean.TRUE.equals(operation.getActivo())) {
+            throw new BusinessException("La operación ya se encuentra activa");
+        }
+
+        operation.setActivo(true);
+
+        PaymentOperation updated = paymentOperationRepository.save(operation);
+
+        return mapToOperationResponse(updated);
+    }
+
+    @Override
+    @Transactional
+    public PaymentOperationResponseDto deactivate(Long id) {
+        PaymentOperation operation = getOperationOrThrow(id);
+
+        if (!Boolean.TRUE.equals(operation.getActivo())) {
+            throw new BusinessException("La operación ya se encuentra inactiva");
+        }
+
+        operation.setActivo(false);
+
+        PaymentOperation updated = paymentOperationRepository.save(operation);
+
+        return mapToOperationResponse(updated);
     }
 
     @Override
@@ -640,7 +743,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 .and(PaymentOperationSpecification.createdAtBetween(
                         toStartOfDay(startDate),
                         toEndOfDay(endDate)
-                ));
+                ))
+                .and(PaymentOperationSpecification.matchesActivoFilter(filter.getActivo()));
 
         return paymentOperationRepository.findAll(specification, pageable)
                 .map(this::mapToOperationResponse);
@@ -674,7 +778,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 .and(PaymentOperationSpecification.createdAtBetween(
                         toStartOfDay(startDate),
                         toEndOfDay(endDate)
-                ));
+                ))
+                .and(PaymentOperationSpecification.matchesActivoFilter(filter.getActivo()));
 
         return paymentOperationRepository.findAll(specification, pageable)
                 .map(this::mapToOperationResponse);
@@ -704,7 +809,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 .and(PaymentOperationSpecification.createdAtBetween(
                         toStartOfDay(startDate),
                         toEndOfDay(endDate)
-                ));
+                ))
+                .and(PaymentOperationSpecification.matchesActivoFilter(filter.getActivo()));
 
         return paymentOperationRepository.findAll(specification, pageable)
                 .map(this::mapToOperationResponse);
@@ -983,6 +1089,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         }
 
         dto.setId(operation.getId());
+        dto.setActivo(operation.getActivo());
 
         if (operation.getCliente() != null) {
             dto.setClienteId(operation.getCliente().getId());

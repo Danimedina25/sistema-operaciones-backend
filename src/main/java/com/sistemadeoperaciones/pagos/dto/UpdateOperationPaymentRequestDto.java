@@ -27,7 +27,7 @@ public class UpdateOperationPaymentRequestDto {
     @Size(max = 500, message = "Las observaciones no pueden exceder 500 caracteres")
     private String observaciones;
 
-    @AssertTrue(message = "La cuenta destino es obligatoria para transferencias y depósitos")
+    @AssertTrue(message = "La cuenta destino es obligatoria para transferencias, depósitos y cheques")
     public boolean isCuentaDestinoValid() {
         if (tipoPago == PaymentType.EFECTIVO) {
             return true;

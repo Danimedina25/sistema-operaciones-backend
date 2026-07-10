@@ -16,6 +16,8 @@ public interface ClientesService {
 
     List<ClienteResponseDto> findActive();
 
+    List<ClienteResponseDto> searchActive(String nombre);
+
     ClienteResponseDto findById(Long id);
 
     ClienteResponseDto update(Long id, UpdateClienteRequestDto request);
