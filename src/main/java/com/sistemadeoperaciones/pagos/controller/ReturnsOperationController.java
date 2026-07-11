@@ -204,4 +204,22 @@ public class ReturnsOperationController {
                 )
         );
     }
+
+    @PatchMapping("/payments/{returnPaymentId}/confirm-cash-pickup")
+    @PreAuthorize("hasRole('SOCIO_COMERCIAL')")
+    public ResponseEntity<ApiResponse<ReturnPaymentResponseDto>> confirmCashReturnPickup(
+            @PathVariable Long returnPaymentId
+    ) {
+        ReturnPaymentResponseDto response =
+                returnsOperationService.confirmCashReturnPickup(returnPaymentId);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Recolección de efectivo confirmada exitosamente",
+                        response,
+                        null
+                )
+        );
+    }
 }

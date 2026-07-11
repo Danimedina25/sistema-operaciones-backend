@@ -52,15 +52,20 @@ public final class PaymentOperationSpecification {
     }
 
     public static Specification<PaymentOperation> hasReturnWithStatus(ReturnPaymentStatus status) {
+        return hasReturnWithStatusIn(List.of(status));
+    }
+
+    public static Specification<PaymentOperation> hasReturnWithStatusIn(List<ReturnPaymentStatus> statuses) {
         return (root, query, criteriaBuilder) -> {
             query.distinct(true);
 
+            if (statuses == null || statuses.isEmpty()) {
+                return criteriaBuilder.conjunction();
+            }
+
             Join<Object, Object> retornos = root.join("retornos");
 
-            return criteriaBuilder.equal(
-                    retornos.get("estatus"),
-                    status
-            );
+            return retornos.get("estatus").in(statuses);
         };
     }
 

@@ -454,7 +454,9 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                         OperationStatus.RETORNO_TOTAL_SOLICITADO,
                         OperationStatus.RETORNO_PARCIAL_ENTREGADO
                 )
-        ).and(PaymentOperationSpecification.hasReturnWithStatus(ReturnPaymentStatus.SOLICITADO));
+        ).and(PaymentOperationSpecification.hasReturnWithStatusIn(
+                List.of(ReturnPaymentStatus.SOLICITADO, ReturnPaymentStatus.EN_RECOLECCION)
+        ));
 
         User currentUser = authenticatedUserService.getCurrentUser();
 
@@ -939,7 +941,8 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 operationReturnPaymentRepository.findById(returnPaymentId)
                         .orElseThrow(ReturnPaymentNotFoundException::new);
 
-        if (returnPayment.getEstatus() != ReturnPaymentStatus.SOLICITADO) {
+        if (returnPayment.getEstatus() != ReturnPaymentStatus.SOLICITADO
+                && returnPayment.getEstatus() != ReturnPaymentStatus.EN_RECOLECCION) {
             throw new InvalidReturnPaymentStatusException();
         }
 
@@ -966,6 +969,8 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         returnPayment.setFechaHoraRecoleccionEfectivo(
                 request.getFechaHoraRecoleccionEfectivo()
         );
+
+        returnPayment.setEstatus(ReturnPaymentStatus.EN_RECOLECCION);
 
         if (request.getObservaciones() != null && !request.getObservaciones().isBlank()) {
             returnPayment.setObservaciones(request.getObservaciones());
@@ -995,6 +1000,68 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                         + operation.getId()
                         + " para el "
                         + returnPayment.getFechaHoraRecoleccionEfectivo()
+                        + ".",
+                NotificationType.SYSTEM_ALERT,
+                NotificationModule.PAGOS,
+                NotificationReferenceType.PAYMENT_OPERATION,
+                operation.getId(),
+                "/operaciones/" + operation.getId() + "?scrollToReturns=true",
+                NotificationPriority.HIGH
+        );
+    }
+
+    @Override
+    @Transactional
+    public ReturnPaymentResponseDto confirmCashReturnPickup(Long returnPaymentId) {
+        OperationReturnPayment returnPayment =
+                operationReturnPaymentRepository.findById(returnPaymentId)
+                        .orElseThrow(ReturnPaymentNotFoundException::new);
+
+        if (returnPayment.getTipoPago() != PaymentType.EFECTIVO
+                && returnPayment.getTipoPago() != PaymentType.RETIRO_SIN_TARJETA) {
+            throw new InvalidCashReturnPaymentTypeException();
+        }
+
+        if (returnPayment.getEstatus() != ReturnPaymentStatus.EN_RECOLECCION) {
+            throw new InvalidReturnPaymentStatusException();
+        }
+
+        User currentUser = authenticatedUserService.getCurrentUser();
+        PaymentOperation operation = returnPayment.getOperacion();
+
+        boolean isOwner = operation.getSocioComercial() != null
+                && operation.getSocioComercial().getId().equals(currentUser.getId());
+
+        if (!isOwner) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "No tienes permisos para confirmar este retorno"
+            );
+        }
+
+        returnPayment.setEstatus(ReturnPaymentStatus.RETORNADO);
+        returnPayment.setFechaPago(LocalDateTime.now());
+        returnPayment.setPagadoPor(currentUser);
+
+        OperationReturnPayment saved =
+                operationReturnPaymentRepository.save(returnPayment);
+
+        updateOperationStatusAfterReturnRealized(operation);
+
+        notifyCashReturnPickupConfirmed(saved);
+
+        return mapReturnToResponse(saved);
+    }
+
+    private void notifyCashReturnPickupConfirmed(OperationReturnPayment returnPayment) {
+        PaymentOperation operation = returnPayment.getOperacion();
+
+        notificationService.createForRoles(
+                List.of(RoleName.JEFA_CAJAS, RoleName.ADMIN),
+                "Retorno en efectivo confirmado",
+                "El socio comercial confirmó haber recibido el retorno en efectivo por $"
+                        + returnPayment.getMonto()
+                        + " de la operación #"
+                        + operation.getId()
                         + ".",
                 NotificationType.SYSTEM_ALERT,
                 NotificationModule.PAGOS,

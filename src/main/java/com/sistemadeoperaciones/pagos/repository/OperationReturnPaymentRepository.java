@@ -44,6 +44,7 @@ public interface OperationReturnPaymentRepository
                 operationId,
                 List.of(
                         ReturnPaymentStatus.SOLICITADO,
+                        ReturnPaymentStatus.EN_RECOLECCION,
                         ReturnPaymentStatus.RETORNADO
                 )
         );

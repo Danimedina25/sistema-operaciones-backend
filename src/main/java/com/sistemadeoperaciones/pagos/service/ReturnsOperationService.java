@@ -69,4 +69,11 @@ public interface ReturnsOperationService {
             Long returnPaymentId,
             ScheduleCashReturnPickupRequestDto request
     );
+
+    /**
+     * SOCIO_COMERCIAL (dueño de la operación):
+     * Confirma que recibió el retorno en efectivo/retiro sin tarjeta
+     * previamente programado por jefa de cajas.
+     */
+    ReturnPaymentResponseDto confirmCashReturnPickup(Long returnPaymentId);
 }
