@@ -16,6 +16,7 @@ import com.sistemadeoperaciones.pagos.enums.PaymentStatus;
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import com.sistemadeoperaciones.pagos.repository.OperationPaymentRepository;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
+import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -71,7 +72,7 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
                 dailyCashCutRepository
                         .findByFecha(fecha)
                         .orElseThrow(() ->
-                                new RuntimeException(
+                                new ResourceNotFoundException(
                                         "No existe corte registrado para la fecha "
                                                 + fecha
                                 )
