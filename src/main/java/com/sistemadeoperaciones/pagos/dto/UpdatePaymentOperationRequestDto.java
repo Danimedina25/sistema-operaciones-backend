@@ -32,6 +32,13 @@ public class UpdatePaymentOperationRequestDto {
     @Size(max = 500, message = "Las observaciones no pueden exceder 500 caracteres")
     private String observaciones;
 
+    @NotNull(message = "El porcentaje de comisión de oficina es obligatorio")
+    @DecimalMin(value = "0.00", message = "El porcentaje de comisión de oficina no puede ser negativo")
+    private BigDecimal porcentajeComisionOficina;
+
+    @NotNull(message = "El porcentaje de comisión por socio comercial es obligatorio")
+    @DecimalMin(value = "0.00", message = "El porcentaje de comisión por socio comercial no puede ser negativo")
+    private BigDecimal porcentajeComisionSocio;
 
     public Long getClienteId() {
         return clienteId;
@@ -87,5 +94,21 @@ public class UpdatePaymentOperationRequestDto {
 
     public void setObservaciones(String observaciones) {
         this.observaciones = observaciones;
+    }
+
+    public BigDecimal getPorcentajeComisionOficina() {
+        return porcentajeComisionOficina;
+    }
+
+    public void setPorcentajeComisionOficina(BigDecimal porcentajeComisionOficina) {
+        this.porcentajeComisionOficina = porcentajeComisionOficina;
+    }
+
+    public BigDecimal getPorcentajeComisionSocio() {
+        return porcentajeComisionSocio;
+    }
+
+    public void setPorcentajeComisionSocio(BigDecimal porcentajeComisionSocio) {
+        this.porcentajeComisionSocio = porcentajeComisionSocio;
     }
 }

@@ -24,13 +24,15 @@ public class PaymentOperationResponseDto {
     private Long socioComercialNivel3Id;
     private String socioComercialNivel3Nombre;
     private Integer nivelesRedComercial;
-    private BigDecimal porcentajeComisionAplicado;
+    private BigDecimal porcentajeComisionSocio;
     private BigDecimal porcentajeComisionOficina;
 
     private BigDecimal porcentajeComisionRedTotal;
     private BigDecimal montoComisionRedTotal;
     private BigDecimal porcentajeComisionOficinaTotal;
     private BigDecimal montoComisionOficinaTotal;
+    private BigDecimal porcentajeComisionTotal;
+    private BigDecimal montoComisionTotal;
     private BigDecimal montoTotalDevolverCliente;
     private BigDecimal montoRetornado;
     private BigDecimal saldoPendienteRetornar;
@@ -48,7 +50,7 @@ public class PaymentOperationResponseDto {
     public PaymentOperationResponseDto() {
     }
 
-    public PaymentOperationResponseDto(Long id, Long clienteId, String clienteNombre, BigDecimal montoTotal, BigDecimal montoValidado, BigDecimal montoRegistrado, BigDecimal saldoPendientePorValidar, BigDecimal saldoPendientePorRegistrar, OperationStatus estatus, Long socioComercialId, String socioComercialNombre, Long socioComercialNivel2Id, String socioComercialNivel2Nombre, Long socioComercialNivel3Id, String socioComercialNivel3Nombre, Integer nivelesRedComercial, BigDecimal porcentajeComisionAplicado, BigDecimal porcentajeComisionOficina, BigDecimal porcentajeComisionRedTotal, BigDecimal montoComisionRedTotal, BigDecimal porcentajeComisionOficinaTotal, BigDecimal montoComisionOficinaTotal, BigDecimal montoTotalDevolverCliente, BigDecimal montoRetornado, BigDecimal saldoPendienteRetornar, BigDecimal montoSolicitadoRetorno, long numeroRetornosSolicitados, String observaciones, List<OperationPaymentResponseDto> pagos, LocalDateTime createdAt, LocalDateTime updatedAt, boolean contieneRetornosEnEfectivo, boolean contieneRetornosRetiroSinTarjeta, boolean contieneRetornosEnTransferencia) {
+    public PaymentOperationResponseDto(Long id, Long clienteId, String clienteNombre, BigDecimal montoTotal, BigDecimal montoValidado, BigDecimal montoRegistrado, BigDecimal saldoPendientePorValidar, BigDecimal saldoPendientePorRegistrar, OperationStatus estatus, Long socioComercialId, String socioComercialNombre, Long socioComercialNivel2Id, String socioComercialNivel2Nombre, Long socioComercialNivel3Id, String socioComercialNivel3Nombre, Integer nivelesRedComercial, BigDecimal porcentajeComisionSocio, BigDecimal porcentajeComisionOficina, BigDecimal porcentajeComisionRedTotal, BigDecimal montoComisionRedTotal, BigDecimal porcentajeComisionOficinaTotal, BigDecimal montoComisionOficinaTotal, BigDecimal montoTotalDevolverCliente, BigDecimal montoRetornado, BigDecimal saldoPendienteRetornar, BigDecimal montoSolicitadoRetorno, long numeroRetornosSolicitados, String observaciones, List<OperationPaymentResponseDto> pagos, LocalDateTime createdAt, LocalDateTime updatedAt, boolean contieneRetornosEnEfectivo, boolean contieneRetornosRetiroSinTarjeta, boolean contieneRetornosEnTransferencia) {
         this.id = id;
         this.clienteId = clienteId;
         this.clienteNombre = clienteNombre;
@@ -65,7 +67,7 @@ public class PaymentOperationResponseDto {
         this.socioComercialNivel3Id = socioComercialNivel3Id;
         this.socioComercialNivel3Nombre = socioComercialNivel3Nombre;
         this.nivelesRedComercial = nivelesRedComercial;
-        this.porcentajeComisionAplicado = porcentajeComisionAplicado;
+        this.porcentajeComisionSocio = porcentajeComisionSocio;
         this.porcentajeComisionOficina = porcentajeComisionOficina;
         this.porcentajeComisionRedTotal = porcentajeComisionRedTotal;
         this.montoComisionRedTotal = montoComisionRedTotal;
@@ -177,8 +179,8 @@ public class PaymentOperationResponseDto {
         return nivelesRedComercial;
     }
 
-    public BigDecimal getPorcentajeComisionAplicado() {
-        return porcentajeComisionAplicado;
+    public BigDecimal getPorcentajeComisionSocio() {
+        return porcentajeComisionSocio;
     }
 
     public BigDecimal getPorcentajeComisionOficina() {
@@ -199,6 +201,14 @@ public class PaymentOperationResponseDto {
 
     public BigDecimal getMontoComisionOficinaTotal() {
         return montoComisionOficinaTotal;
+    }
+
+    public BigDecimal getPorcentajeComisionTotal() {
+        return porcentajeComisionTotal;
+    }
+
+    public BigDecimal getMontoComisionTotal() {
+        return montoComisionTotal;
     }
 
     public BigDecimal getMontoTotalDevolverCliente() {
@@ -273,8 +283,8 @@ public class PaymentOperationResponseDto {
         this.nivelesRedComercial = nivelesRedComercial;
     }
 
-    public void setPorcentajeComisionAplicado(BigDecimal porcentajeComisionAplicado) {
-        this.porcentajeComisionAplicado = porcentajeComisionAplicado;
+    public void setPorcentajeComisionSocio(BigDecimal porcentajeComisionSocio) {
+        this.porcentajeComisionSocio = porcentajeComisionSocio;
     }
 
     public void setPorcentajeComisionOficina(BigDecimal porcentajeComisionOficina) {
@@ -295,6 +305,14 @@ public class PaymentOperationResponseDto {
 
     public void setMontoComisionOficinaTotal(BigDecimal montoComisionOficinaTotal) {
         this.montoComisionOficinaTotal = montoComisionOficinaTotal;
+    }
+
+    public void setPorcentajeComisionTotal(BigDecimal porcentajeComisionTotal) {
+        this.porcentajeComisionTotal = porcentajeComisionTotal;
+    }
+
+    public void setMontoComisionTotal(BigDecimal montoComisionTotal) {
+        this.montoComisionTotal = montoComisionTotal;
     }
 
     public void setMontoTotalDevolverCliente(BigDecimal montoTotalDevolverCliente) {

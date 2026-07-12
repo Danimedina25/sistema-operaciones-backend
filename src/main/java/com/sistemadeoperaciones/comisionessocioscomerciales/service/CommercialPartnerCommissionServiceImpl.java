@@ -85,7 +85,7 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                         .toList();
 
         BigDecimal totalPercentage =
-                operation.getPorcentajeComisionAplicado()
+                operation.getPorcentajeComisionSocio()
                         .multiply(
                                 BigDecimal.valueOf(
                                         operation.getNivelesRedComercial()
@@ -100,7 +100,7 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                 operation.getId(),
                 operation.getCliente().getNombre(),
                 operation.getMontoTotal(),
-                operation.getPorcentajeComisionAplicado(),
+                operation.getPorcentajeComisionSocio(),
                 totalPercentage,
                 operation.getNivelesRedComercial(),
                 beneficiaries,
@@ -311,7 +311,7 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                                     operation.getCreatedAt(),
                                     operation.getMontoTotal(),
                                     operation.getNivelesRedComercial(),
-                                    operation.getPorcentajeComisionAplicado(),
+                                    operation.getPorcentajeComisionSocio(),
                                     myCommission.getCommissionAmount(),
                                     totalComisionRed,
                                     commissionNivel2,
@@ -879,13 +879,13 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
         );
 
         commission.setCommissionPercentage(
-                operation.getPorcentajeComisionAplicado()
+                operation.getPorcentajeComisionSocio()
         );
 
         commission.setCommissionAmount(
                 calculateCommissionAmount(
                         operation.getMontoTotal(),
-                        operation.getPorcentajeComisionAplicado()
+                        operation.getPorcentajeComisionSocio()
                 )
         );
 
@@ -916,13 +916,13 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
         );
 
         commission.setCommissionPercentage(
-                operation.getPorcentajeComisionAplicado()
+                operation.getPorcentajeComisionSocio()
         );
 
         commission.setCommissionAmount(
                 calculateCommissionAmount(
                         operation.getMontoTotal(),
-                        operation.getPorcentajeComisionAplicado()
+                        operation.getPorcentajeComisionSocio()
                 )
         );
 
@@ -953,13 +953,13 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
         );
 
         commission.setCommissionPercentage(
-                operation.getPorcentajeComisionAplicado()
+                operation.getPorcentajeComisionSocio()
         );
 
         commission.setCommissionAmount(
                 calculateCommissionAmount(
                         operation.getMontoTotal(),
-                        operation.getPorcentajeComisionAplicado()
+                        operation.getPorcentajeComisionSocio()
                 )
         );
 
@@ -1347,14 +1347,14 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
             );
         }
 
-        if (operation.getPorcentajeComisionAplicado() == null) {
+        if (operation.getPorcentajeComisionSocio() == null) {
             throw new InvalidCommissionStructureException(
                     "La operación no tiene porcentaje de comisión configurado"
             );
         }
 
         /*if (
-                operation.getPorcentajeComisionAplicado()
+                operation.getPorcentajeComisionSocio()
                         .compareTo(BigDecimal.ZERO) <= 0
         ) {
             throw new InvalidCommissionStructureException(
@@ -1363,7 +1363,7 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
         }*/
 
         if (
-                operation.getPorcentajeComisionAplicado()
+                operation.getPorcentajeComisionSocio()
                         .compareTo(BigDecimal.valueOf(100)) > 0
         ) {
             throw new InvalidCommissionStructureException(

@@ -21,9 +21,13 @@ public class UpdateClienteRequestDto {
     @Max(value = 3, message = "El nivel máximo de red comercial es 3")
     private Integer nivelesRedComercial;
 
-    @NotNull(message = "El porcentaje de comisión es obligatorio")
-    @DecimalMin(value = "0.00", message = "El porcentaje de comisión no puede ser negativo")
-    private BigDecimal porcentajeComisionAplicado;
+    @NotNull(message = "El porcentaje de comisión por socio comercial es obligatorio")
+    @DecimalMin(value = "0.00", message = "El porcentaje de comisión por socio comercial no puede ser negativo")
+    private BigDecimal porcentajeComisionSocio;
+
+    @NotNull(message = "El porcentaje de comisión de oficina es obligatorio")
+    @DecimalMin(value = "0.00", message = "El porcentaje de comisión de oficina no puede ser negativo")
+    private BigDecimal porcentajeComisionOficina;
 
     public String getNombre() {
         return nombre;
@@ -49,11 +53,19 @@ public class UpdateClienteRequestDto {
         this.nivelesRedComercial = nivelesRedComercial;
     }
 
-    public BigDecimal getPorcentajeComisionAplicado() {
-        return porcentajeComisionAplicado;
+    public BigDecimal getPorcentajeComisionSocio() {
+        return porcentajeComisionSocio;
     }
 
-    public void setPorcentajeComisionAplicado(BigDecimal porcentajeComisionAplicado) {
-        this.porcentajeComisionAplicado = porcentajeComisionAplicado;
+    public void setPorcentajeComisionSocio(BigDecimal porcentajeComisionSocio) {
+        this.porcentajeComisionSocio = porcentajeComisionSocio;
+    }
+
+    public BigDecimal getPorcentajeComisionOficina() {
+        return porcentajeComisionOficina;
+    }
+
+    public void setPorcentajeComisionOficina(BigDecimal porcentajeComisionOficina) {
+        this.porcentajeComisionOficina = porcentajeComisionOficina;
     }
 }

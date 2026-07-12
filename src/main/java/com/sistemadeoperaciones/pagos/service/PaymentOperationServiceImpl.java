@@ -239,6 +239,12 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                                 )
                         );
 
+        validateCommissionTotal(
+                request.getPorcentajeComisionOficina(),
+                request.getPorcentajeComisionSocio(),
+                nivelesRedComercial
+        );
+
         PaymentOperation operation = new PaymentOperation();
 
         operation.setCliente(cliente);
@@ -254,12 +260,12 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 nivelesRedComercial
         );
 
-        operation.setPorcentajeComisionAplicado(
-                cliente.getPorcentajeComisionAplicado()
+        operation.setPorcentajeComisionSocio(
+                request.getPorcentajeComisionSocio()
         );
 
         operation.setPorcentajeComisionOficina(
-                new BigDecimal("1.5")
+                request.getPorcentajeComisionOficina()
         );
 
         operation.setObservaciones(
@@ -270,6 +276,34 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 paymentOperationRepository.save(operation);
 
         return mapToOperationResponse(saved);
+    }
+
+    private void validateCommissionTotal(
+            BigDecimal porcentajeComisionOficina,
+            BigDecimal porcentajeComisionSocio,
+            Integer nivelesRedComercial
+    ) {
+        if (porcentajeComisionOficina.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(
+                    "El porcentaje de comisión de oficina no puede ser negativo"
+            );
+        }
+
+        if (porcentajeComisionSocio.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(
+                    "El porcentaje de comisión por socio comercial no puede ser negativo"
+            );
+        }
+
+        BigDecimal total = porcentajeComisionOficina.add(
+                porcentajeComisionSocio.multiply(BigDecimal.valueOf(nivelesRedComercial))
+        );
+
+        if (total.compareTo(BigDecimal.valueOf(100)) > 0) {
+            throw new BusinessException(
+                    "La comisión total (oficina + socios) no puede superar el 100%"
+            );
+        }
     }
 
     @Override
@@ -429,6 +463,12 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             );
         }
 
+        validateCommissionTotal(
+                request.getPorcentajeComisionOficina(),
+                request.getPorcentajeComisionSocio(),
+                nivelesRedComercial
+        );
+
         operation.setCliente(cliente);
         operation.setMontoTotal(request.getMontoTotal());
 
@@ -440,12 +480,12 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 nivelesRedComercial
         );
 
-        operation.setPorcentajeComisionAplicado(
-                cliente.getPorcentajeComisionAplicado()
+        operation.setPorcentajeComisionSocio(
+                request.getPorcentajeComisionSocio()
         );
 
         operation.setPorcentajeComisionOficina(
-                new BigDecimal("1.5")
+                request.getPorcentajeComisionOficina()
         );
 
         operation.setObservaciones(
@@ -1137,11 +1177,11 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         }
 
         dto.setNivelesRedComercial(operation.getNivelesRedComercial());
-        dto.setPorcentajeComisionAplicado(operation.getPorcentajeComisionAplicado());
+        dto.setPorcentajeComisionSocio(operation.getPorcentajeComisionSocio());
         dto.setPorcentajeComisionOficina(operation.getPorcentajeComisionOficina());
 
         BigDecimal porcentajeComisionRedTotal = calculateTotalPercentageByLevels(
-                operation.getPorcentajeComisionAplicado(),
+                operation.getPorcentajeComisionSocio(),
                 operation.getNivelesRedComercial()
         );
 
@@ -1162,10 +1202,20 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 .subtract(montoComisionOficinaTotal)
                 .setScale(2, RoundingMode.HALF_UP);
 
+        BigDecimal porcentajeComisionTotal = porcentajeComisionRedTotal
+                .add(porcentajeComisionOficina)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal montoComisionTotal = montoComisionRedTotal
+                .add(montoComisionOficinaTotal)
+                .setScale(2, RoundingMode.HALF_UP);
+
         dto.setPorcentajeComisionRedTotal(porcentajeComisionRedTotal);
         dto.setMontoComisionRedTotal(montoComisionRedTotal);
         dto.setPorcentajeComisionOficinaTotal(porcentajeComisionOficina);
         dto.setMontoComisionOficinaTotal(montoComisionOficinaTotal);
+        dto.setPorcentajeComisionTotal(porcentajeComisionTotal);
+        dto.setMontoComisionTotal(montoComisionTotal);
         dto.setMontoTotalDevolverCliente(montoTotalDevolverCliente);
 
         BigDecimal montoRetornado = safe(

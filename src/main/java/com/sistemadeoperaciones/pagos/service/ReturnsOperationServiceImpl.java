@@ -584,7 +584,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         BigDecimal montoValidado = safe(operation.getMontoValidado());
 
         BigDecimal porcentajeComisionRedTotal = calculateTotalPercentageByLevels(
-                operation.getPorcentajeComisionAplicado(),
+                operation.getPorcentajeComisionSocio(),
                 operation.getNivelesRedComercial()
         );
 
@@ -807,11 +807,11 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         }
 
         dto.setNivelesRedComercial(operation.getNivelesRedComercial());
-        dto.setPorcentajeComisionAplicado(operation.getPorcentajeComisionAplicado());
+        dto.setPorcentajeComisionSocio(operation.getPorcentajeComisionSocio());
         dto.setPorcentajeComisionOficina(operation.getPorcentajeComisionOficina());
 
         BigDecimal porcentajeComisionRedTotal = calculateTotalPercentageByLevels(
-                operation.getPorcentajeComisionAplicado(),
+                operation.getPorcentajeComisionSocio(),
                 operation.getNivelesRedComercial()
         );
 

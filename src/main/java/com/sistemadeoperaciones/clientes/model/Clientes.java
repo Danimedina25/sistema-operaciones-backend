@@ -33,8 +33,11 @@ public class Clientes {
     @Column(name = "niveles_red_comercial", nullable = false)
     private Integer nivelesRedComercial = 1;
 
-    @Column(name = "porcentaje_comision_aplicado", nullable = false, precision = 5, scale = 2)
-    private BigDecimal porcentajeComisionAplicado;
+    @Column(name = "porcentaje_comision_socio", nullable = false, precision = 5, scale = 2)
+    private BigDecimal porcentajeComisionSocio;
+
+    @Column(name = "porcentaje_comision_oficina", nullable = false, precision = 5, scale = 2)
+    private BigDecimal porcentajeComisionOficina = new BigDecimal("1.50");
 
     @PrePersist
     public void prePersist() {
@@ -48,8 +51,12 @@ public class Clientes {
             this.nivelesRedComercial = 1;
         }
 
-        if (this.porcentajeComisionAplicado == null) {
-            this.porcentajeComisionAplicado = BigDecimal.ZERO;
+        if (this.porcentajeComisionSocio == null) {
+            this.porcentajeComisionSocio = BigDecimal.ZERO;
+        }
+
+        if (this.porcentajeComisionOficina == null) {
+            this.porcentajeComisionOficina = new BigDecimal("1.50");
         }
     }
 
@@ -114,11 +121,19 @@ public class Clientes {
         this.nivelesRedComercial = nivelesRedComercial;
     }
 
-    public BigDecimal getPorcentajeComisionAplicado() {
-        return porcentajeComisionAplicado;
+    public BigDecimal getPorcentajeComisionSocio() {
+        return porcentajeComisionSocio;
     }
 
-    public void setPorcentajeComisionAplicado(BigDecimal porcentajeComisionAplicado) {
-        this.porcentajeComisionAplicado = porcentajeComisionAplicado;
+    public void setPorcentajeComisionSocio(BigDecimal porcentajeComisionSocio) {
+        this.porcentajeComisionSocio = porcentajeComisionSocio;
+    }
+
+    public BigDecimal getPorcentajeComisionOficina() {
+        return porcentajeComisionOficina;
+    }
+
+    public void setPorcentajeComisionOficina(BigDecimal porcentajeComisionOficina) {
+        this.porcentajeComisionOficina = porcentajeComisionOficina;
     }
 }

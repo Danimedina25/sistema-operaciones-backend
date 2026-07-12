@@ -9,7 +9,8 @@ public class ClienteResponseDto {
     private String nombre;
     private Boolean activo;
     private Integer nivelesRedComercial;
-    private BigDecimal porcentajeComisionAplicado;
+    private BigDecimal porcentajeComisionSocio;
+    private BigDecimal porcentajeComisionOficina;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -21,7 +22,8 @@ public class ClienteResponseDto {
             String nombre,
             Boolean activo,
             Integer nivelesRedComercial,
-            BigDecimal porcentajeComisionAplicado,
+            BigDecimal porcentajeComisionSocio,
+            BigDecimal porcentajeComisionOficina,
             LocalDateTime createdAt,
             LocalDateTime updatedAt
     ) {
@@ -29,7 +31,8 @@ public class ClienteResponseDto {
         this.nombre = nombre;
         this.activo = activo;
         this.nivelesRedComercial = nivelesRedComercial;
-        this.porcentajeComisionAplicado = porcentajeComisionAplicado;
+        this.porcentajeComisionSocio = porcentajeComisionSocio;
+        this.porcentajeComisionOficina = porcentajeComisionOficina;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -50,8 +53,12 @@ public class ClienteResponseDto {
         return nivelesRedComercial;
     }
 
-    public BigDecimal getPorcentajeComisionAplicado() {
-        return porcentajeComisionAplicado;
+    public BigDecimal getPorcentajeComisionSocio() {
+        return porcentajeComisionSocio;
+    }
+
+    public BigDecimal getPorcentajeComisionOficina() {
+        return porcentajeComisionOficina;
     }
 
     public LocalDateTime getCreatedAt() {
@@ -78,8 +85,12 @@ public class ClienteResponseDto {
         this.nivelesRedComercial = nivelesRedComercial;
     }
 
-    public void setPorcentajeComisionAplicado(BigDecimal porcentajeComisionAplicado) {
-        this.porcentajeComisionAplicado = porcentajeComisionAplicado;
+    public void setPorcentajeComisionSocio(BigDecimal porcentajeComisionSocio) {
+        this.porcentajeComisionSocio = porcentajeComisionSocio;
+    }
+
+    public void setPorcentajeComisionOficina(BigDecimal porcentajeComisionOficina) {
+        this.porcentajeComisionOficina = porcentajeComisionOficina;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {

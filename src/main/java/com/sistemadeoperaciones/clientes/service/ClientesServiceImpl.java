@@ -50,8 +50,16 @@ public class ClientesServiceImpl implements ClientesService {
             throw new ClienteAlreadyExistsException(request.getNombre());
         }
 
-        if (request.getPorcentajeComisionAplicado().compareTo(BigDecimal.ZERO) < 0) {
-            throw new ClienteInvalidCommissionException();
+        if (request.getPorcentajeComisionSocio().compareTo(BigDecimal.ZERO) < 0) {
+            throw new ClienteInvalidCommissionException(
+                    "El porcentaje de comisión por socio comercial no puede ser negativo"
+            );
+        }
+
+        if (request.getPorcentajeComisionOficina().compareTo(BigDecimal.ZERO) < 0) {
+            throw new ClienteInvalidCommissionException(
+                    "El porcentaje de comisión de oficina no puede ser negativo"
+            );
         }
 
         User user = userRepository.findById(request.getUserId())
@@ -63,7 +71,8 @@ public class ClientesServiceImpl implements ClientesService {
         cliente.setNombre(request.getNombre().trim());
         cliente.setActivo(true);
         cliente.setNivelesRedComercial(request.getNivelesRedComercial());
-        cliente.setPorcentajeComisionAplicado(request.getPorcentajeComisionAplicado());
+        cliente.setPorcentajeComisionSocio(request.getPorcentajeComisionSocio());
+        cliente.setPorcentajeComisionOficina(request.getPorcentajeComisionOficina());
 
         Clientes saved = clientesRepository.save(cliente);
 
@@ -151,14 +160,23 @@ public class ClientesServiceImpl implements ClientesService {
             throw new ClienteAlreadyExistsException(request.getNombre());
         }
 
-        if (request.getPorcentajeComisionAplicado().compareTo(BigDecimal.ZERO) < 0) {
-            throw new ClienteInvalidCommissionException();
+        if (request.getPorcentajeComisionSocio().compareTo(BigDecimal.ZERO) < 0) {
+            throw new ClienteInvalidCommissionException(
+                    "El porcentaje de comisión por socio comercial no puede ser negativo"
+            );
+        }
+
+        if (request.getPorcentajeComisionOficina().compareTo(BigDecimal.ZERO) < 0) {
+            throw new ClienteInvalidCommissionException(
+                    "El porcentaje de comisión de oficina no puede ser negativo"
+            );
         }
 
         cliente.setNombre(request.getNombre().trim());
         cliente.setActivo(request.getActivo());
         cliente.setNivelesRedComercial(request.getNivelesRedComercial());
-        cliente.setPorcentajeComisionAplicado(request.getPorcentajeComisionAplicado());
+        cliente.setPorcentajeComisionSocio(request.getPorcentajeComisionSocio());
+        cliente.setPorcentajeComisionOficina(request.getPorcentajeComisionOficina());
 
         Clientes updated = clientesRepository.save(cliente);
 
@@ -198,7 +216,8 @@ public class ClientesServiceImpl implements ClientesService {
                 cliente.getNombre(),
                 cliente.getActivo(),
                 cliente.getNivelesRedComercial(),
-                cliente.getPorcentajeComisionAplicado(),
+                cliente.getPorcentajeComisionSocio(),
+                cliente.getPorcentajeComisionOficina(),
                 cliente.getCreatedAt(),
                 cliente.getUpdatedAt()
         );
