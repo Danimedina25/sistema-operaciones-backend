@@ -242,6 +242,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         validateCommissionTotal(
                 request.getPorcentajeComisionOficina(),
                 request.getPorcentajeComisionSocio(),
+                request.getPorcentajeComisionSocioNivel2(),
+                request.getPorcentajeComisionSocioNivel3(),
                 nivelesRedComercial
         );
 
@@ -264,6 +266,14 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 request.getPorcentajeComisionSocio()
         );
 
+        operation.setPorcentajeComisionSocioNivel2(
+                nivelesRedComercial >= 2 ? request.getPorcentajeComisionSocioNivel2() : null
+        );
+
+        operation.setPorcentajeComisionSocioNivel3(
+                nivelesRedComercial >= 3 ? request.getPorcentajeComisionSocioNivel3() : null
+        );
+
         operation.setPorcentajeComisionOficina(
                 request.getPorcentajeComisionOficina()
         );
@@ -280,7 +290,9 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
     private void validateCommissionTotal(
             BigDecimal porcentajeComisionOficina,
-            BigDecimal porcentajeComisionSocio,
+            BigDecimal porcentajeComisionSocioNivel1,
+            BigDecimal porcentajeComisionSocioNivel2,
+            BigDecimal porcentajeComisionSocioNivel3,
             Integer nivelesRedComercial
     ) {
         if (porcentajeComisionOficina.compareTo(BigDecimal.ZERO) < 0) {
@@ -289,15 +301,41 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             );
         }
 
-        if (porcentajeComisionSocio.compareTo(BigDecimal.ZERO) < 0) {
+        if (porcentajeComisionSocioNivel1.compareTo(BigDecimal.ZERO) < 0) {
             throw new BusinessException(
-                    "El porcentaje de comisión por socio comercial no puede ser negativo"
+                    "El porcentaje de comisión del socio comercial nivel 1 no puede ser negativo"
             );
         }
 
-        BigDecimal total = porcentajeComisionOficina.add(
-                porcentajeComisionSocio.multiply(BigDecimal.valueOf(nivelesRedComercial))
-        );
+        BigDecimal total = porcentajeComisionOficina.add(porcentajeComisionSocioNivel1);
+
+        if (nivelesRedComercial >= 2) {
+            if (porcentajeComisionSocioNivel2 == null) {
+                throw new BusinessException(
+                        "El porcentaje de comisión del socio comercial nivel 2 es obligatorio cuando la operación tiene 2 o más niveles de red comercial"
+                );
+            }
+            if (porcentajeComisionSocioNivel2.compareTo(BigDecimal.ZERO) < 0) {
+                throw new BusinessException(
+                        "El porcentaje de comisión del socio comercial nivel 2 no puede ser negativo"
+                );
+            }
+            total = total.add(porcentajeComisionSocioNivel2);
+        }
+
+        if (nivelesRedComercial >= 3) {
+            if (porcentajeComisionSocioNivel3 == null) {
+                throw new BusinessException(
+                        "El porcentaje de comisión del socio comercial nivel 3 es obligatorio cuando la operación tiene 3 niveles de red comercial"
+                );
+            }
+            if (porcentajeComisionSocioNivel3.compareTo(BigDecimal.ZERO) < 0) {
+                throw new BusinessException(
+                        "El porcentaje de comisión del socio comercial nivel 3 no puede ser negativo"
+                );
+            }
+            total = total.add(porcentajeComisionSocioNivel3);
+        }
 
         if (total.compareTo(BigDecimal.valueOf(100)) > 0) {
             throw new BusinessException(
@@ -466,6 +504,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         validateCommissionTotal(
                 request.getPorcentajeComisionOficina(),
                 request.getPorcentajeComisionSocio(),
+                request.getPorcentajeComisionSocioNivel2(),
+                request.getPorcentajeComisionSocioNivel3(),
                 nivelesRedComercial
         );
 
@@ -482,6 +522,14 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         operation.setPorcentajeComisionSocio(
                 request.getPorcentajeComisionSocio()
+        );
+
+        operation.setPorcentajeComisionSocioNivel2(
+                nivelesRedComercial >= 2 ? request.getPorcentajeComisionSocioNivel2() : null
+        );
+
+        operation.setPorcentajeComisionSocioNivel3(
+                nivelesRedComercial >= 3 ? request.getPorcentajeComisionSocioNivel3() : null
         );
 
         operation.setPorcentajeComisionOficina(
@@ -1179,17 +1227,31 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         dto.setNivelesRedComercial(operation.getNivelesRedComercial());
         dto.setPorcentajeComisionSocio(operation.getPorcentajeComisionSocio());
+        dto.setPorcentajeComisionSocioNivel2(operation.getPorcentajeComisionSocioNivel2());
+        dto.setPorcentajeComisionSocioNivel3(operation.getPorcentajeComisionSocioNivel3());
         dto.setPorcentajeComisionOficina(operation.getPorcentajeComisionOficina());
 
-        BigDecimal porcentajeComisionRedTotal = calculateTotalPercentageByLevels(
-                operation.getPorcentajeComisionSocio(),
-                operation.getNivelesRedComercial()
-        );
+        BigDecimal porcentajeNivel1 = safe(operation.getPorcentajeComisionSocio());
+        BigDecimal porcentajeNivel2 = safe(operation.getPorcentajeComisionSocioNivel2());
+        BigDecimal porcentajeNivel3 = safe(operation.getPorcentajeComisionSocioNivel3());
 
-        BigDecimal montoComisionRedTotal = calculateAmountFromPercentage(
-                montoTotal,
-                porcentajeComisionRedTotal
-        );
+        BigDecimal montoComisionSocioNivel1 = calculateAmountFromPercentage(montoTotal, porcentajeNivel1);
+        BigDecimal montoComisionSocioNivel2 = calculateAmountFromPercentage(montoTotal, porcentajeNivel2);
+        BigDecimal montoComisionSocioNivel3 = calculateAmountFromPercentage(montoTotal, porcentajeNivel3);
+
+        dto.setMontoComisionSocioNivel1(montoComisionSocioNivel1);
+        dto.setMontoComisionSocioNivel2(montoComisionSocioNivel2);
+        dto.setMontoComisionSocioNivel3(montoComisionSocioNivel3);
+
+        BigDecimal porcentajeComisionRedTotal = porcentajeNivel1
+                .add(porcentajeNivel2)
+                .add(porcentajeNivel3)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal montoComisionRedTotal = montoComisionSocioNivel1
+                .add(montoComisionSocioNivel2)
+                .add(montoComisionSocioNivel3)
+                .setScale(2, RoundingMode.HALF_UP);
 
         BigDecimal porcentajeComisionOficina = operation.getPorcentajeComisionOficina();
 
@@ -1331,14 +1393,6 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
     private BigDecimal safe(BigDecimal value) {
         return value != null ? value : BigDecimal.ZERO;
-    }
-
-    private BigDecimal calculateTotalPercentageByLevels(BigDecimal percentagePerLevel, Integer levels) {
-        BigDecimal percentage = safe(percentagePerLevel);
-        int niveles = levels != null ? levels : 0;
-
-        return percentage.multiply(BigDecimal.valueOf(niveles))
-                .setScale(2, RoundingMode.HALF_UP);
     }
 
     private BigDecimal calculateAmountFromPercentage(BigDecimal baseAmount, BigDecimal percentage) {

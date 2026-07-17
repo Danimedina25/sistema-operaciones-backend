@@ -41,6 +41,12 @@ public class CreatePaymentOperationRequestDto {
     @DecimalMin(value = "0.00", message = "El porcentaje de comisión por socio comercial no puede ser negativo")
     private BigDecimal porcentajeComisionSocio;
 
+    @DecimalMin(value = "0.00", message = "El porcentaje de comisión del socio comercial nivel 2 no puede ser negativo")
+    private BigDecimal porcentajeComisionSocioNivel2;
+
+    @DecimalMin(value = "0.00", message = "El porcentaje de comisión del socio comercial nivel 3 no puede ser negativo")
+    private BigDecimal porcentajeComisionSocioNivel3;
+
     public Long getClienteId() {
         return clienteId;
     }
@@ -111,5 +117,21 @@ public class CreatePaymentOperationRequestDto {
 
     public void setPorcentajeComisionSocio(BigDecimal porcentajeComisionSocio) {
         this.porcentajeComisionSocio = porcentajeComisionSocio;
+    }
+
+    public BigDecimal getPorcentajeComisionSocioNivel2() {
+        return porcentajeComisionSocioNivel2;
+    }
+
+    public void setPorcentajeComisionSocioNivel2(BigDecimal porcentajeComisionSocioNivel2) {
+        this.porcentajeComisionSocioNivel2 = porcentajeComisionSocioNivel2;
+    }
+
+    public BigDecimal getPorcentajeComisionSocioNivel3() {
+        return porcentajeComisionSocioNivel3;
+    }
+
+    public void setPorcentajeComisionSocioNivel3(BigDecimal porcentajeComisionSocioNivel3) {
+        this.porcentajeComisionSocioNivel3 = porcentajeComisionSocioNivel3;
     }
 }

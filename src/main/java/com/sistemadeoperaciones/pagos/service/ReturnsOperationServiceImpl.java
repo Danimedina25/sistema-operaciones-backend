@@ -583,10 +583,10 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
     private BigDecimal calculateAmountToReturn(PaymentOperation operation) {
         BigDecimal montoValidado = safe(operation.getMontoValidado());
 
-        BigDecimal porcentajeComisionRedTotal = calculateTotalPercentageByLevels(
-                operation.getPorcentajeComisionSocio(),
-                operation.getNivelesRedComercial()
-        );
+        BigDecimal porcentajeComisionRedTotal = safe(operation.getPorcentajeComisionSocio())
+                .add(safe(operation.getPorcentajeComisionSocioNivel2()))
+                .add(safe(operation.getPorcentajeComisionSocioNivel3()))
+                .setScale(2, RoundingMode.HALF_UP);
 
         BigDecimal montoComisionRedTotal = calculateAmountFromPercentage(
                 montoValidado,
@@ -607,14 +607,6 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
     private BigDecimal safe(BigDecimal value) {
         return value != null ? value : BigDecimal.ZERO;
-    }
-
-    private BigDecimal calculateTotalPercentageByLevels(BigDecimal percentagePerLevel, Integer levels) {
-        BigDecimal percentage = safe(percentagePerLevel);
-        int niveles = levels != null ? levels : 0;
-
-        return percentage.multiply(BigDecimal.valueOf(niveles))
-                .setScale(2, RoundingMode.HALF_UP);
     }
 
     private BigDecimal calculateAmountFromPercentage(BigDecimal baseAmount, BigDecimal percentage) {
@@ -808,22 +800,34 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
         dto.setNivelesRedComercial(operation.getNivelesRedComercial());
         dto.setPorcentajeComisionSocio(operation.getPorcentajeComisionSocio());
+        dto.setPorcentajeComisionSocioNivel2(operation.getPorcentajeComisionSocioNivel2());
+        dto.setPorcentajeComisionSocioNivel3(operation.getPorcentajeComisionSocioNivel3());
         dto.setPorcentajeComisionOficina(operation.getPorcentajeComisionOficina());
 
-        BigDecimal porcentajeComisionRedTotal = calculateTotalPercentageByLevels(
-                operation.getPorcentajeComisionSocio(),
-                operation.getNivelesRedComercial()
-        );
+        BigDecimal porcentajeNivel1 = safe(operation.getPorcentajeComisionSocio());
+        BigDecimal porcentajeNivel2 = safe(operation.getPorcentajeComisionSocioNivel2());
+        BigDecimal porcentajeNivel3 = safe(operation.getPorcentajeComisionSocioNivel3());
 
-        BigDecimal montoComisionRedTotal = calculateAmountFromPercentage(
-                montoValidado,
-                porcentajeComisionRedTotal
-        );
+        BigDecimal montoComisionSocioNivel1 = calculateAmountFromPercentage(montoValidado, porcentajeNivel1);
+        BigDecimal montoComisionSocioNivel2 = calculateAmountFromPercentage(montoValidado, porcentajeNivel2);
+        BigDecimal montoComisionSocioNivel3 = calculateAmountFromPercentage(montoValidado, porcentajeNivel3);
 
-        BigDecimal porcentajeComisionOficinaTotal = calculateTotalPercentageByLevels(
-                operation.getPorcentajeComisionOficina(),
-              1
-        );
+        dto.setMontoComisionSocioNivel1(montoComisionSocioNivel1);
+        dto.setMontoComisionSocioNivel2(montoComisionSocioNivel2);
+        dto.setMontoComisionSocioNivel3(montoComisionSocioNivel3);
+
+        BigDecimal porcentajeComisionRedTotal = porcentajeNivel1
+                .add(porcentajeNivel2)
+                .add(porcentajeNivel3)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal montoComisionRedTotal = montoComisionSocioNivel1
+                .add(montoComisionSocioNivel2)
+                .add(montoComisionSocioNivel3)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal porcentajeComisionOficinaTotal = safe(operation.getPorcentajeComisionOficina())
+                .setScale(2, RoundingMode.HALF_UP);
 
         BigDecimal montoComisionOficinaTotal = calculateAmountFromPercentage(
                 montoTotal,

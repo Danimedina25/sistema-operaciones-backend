@@ -52,6 +52,12 @@ public class PaymentOperation {
     @Column(name = "porcentaje_comision_socio", nullable = false, precision = 5, scale = 2)
     private BigDecimal porcentajeComisionSocio;
 
+    @Column(name = "porcentaje_comision_socio_nivel_2", precision = 5, scale = 2)
+    private BigDecimal porcentajeComisionSocioNivel2;
+
+    @Column(name = "porcentaje_comision_socio_nivel_3", precision = 5, scale = 2)
+    private BigDecimal porcentajeComisionSocioNivel3;
+
     @Column(name = "porcentaje_comision_oficina", nullable = false, precision = 5, scale = 2)
     private BigDecimal porcentajeComisionOficina;
 
@@ -213,6 +219,22 @@ public class PaymentOperation {
 
     public void setPorcentajeComisionSocio(BigDecimal porcentajeComisionSocio) {
         this.porcentajeComisionSocio = porcentajeComisionSocio;
+    }
+
+    public BigDecimal getPorcentajeComisionSocioNivel2() {
+        return porcentajeComisionSocioNivel2;
+    }
+
+    public void setPorcentajeComisionSocioNivel2(BigDecimal porcentajeComisionSocioNivel2) {
+        this.porcentajeComisionSocioNivel2 = porcentajeComisionSocioNivel2;
+    }
+
+    public BigDecimal getPorcentajeComisionSocioNivel3() {
+        return porcentajeComisionSocioNivel3;
+    }
+
+    public void setPorcentajeComisionSocioNivel3(BigDecimal porcentajeComisionSocioNivel3) {
+        this.porcentajeComisionSocioNivel3 = porcentajeComisionSocioNivel3;
     }
 
     public BigDecimal getPorcentajeComisionOficina() {

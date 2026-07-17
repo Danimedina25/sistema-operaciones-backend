@@ -25,7 +25,13 @@ public class PaymentOperationResponseDto {
     private String socioComercialNivel3Nombre;
     private Integer nivelesRedComercial;
     private BigDecimal porcentajeComisionSocio;
+    private BigDecimal porcentajeComisionSocioNivel2;
+    private BigDecimal porcentajeComisionSocioNivel3;
     private BigDecimal porcentajeComisionOficina;
+
+    private BigDecimal montoComisionSocioNivel1;
+    private BigDecimal montoComisionSocioNivel2;
+    private BigDecimal montoComisionSocioNivel3;
 
     private BigDecimal porcentajeComisionRedTotal;
     private BigDecimal montoComisionRedTotal;
@@ -285,6 +291,46 @@ public class PaymentOperationResponseDto {
 
     public void setPorcentajeComisionSocio(BigDecimal porcentajeComisionSocio) {
         this.porcentajeComisionSocio = porcentajeComisionSocio;
+    }
+
+    public BigDecimal getPorcentajeComisionSocioNivel2() {
+        return porcentajeComisionSocioNivel2;
+    }
+
+    public void setPorcentajeComisionSocioNivel2(BigDecimal porcentajeComisionSocioNivel2) {
+        this.porcentajeComisionSocioNivel2 = porcentajeComisionSocioNivel2;
+    }
+
+    public BigDecimal getPorcentajeComisionSocioNivel3() {
+        return porcentajeComisionSocioNivel3;
+    }
+
+    public void setPorcentajeComisionSocioNivel3(BigDecimal porcentajeComisionSocioNivel3) {
+        this.porcentajeComisionSocioNivel3 = porcentajeComisionSocioNivel3;
+    }
+
+    public BigDecimal getMontoComisionSocioNivel1() {
+        return montoComisionSocioNivel1;
+    }
+
+    public void setMontoComisionSocioNivel1(BigDecimal montoComisionSocioNivel1) {
+        this.montoComisionSocioNivel1 = montoComisionSocioNivel1;
+    }
+
+    public BigDecimal getMontoComisionSocioNivel2() {
+        return montoComisionSocioNivel2;
+    }
+
+    public void setMontoComisionSocioNivel2(BigDecimal montoComisionSocioNivel2) {
+        this.montoComisionSocioNivel2 = montoComisionSocioNivel2;
+    }
+
+    public BigDecimal getMontoComisionSocioNivel3() {
+        return montoComisionSocioNivel3;
+    }
+
+    public void setMontoComisionSocioNivel3(BigDecimal montoComisionSocioNivel3) {
+        this.montoComisionSocioNivel3 = montoComisionSocioNivel3;
     }
 
     public void setPorcentajeComisionOficina(BigDecimal porcentajeComisionOficina) {

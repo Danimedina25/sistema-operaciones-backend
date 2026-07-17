@@ -85,12 +85,9 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                         .toList();
 
         BigDecimal totalPercentage =
-                operation.getPorcentajeComisionSocio()
-                        .multiply(
-                                BigDecimal.valueOf(
-                                        operation.getNivelesRedComercial()
-                                )
-                        );
+                safe(operation.getPorcentajeComisionSocio())
+                        .add(safe(operation.getPorcentajeComisionSocioNivel2()))
+                        .add(safe(operation.getPorcentajeComisionSocioNivel3()));
 
         BigDecimal totalCommissionAmount = beneficiaries.stream()
                 .map(CommissionBeneficiaryResponseDto::getCommissionAmount)
@@ -859,6 +856,10 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     }
 
+    private BigDecimal safe(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
+    }
+
     private void generateCommissionLevel1(
             PaymentOperation operation
     ) {
@@ -916,13 +917,13 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
         );
 
         commission.setCommissionPercentage(
-                operation.getPorcentajeComisionSocio()
+                operation.getPorcentajeComisionSocioNivel2()
         );
 
         commission.setCommissionAmount(
                 calculateCommissionAmount(
                         operation.getMontoTotal(),
-                        operation.getPorcentajeComisionSocio()
+                        operation.getPorcentajeComisionSocioNivel2()
                 )
         );
 
@@ -953,13 +954,13 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
         );
 
         commission.setCommissionPercentage(
-                operation.getPorcentajeComisionSocio()
+                operation.getPorcentajeComisionSocioNivel3()
         );
 
         commission.setCommissionAmount(
                 calculateCommissionAmount(
                         operation.getMontoTotal(),
-                        operation.getPorcentajeComisionSocio()
+                        operation.getPorcentajeComisionSocioNivel3()
                 )
         );
 
@@ -1386,6 +1387,23 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
             );
         }
 
+        if (operation.getNivelesRedComercial() >= 2) {
+            if (operation.getPorcentajeComisionSocioNivel2() == null) {
+                throw new InvalidCommissionStructureException(
+                        "La operación no tiene porcentaje de comisión configurado para el socio comercial nivel 2"
+                );
+            }
+
+            if (
+                    operation.getPorcentajeComisionSocioNivel2()
+                            .compareTo(BigDecimal.valueOf(100)) > 0
+            ) {
+                throw new InvalidCommissionStructureException(
+                        "El porcentaje de comisión del socio comercial nivel 2 no puede ser mayor a 100"
+                );
+            }
+        }
+
         if (
                 operation.getNivelesRedComercial() >= 3
                         && operation.getSocioComercialNivel3() == null
@@ -1393,6 +1411,23 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
             throw new InvalidCommissionStructureException(
                     "La operación requiere socio comercial nivel 3"
             );
+        }
+
+        if (operation.getNivelesRedComercial() >= 3) {
+            if (operation.getPorcentajeComisionSocioNivel3() == null) {
+                throw new InvalidCommissionStructureException(
+                        "La operación no tiene porcentaje de comisión configurado para el socio comercial nivel 3"
+                );
+            }
+
+            if (
+                    operation.getPorcentajeComisionSocioNivel3()
+                            .compareTo(BigDecimal.valueOf(100)) > 0
+            ) {
+                throw new InvalidCommissionStructureException(
+                        "El porcentaje de comisión del socio comercial nivel 3 no puede ser mayor a 100"
+                );
+            }
         }
     }
 
