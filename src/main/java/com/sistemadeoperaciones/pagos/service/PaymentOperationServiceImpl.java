@@ -239,11 +239,41 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                                 )
                         );
 
+        // Solo ADMIN/GERENTE/DIRECCION pueden definir los porcentajes de comisión.
+        // Un socio comercial no puede ver ni modificar estos valores: la operación
+        // se crea siempre con los porcentajes sugeridos del cliente, sin importar
+        // lo que venga en el request.
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        boolean canSetCommission = currentUser.getRoles().stream()
+                .anyMatch(role ->
+                        role.getName() == RoleName.ADMIN
+                                || role.getName() == RoleName.GERENTE
+                                || role.getName() == RoleName.DIRECCION
+                );
+
+        BigDecimal porcentajeComisionOficinaEfectivo;
+        BigDecimal porcentajeComisionSocioNivel1Efectivo;
+        BigDecimal porcentajeComisionSocioNivel2Efectivo;
+        BigDecimal porcentajeComisionSocioNivel3Efectivo;
+
+        if (canSetCommission) {
+            porcentajeComisionOficinaEfectivo = request.getPorcentajeComisionOficina();
+            porcentajeComisionSocioNivel1Efectivo = request.getPorcentajeComisionSocio();
+            porcentajeComisionSocioNivel2Efectivo = request.getPorcentajeComisionSocioNivel2();
+            porcentajeComisionSocioNivel3Efectivo = request.getPorcentajeComisionSocioNivel3();
+        } else {
+            porcentajeComisionOficinaEfectivo = cliente.getPorcentajeComisionOficina();
+            porcentajeComisionSocioNivel1Efectivo = cliente.getPorcentajeComisionSocio();
+            porcentajeComisionSocioNivel2Efectivo = cliente.getPorcentajeComisionSocio();
+            porcentajeComisionSocioNivel3Efectivo = cliente.getPorcentajeComisionSocio();
+        }
+
         validateCommissionTotal(
-                request.getPorcentajeComisionOficina(),
-                request.getPorcentajeComisionSocio(),
-                request.getPorcentajeComisionSocioNivel2(),
-                request.getPorcentajeComisionSocioNivel3(),
+                porcentajeComisionOficinaEfectivo,
+                porcentajeComisionSocioNivel1Efectivo,
+                porcentajeComisionSocioNivel2Efectivo,
+                porcentajeComisionSocioNivel3Efectivo,
                 nivelesRedComercial
         );
 
@@ -263,19 +293,19 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         );
 
         operation.setPorcentajeComisionSocio(
-                request.getPorcentajeComisionSocio()
+                porcentajeComisionSocioNivel1Efectivo
         );
 
         operation.setPorcentajeComisionSocioNivel2(
-                nivelesRedComercial >= 2 ? request.getPorcentajeComisionSocioNivel2() : null
+                nivelesRedComercial >= 2 ? porcentajeComisionSocioNivel2Efectivo : null
         );
 
         operation.setPorcentajeComisionSocioNivel3(
-                nivelesRedComercial >= 3 ? request.getPorcentajeComisionSocioNivel3() : null
+                nivelesRedComercial >= 3 ? porcentajeComisionSocioNivel3Efectivo : null
         );
 
         operation.setPorcentajeComisionOficina(
-                request.getPorcentajeComisionOficina()
+                porcentajeComisionOficinaEfectivo
         );
 
         operation.setObservaciones(
@@ -501,11 +531,47 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             );
         }
 
+        // Solo ADMIN/GERENTE/DIRECCION pueden modificar los porcentajes de comisión
+        // de una operación ya creada. Si quien edita es el socio comercial, se
+        // conservan los porcentajes actuales de la operación (no se cambian), y
+        // si activa un nivel que antes no tenía porcentaje asignado, se usa el
+        // valor sugerido del cliente como default seguro (nunca lo que venga en
+        // el request).
+        User currentUserUpdate = authenticatedUserService.getCurrentUser();
+
+        boolean canSetCommissionUpdate = currentUserUpdate.getRoles().stream()
+                .anyMatch(role ->
+                        role.getName() == RoleName.ADMIN
+                                || role.getName() == RoleName.GERENTE
+                                || role.getName() == RoleName.DIRECCION
+                );
+
+        BigDecimal porcentajeComisionOficinaEfectivo;
+        BigDecimal porcentajeComisionSocioNivel1Efectivo;
+        BigDecimal porcentajeComisionSocioNivel2Efectivo;
+        BigDecimal porcentajeComisionSocioNivel3Efectivo;
+
+        if (canSetCommissionUpdate) {
+            porcentajeComisionOficinaEfectivo = request.getPorcentajeComisionOficina();
+            porcentajeComisionSocioNivel1Efectivo = request.getPorcentajeComisionSocio();
+            porcentajeComisionSocioNivel2Efectivo = request.getPorcentajeComisionSocioNivel2();
+            porcentajeComisionSocioNivel3Efectivo = request.getPorcentajeComisionSocioNivel3();
+        } else {
+            porcentajeComisionOficinaEfectivo = operation.getPorcentajeComisionOficina();
+            porcentajeComisionSocioNivel1Efectivo = operation.getPorcentajeComisionSocio();
+            porcentajeComisionSocioNivel2Efectivo = operation.getPorcentajeComisionSocioNivel2() != null
+                    ? operation.getPorcentajeComisionSocioNivel2()
+                    : cliente.getPorcentajeComisionSocio();
+            porcentajeComisionSocioNivel3Efectivo = operation.getPorcentajeComisionSocioNivel3() != null
+                    ? operation.getPorcentajeComisionSocioNivel3()
+                    : cliente.getPorcentajeComisionSocio();
+        }
+
         validateCommissionTotal(
-                request.getPorcentajeComisionOficina(),
-                request.getPorcentajeComisionSocio(),
-                request.getPorcentajeComisionSocioNivel2(),
-                request.getPorcentajeComisionSocioNivel3(),
+                porcentajeComisionOficinaEfectivo,
+                porcentajeComisionSocioNivel1Efectivo,
+                porcentajeComisionSocioNivel2Efectivo,
+                porcentajeComisionSocioNivel3Efectivo,
                 nivelesRedComercial
         );
 
@@ -521,19 +587,19 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         );
 
         operation.setPorcentajeComisionSocio(
-                request.getPorcentajeComisionSocio()
+                porcentajeComisionSocioNivel1Efectivo
         );
 
         operation.setPorcentajeComisionSocioNivel2(
-                nivelesRedComercial >= 2 ? request.getPorcentajeComisionSocioNivel2() : null
+                nivelesRedComercial >= 2 ? porcentajeComisionSocioNivel2Efectivo : null
         );
 
         operation.setPorcentajeComisionSocioNivel3(
-                nivelesRedComercial >= 3 ? request.getPorcentajeComisionSocioNivel3() : null
+                nivelesRedComercial >= 3 ? porcentajeComisionSocioNivel3Efectivo : null
         );
 
         operation.setPorcentajeComisionOficina(
-                request.getPorcentajeComisionOficina()
+                porcentajeComisionOficinaEfectivo
         );
 
         operation.setObservaciones(
