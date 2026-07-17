@@ -30,4 +30,6 @@ public interface CommercialPartnerService {
     CommercialPartnerResponseDto activate(Long id);
 
     CommercialPartnerResponseDto deactivate(Long id);
+
+    void delete(Long id);
 }

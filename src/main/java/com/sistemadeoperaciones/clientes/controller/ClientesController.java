@@ -119,4 +119,14 @@ public class ClientesController {
                 new ApiResponse<>(true, "Cliente activado exitosamente", response, null)
         );
     }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DIRECCION')")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+        clientesService.delete(id);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Cliente eliminado permanentemente", null, null)
+        );
+    }
 }

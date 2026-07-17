@@ -17,4 +17,6 @@ public interface UserActivationTokenRepository extends JpaRepository<UserActivat
     List<UserActivationToken> findByUserAndUsedFalse(User user);
 
     List<UserActivationToken> findByUserAndUsedFalseAndType(User user, UserTokenType type);
+
+    long countByUserId(Long userId);
 }

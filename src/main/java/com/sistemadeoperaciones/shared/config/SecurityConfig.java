@@ -46,6 +46,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/users/complete-activation").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/ws").permitAll()
+                        .requestMatchers(HttpMethod.DELETE, "/api/admin/users/*")
+                                .hasAnyRole(RoleName.ADMIN.name(), RoleName.DIRECCION.name())
                         .requestMatchers("/api/admin/**").hasRole(RoleName.ADMIN.name())
                         .requestMatchers("/api/gerencia/**").hasAnyRole(RoleName.ADMIN.name(), RoleName.GERENTE.name())
                         .requestMatchers("/api/socios/**").hasAnyRole(RoleName.SOCIO_COMERCIAL.name())

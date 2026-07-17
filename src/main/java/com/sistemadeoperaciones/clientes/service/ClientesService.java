@@ -25,4 +25,6 @@ public interface ClientesService {
     ClienteResponseDto deactivate(Long id);
 
     ClienteResponseDto activate(Long id);
+
+    void delete(Long id);
 }

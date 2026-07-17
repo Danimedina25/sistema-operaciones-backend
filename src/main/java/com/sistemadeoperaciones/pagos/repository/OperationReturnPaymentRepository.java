@@ -26,6 +26,12 @@ public interface OperationReturnPaymentRepository
 
     long countByOperacionId(Long operacionId);
 
+    long countByCuentaOrigenId(Long cuentaOrigenId);
+
+    long countBySolicitadoPorId(Long solicitadoPorId);
+
+    long countByPagadoPorId(Long pagadoPorId);
+
     List<OperationReturnPayment> findByOperacionId(Long operationId);
 
     @Query("""

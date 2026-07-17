@@ -169,4 +169,14 @@ public class CommercialPartnerController {
                 )
         );
     }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DIRECCION')")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+        commercialPartnerService.delete(id);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Socio comercial eliminado permanentemente", null, null)
+        );
+    }
 }

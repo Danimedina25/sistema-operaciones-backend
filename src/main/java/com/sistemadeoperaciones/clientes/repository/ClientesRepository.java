@@ -18,4 +18,6 @@ public interface ClientesRepository extends JpaRepository<Clientes, Long> {
     List<Clientes> findByUserIdOrderByNombreAsc(Long userId);
 
     List<Clientes> findTop20ByActivoTrueAndNombreContainingIgnoreCaseOrderByNombreAsc(String nombre);
+
+    long countByUserId(Long userId);
 }

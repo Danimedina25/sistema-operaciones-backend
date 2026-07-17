@@ -1,5 +1,7 @@
 package com.sistemadeoperaciones.usuarios.service;
 
+import com.sistemadeoperaciones.shared.audit.service.DeletionAuditService;
+import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.shared.enums.RoleName;
 import com.sistemadeoperaciones.usuarios.dto.response.CommercialPartnerSettingsResponseDto;
 import com.sistemadeoperaciones.usuarios.exceptions.*;
@@ -15,6 +17,7 @@ import com.sistemadeoperaciones.usuarios.repository.CommercialPartnerSettingsRep
 import com.sistemadeoperaciones.usuarios.repository.RoleRepository;
 import com.sistemadeoperaciones.usuarios.repository.UserRepository;
 import com.sistemadeoperaciones.usuarios.service.activation.UserActivationService;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,15 +33,24 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final RoleRepository roleRepository;
     private final UserActivationService userActivationService;
     private final CommercialPartnerSettingsRepository commercialPartnerSettingsRepository;
+    private final AuthenticatedUserService authenticatedUserService;
+    private final UserDeletionGuard userDeletionGuard;
+    private final DeletionAuditService deletionAuditService;
 
     public UserManagementServiceImpl(UserRepository userRepository,
                                      RoleRepository roleRepository,
                                      UserActivationService userActivationService,
-                                     CommercialPartnerSettingsRepository commercialPartnerSettingsRepository) {
+                                     CommercialPartnerSettingsRepository commercialPartnerSettingsRepository,
+                                     AuthenticatedUserService authenticatedUserService,
+                                     UserDeletionGuard userDeletionGuard,
+                                     DeletionAuditService deletionAuditService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.userActivationService = userActivationService;
         this.commercialPartnerSettingsRepository = commercialPartnerSettingsRepository;
+        this.authenticatedUserService = authenticatedUserService;
+        this.userDeletionGuard = userDeletionGuard;
+        this.deletionAuditService = deletionAuditService;
     }
 
     @Override
@@ -314,6 +326,26 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         User updated = userRepository.save(user);
         return mapToResponse(updated);
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long id) {
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        User target = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + id));
+
+        userDeletionGuard.assertCanDelete(currentUser, target);
+
+        deletionAuditService.record("USER", target.getId(), target.getNombre() + " (" + target.getCorreo() + ")", currentUser);
+
+        try {
+            userRepository.delete(target);
+            userRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            throw new BadRequestException("No se puede eliminar el usuario porque tiene información relacionada");
+        }
     }
 
     private UserResponseDto mapToResponse(User user) {

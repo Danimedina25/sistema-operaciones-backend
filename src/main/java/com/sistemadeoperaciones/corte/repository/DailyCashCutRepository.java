@@ -34,4 +34,6 @@ public interface DailyCashCutRepository extends JpaRepository<DailyCashCut, Long
             LocalDate fecha,
             DailyCashCutStatus estatus
     );
+
+    long countByGeneradoPorId(Long generadoPorId);
 }

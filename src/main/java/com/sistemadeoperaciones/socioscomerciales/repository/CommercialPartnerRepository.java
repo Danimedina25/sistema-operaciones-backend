@@ -8,4 +8,5 @@ public interface CommercialPartnerRepository
         extends JpaRepository<CommercialPartner, Long>,
         JpaSpecificationExecutor<CommercialPartner> {
 
+    long countBySocioComercialId(Long socioComercialId);
 }

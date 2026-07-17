@@ -72,6 +72,21 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(ex.getMessage(), HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(EntityHasDependenciesException.class)
+    public ResponseEntity<ApiResponse<Object>> handleEntityHasDependencies(EntityHasDependenciesException ex) {
+        ApiResponse<Object> response = new ApiResponse<>(false, ex.getMessage(), null, ex.getDependencies());
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Object>> handleDataIntegrityViolation(
+            org.springframework.dao.DataIntegrityViolationException ex) {
+        return buildErrorResponse(
+                "No es posible completar la operación porque el registro tiene información relacionada",
+                HttpStatus.CONFLICT
+        );
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Object>> handleAccessDeniedException(AccessDeniedException ex) {
         return buildErrorResponse("No tienes permisos para realizar esta acción", HttpStatus.FORBIDDEN);

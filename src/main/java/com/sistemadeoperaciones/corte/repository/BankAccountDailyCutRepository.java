@@ -53,6 +53,8 @@ public interface BankAccountDailyCutRepository
             LocalDate fecha
     );
 
+    long countByBankAccountId(Long bankAccountId);
+
     /**
      * Obtiene todos los cortes de una fecha ordenados por banco y cuenta.
      */

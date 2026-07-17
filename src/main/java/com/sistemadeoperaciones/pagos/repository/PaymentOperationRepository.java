@@ -50,4 +50,12 @@ public interface PaymentOperationRepository extends
             LocalDateTime start,
             LocalDateTime end
     );
+
+    long countByClienteId(Long clienteId);
+
+    long countBySocioComercialId(Long socioComercialId);
+
+    long countBySocioComercialNivel2Id(Long socioComercialNivel2Id);
+
+    long countBySocioComercialNivel3Id(Long socioComercialNivel3Id);
 }

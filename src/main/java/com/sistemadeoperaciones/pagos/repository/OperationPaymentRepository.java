@@ -21,6 +21,12 @@ public interface OperationPaymentRepository extends JpaRepository<OperationPayme
 
     long countByOperacionIdAndEstatus(Long operacionId, PaymentStatus estatus);
 
+    long countByCuentaDestinoId(Long cuentaDestinoId);
+
+    long countByRegistradoPorId(Long registradoPorId);
+
+    long countByValidadoPorId(Long validadoPorId);
+
     boolean existsByOperacionIdAndComprobanteUrlAndEstatusNot(
             Long operacionId,
             String comprobanteUrl,

@@ -9,17 +9,22 @@ import com.sistemadeoperaciones.clientes.exceptions.ClienteNameRequiredException
 import com.sistemadeoperaciones.clientes.exceptions.ClienteNotFoundException;
 import com.sistemadeoperaciones.clientes.model.Clientes;
 import com.sistemadeoperaciones.clientes.repository.ClientesRepository;
+import com.sistemadeoperaciones.pagos.repository.PaymentOperationRepository;
+import com.sistemadeoperaciones.shared.audit.service.DeletionAuditService;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.shared.enums.RoleName;
 import com.sistemadeoperaciones.shared.exception.BadRequestException;
+import com.sistemadeoperaciones.shared.exception.EntityHasDependenciesException;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
 import com.sistemadeoperaciones.usuarios.model.User;
 import com.sistemadeoperaciones.usuarios.repository.UserRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ClientesServiceImpl implements ClientesService {
@@ -27,15 +32,21 @@ public class ClientesServiceImpl implements ClientesService {
     private final ClientesRepository clientesRepository;
     private final UserRepository userRepository;
     private final AuthenticatedUserService authenticatedUserService;
+    private final PaymentOperationRepository paymentOperationRepository;
+    private final DeletionAuditService deletionAuditService;
 
     public ClientesServiceImpl(
             ClientesRepository clientesRepository,
             UserRepository userRepository,
-            AuthenticatedUserService authenticatedUserService
+            AuthenticatedUserService authenticatedUserService,
+            PaymentOperationRepository paymentOperationRepository,
+            DeletionAuditService deletionAuditService
     ) {
         this.clientesRepository = clientesRepository;
         this.userRepository = userRepository;
         this.authenticatedUserService = authenticatedUserService;
+        this.paymentOperationRepository = paymentOperationRepository;
+        this.deletionAuditService = deletionAuditService;
     }
 
     @Override
@@ -203,6 +214,30 @@ public class ClientesServiceImpl implements ClientesService {
         Clientes updated = clientesRepository.save(cliente);
 
         return mapToResponse(updated);
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long id) {
+        Clientes cliente = findClienteById(id);
+
+        long operaciones = paymentOperationRepository.countByClienteId(id);
+        if (operaciones > 0) {
+            throw new EntityHasDependenciesException(
+                    "No se puede eliminar el cliente porque tiene operaciones de pago registradas",
+                    Map.of("operaciones", operaciones)
+            );
+        }
+
+        User currentUser = authenticatedUserService.getCurrentUser();
+        deletionAuditService.record("CLIENTE", cliente.getId(), cliente.getNombre(), currentUser);
+
+        try {
+            clientesRepository.delete(cliente);
+            clientesRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            throw new BadRequestException("No se puede eliminar el cliente porque tiene información relacionada");
+        }
     }
 
     private Clientes findClienteById(Long id) {

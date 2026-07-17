@@ -1,30 +1,56 @@
 package com.sistemadeoperaciones.cuentasbancarias.service;
 
 
+import com.sistemadeoperaciones.corte.repository.BankAccountDailyCutRepository;
 import com.sistemadeoperaciones.cuentasbancarias.dto.BankAccountRequestDto;
 import com.sistemadeoperaciones.cuentasbancarias.dto.BankAccountResponseDto;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
+import com.sistemadeoperaciones.pagos.repository.OperationPaymentRepository;
+import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
+import com.sistemadeoperaciones.shared.audit.service.DeletionAuditService;
+import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.shared.crypto.CryptoService;
 import com.sistemadeoperaciones.shared.exception.BadRequestException;
+import com.sistemadeoperaciones.shared.exception.EntityHasDependenciesException;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
+import com.sistemadeoperaciones.usuarios.model.User;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class BankAccountServiceImpl implements BankAccountService {
 
     private final BankAccountRepository bankAccountRepository;
     private final CryptoService cryptoService;
+    private final OperationPaymentRepository operationPaymentRepository;
+    private final OperationReturnPaymentRepository operationReturnPaymentRepository;
+    private final BankAccountDailyCutRepository bankAccountDailyCutRepository;
+    private final AuthenticatedUserService authenticatedUserService;
+    private final DeletionAuditService deletionAuditService;
 
     public BankAccountServiceImpl(BankAccountRepository bankAccountRepository,
-                                  CryptoService cryptoService) {
+                                  CryptoService cryptoService,
+                                  OperationPaymentRepository operationPaymentRepository,
+                                  OperationReturnPaymentRepository operationReturnPaymentRepository,
+                                  BankAccountDailyCutRepository bankAccountDailyCutRepository,
+                                  AuthenticatedUserService authenticatedUserService,
+                                  DeletionAuditService deletionAuditService) {
         this.bankAccountRepository = bankAccountRepository;
         this.cryptoService = cryptoService;
+        this.operationPaymentRepository = operationPaymentRepository;
+        this.operationReturnPaymentRepository = operationReturnPaymentRepository;
+        this.bankAccountDailyCutRepository = bankAccountDailyCutRepository;
+        this.authenticatedUserService = authenticatedUserService;
+        this.deletionAuditService = deletionAuditService;
     }
 
     @Override
@@ -109,6 +135,41 @@ public class BankAccountServiceImpl implements BankAccountService {
 
         BankAccount updated = bankAccountRepository.save(bankAccount);
         return mapToResponseMasked(updated);
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long id) {
+        BankAccount bankAccount = bankAccountRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Cuenta bancaria no encontrada con id: " + id));
+
+        Map<String, Long> dependencies = new LinkedHashMap<>();
+
+        long pagosDestino = operationPaymentRepository.countByCuentaDestinoId(id);
+        if (pagosDestino > 0) dependencies.put("pagosComoDestino", pagosDestino);
+
+        long retornosOrigen = operationReturnPaymentRepository.countByCuentaOrigenId(id);
+        if (retornosOrigen > 0) dependencies.put("retornosComoOrigen", retornosOrigen);
+
+        long cortes = bankAccountDailyCutRepository.countByBankAccountId(id);
+        if (cortes > 0) dependencies.put("cortesDiarios", cortes);
+
+        if (!dependencies.isEmpty()) {
+            throw new EntityHasDependenciesException(
+                    "No se puede eliminar la cuenta bancaria porque tiene movimientos o cortes diarios asociados",
+                    dependencies
+            );
+        }
+
+        User currentUser = authenticatedUserService.getCurrentUser();
+        deletionAuditService.record("BANK_ACCOUNT", bankAccount.getId(), bankAccount.getBanco() + " - " + bankAccount.getTitular(), currentUser);
+
+        try {
+            bankAccountRepository.delete(bankAccount);
+            bankAccountRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            throw new BadRequestException("No se puede eliminar la cuenta bancaria porque tiene información relacionada");
+        }
     }
 
     private void validateUniqueFields(BankAccountRequestDto request, Long id) {

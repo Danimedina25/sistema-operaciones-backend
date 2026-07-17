@@ -136,4 +136,14 @@ public class UserManagementController {
                 new ApiResponse<>(true, "Usuario activado exitosamente", response, null)
         );
     }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DIRECCION')")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+        userManagementService.delete(id);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Usuario eliminado permanentemente", null, null)
+        );
+    }
 }

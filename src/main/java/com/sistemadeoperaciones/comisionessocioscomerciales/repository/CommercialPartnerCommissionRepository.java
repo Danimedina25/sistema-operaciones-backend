@@ -124,4 +124,8 @@ public interface CommercialPartnerCommissionRepository
             @Param("endDate") LocalDateTime endDate,
             @Param("status") CommissionStatus status
     );
+
+    long countByCommercialPartnerId(Long commercialPartnerId);
+
+    long countByUserId(Long userId);
 }

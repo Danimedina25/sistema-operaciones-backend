@@ -15,4 +15,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByCorreoAndIdNot(String correo, Long id);
     List<User> findDistinctByRoles_NameInAndActivoTrue(List<RoleName> roleNames);
+
+    long countByRoles_NameAndActivoTrue(RoleName roleName);
 }

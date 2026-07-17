@@ -18,4 +18,6 @@ public interface BankAccountService {
     BankAccountResponseDto deactivate(Long id);
 
     BankAccountResponseDto activate(Long id);
+
+    void delete(Long id);
 }

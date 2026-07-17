@@ -86,4 +86,14 @@ public class BankAccountController {
                 new ApiResponse<>(true, "Cuenta bancaria activada exitosamente", response, null)
         );
     }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DIRECCION')")
+    public ResponseEntity<ApiResponse<Void>> deleteBankAccount(@PathVariable Long id) {
+        bankAccountService.delete(id);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Cuenta bancaria eliminada permanentemente", null, null)
+        );
+    }
 }

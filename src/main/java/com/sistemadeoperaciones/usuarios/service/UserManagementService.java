@@ -26,4 +26,6 @@ public interface UserManagementService {
 
     UserResponseDto activate(Long id);
 
+    void delete(Long id);
+
 }
