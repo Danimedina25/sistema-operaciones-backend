@@ -37,7 +37,6 @@ import com.sistemadeoperaciones.shared.exception.BusinessException;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
 import com.sistemadeoperaciones.socioscomerciales.models.CommercialPartner;
 import com.sistemadeoperaciones.socioscomerciales.repository.CommercialPartnerRepository;
-import com.sistemadeoperaciones.usuarios.model.CommercialPartnerSettings;
 import com.sistemadeoperaciones.usuarios.model.User;
 import com.sistemadeoperaciones.usuarios.repository.CommercialPartnerSettingsRepository;
 import com.sistemadeoperaciones.usuarios.repository.UserRepository;
@@ -230,14 +229,14 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             );
         }
 
-        CommercialPartnerSettings settings =
-                commercialPartnerSettingsRepository
-                        .findByUsuarioId(socioComercial.getId())
-                        .orElseThrow(() ->
-                                new BusinessException(
-                                        "El socio comercial no tiene configuración de comisión registrada"
-                                )
-                        );
+        // No se bloquea la creación si el socio comercial nivel 1 no tiene
+        // configuración de comisión registrada (p. ej. un ADMIN que se asigna a
+        // sí mismo como nivel 1 nunca pasó por el alta de socio comercial). En
+        // ese caso su porcentaje de nivel 1 simplemente se fuerza a 0 más abajo
+        // — los niveles 2/3 (CommercialPartner) no dependen de esto y siguen
+        // calculándose normalmente si existen en la operación.
+        boolean socioComercialTieneConfiguracionComision =
+                commercialPartnerSettingsRepository.existsByUsuarioId(socioComercial.getId());
 
         // Solo ADMIN/GERENTE/DIRECCION pueden definir los porcentajes de comisión.
         // Un socio comercial no puede ver ni modificar estos valores: la operación
@@ -267,6 +266,10 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             porcentajeComisionSocioNivel1Efectivo = cliente.getPorcentajeComisionSocio();
             porcentajeComisionSocioNivel2Efectivo = cliente.getPorcentajeComisionSocio();
             porcentajeComisionSocioNivel3Efectivo = cliente.getPorcentajeComisionSocio();
+        }
+
+        if (!socioComercialTieneConfiguracionComision) {
+            porcentajeComisionSocioNivel1Efectivo = BigDecimal.ZERO;
         }
 
         validateCommissionTotal(
@@ -565,6 +568,13 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             porcentajeComisionSocioNivel3Efectivo = operation.getPorcentajeComisionSocioNivel3() != null
                     ? operation.getPorcentajeComisionSocioNivel3()
                     : cliente.getPorcentajeComisionSocio();
+        }
+
+        // Igual que en createOperation: si el socio comercial nivel 1 de la
+        // operación no tiene configuración de comisión registrada (p. ej. un
+        // ADMIN), su porcentaje de nivel 1 se mantiene forzado a 0.
+        if (!commercialPartnerSettingsRepository.existsByUsuarioId(socioComercial.getId())) {
+            porcentajeComisionSocioNivel1Efectivo = BigDecimal.ZERO;
         }
 
         validateCommissionTotal(
