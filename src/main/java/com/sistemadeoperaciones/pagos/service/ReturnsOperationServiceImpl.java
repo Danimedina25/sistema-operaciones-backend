@@ -617,7 +617,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
     private List<RoleName> resolveReturnNotificationRoles(PaymentType tipoPago) {
         if (tipoPago == PaymentType.TRANSFERENCIA || tipoPago == PaymentType.DEPOSITO) {
-            return List.of(RoleName.JEFA_CUENTAS, RoleName.ADMIN);
+            return List.of(RoleName.JEFA_CUENTAS, RoleName.AUXILIAR_CUENTAS, RoleName.ADMIN);
         }
 
         return List.of(RoleName.JEFA_CAJAS, RoleName.ADMIN);
@@ -645,7 +645,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             sendReturnRequestedNotification(
                     operation,
                     transferPayments,
-                    List.of(RoleName.JEFA_CUENTAS, RoleName.ADMIN)
+                    List.of(RoleName.JEFA_CUENTAS, RoleName.AUXILIAR_CUENTAS, RoleName.ADMIN)
             );
         }
 

@@ -163,7 +163,7 @@ public class ReturnsOperationController {
     }
 
     @GetMapping("/clients/{clientId}/destination-accounts")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL', 'JEFA_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<List<ReturnDestinationAccountSuggestionDto>>>
     findReturnDestinationAccounts(
             @PathVariable Long clientId
