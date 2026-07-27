@@ -3,6 +3,7 @@ package com.sistemadeoperaciones.pagos.service;
 import com.sistemadeoperaciones.clientes.exceptions.ClienteNotFoundException;
 import com.sistemadeoperaciones.clientes.model.Clientes;
 import com.sistemadeoperaciones.clientes.repository.ClientesRepository;
+import com.sistemadeoperaciones.configuraciones.service.ConfiguracionGeneralService;
 import com.sistemadeoperaciones.comisionessocioscomerciales.service.CommercialPartnerCommissionService;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
@@ -74,6 +75,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     private static final int MONEY_SCALE = 2;
     private final ClientesRepository clientesRepository;
     private final CommercialPartnerRepository commercialPartnerRepository;
+    private final ConfiguracionGeneralService configuracionGeneralService;
     public PaymentOperationServiceImpl(
             PaymentOperationRepository paymentOperationRepository,
             OperationPaymentRepository operationPaymentRepository,
@@ -85,7 +87,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             CommercialPartnerSettingsRepository commercialPartnerSettingsRepository,
             NotificationService notificationService,
             ClientesRepository clientesRepository,
-            CommercialPartnerRepository commercialPartnerRepository
+            CommercialPartnerRepository commercialPartnerRepository,
+            ConfiguracionGeneralService configuracionGeneralService
     ) {
         this.paymentOperationRepository = paymentOperationRepository;
         this.operationPaymentRepository = operationPaymentRepository;
@@ -98,6 +101,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         this.notificationService = notificationService;
         this.clientesRepository = clientesRepository;
         this.commercialPartnerRepository = commercialPartnerRepository;
+        this.configuracionGeneralService = configuracionGeneralService;
     }
 
     @Override
@@ -263,7 +267,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             porcentajeComisionSocioNivel2Efectivo = request.getPorcentajeComisionSocioNivel2();
             porcentajeComisionSocioNivel3Efectivo = request.getPorcentajeComisionSocioNivel3();
         } else {
-            porcentajeComisionOficinaEfectivo = cliente.getPorcentajeComisionOficina();
+            porcentajeComisionOficinaEfectivo = configuracionGeneralService.obtener().getPorcentajeComisionOficina();
             porcentajeComisionSocioNivel1Efectivo = commercialPartnerSettingsRepository
                     .findByUsuarioId(socioComercial.getId())
                     .map(CommercialPartnerSettings::getPorcentajeComision)

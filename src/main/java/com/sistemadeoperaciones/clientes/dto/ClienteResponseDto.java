@@ -1,6 +1,5 @@
 package com.sistemadeoperaciones.clientes.dto;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public class ClienteResponseDto {
@@ -9,8 +8,6 @@ public class ClienteResponseDto {
     private String nombre;
     private Boolean activo;
     private Integer nivelesRedComercial;
-    private BigDecimal porcentajeComisionSocio;
-    private BigDecimal porcentajeComisionOficina;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -22,8 +19,6 @@ public class ClienteResponseDto {
             String nombre,
             Boolean activo,
             Integer nivelesRedComercial,
-            BigDecimal porcentajeComisionSocio,
-            BigDecimal porcentajeComisionOficina,
             LocalDateTime createdAt,
             LocalDateTime updatedAt
     ) {
@@ -31,8 +26,6 @@ public class ClienteResponseDto {
         this.nombre = nombre;
         this.activo = activo;
         this.nivelesRedComercial = nivelesRedComercial;
-        this.porcentajeComisionSocio = porcentajeComisionSocio;
-        this.porcentajeComisionOficina = porcentajeComisionOficina;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -51,14 +44,6 @@ public class ClienteResponseDto {
 
     public Integer getNivelesRedComercial() {
         return nivelesRedComercial;
-    }
-
-    public BigDecimal getPorcentajeComisionSocio() {
-        return porcentajeComisionSocio;
-    }
-
-    public BigDecimal getPorcentajeComisionOficina() {
-        return porcentajeComisionOficina;
     }
 
     public LocalDateTime getCreatedAt() {
@@ -83,14 +68,6 @@ public class ClienteResponseDto {
 
     public void setNivelesRedComercial(Integer nivelesRedComercial) {
         this.nivelesRedComercial = nivelesRedComercial;
-    }
-
-    public void setPorcentajeComisionSocio(BigDecimal porcentajeComisionSocio) {
-        this.porcentajeComisionSocio = porcentajeComisionSocio;
-    }
-
-    public void setPorcentajeComisionOficina(BigDecimal porcentajeComisionOficina) {
-        this.porcentajeComisionOficina = porcentajeComisionOficina;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {

@@ -4,7 +4,6 @@ import com.sistemadeoperaciones.clientes.dto.ClienteResponseDto;
 import com.sistemadeoperaciones.clientes.dto.CreateClienteRequestDto;
 import com.sistemadeoperaciones.clientes.dto.UpdateClienteRequestDto;
 import com.sistemadeoperaciones.clientes.exceptions.ClienteAlreadyExistsException;
-import com.sistemadeoperaciones.clientes.exceptions.ClienteInvalidCommissionException;
 import com.sistemadeoperaciones.clientes.exceptions.ClienteNameRequiredException;
 import com.sistemadeoperaciones.clientes.exceptions.ClienteNotFoundException;
 import com.sistemadeoperaciones.clientes.model.Clientes;
@@ -22,7 +21,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -61,18 +59,6 @@ public class ClientesServiceImpl implements ClientesService {
             throw new ClienteAlreadyExistsException(request.getNombre());
         }
 
-        if (request.getPorcentajeComisionSocio().compareTo(BigDecimal.ZERO) < 0) {
-            throw new ClienteInvalidCommissionException(
-                    "El porcentaje de comisión por socio comercial no puede ser negativo"
-            );
-        }
-
-        if (request.getPorcentajeComisionOficina().compareTo(BigDecimal.ZERO) < 0) {
-            throw new ClienteInvalidCommissionException(
-                    "El porcentaje de comisión de oficina no puede ser negativo"
-            );
-        }
-
         User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Usuario no encontrado con id: " + request.getUserId()));
@@ -82,8 +68,6 @@ public class ClientesServiceImpl implements ClientesService {
         cliente.setNombre(request.getNombre().trim());
         cliente.setActivo(true);
         cliente.setNivelesRedComercial(request.getNivelesRedComercial());
-        cliente.setPorcentajeComisionSocio(request.getPorcentajeComisionSocio());
-        cliente.setPorcentajeComisionOficina(request.getPorcentajeComisionOficina());
 
         Clientes saved = clientesRepository.save(cliente);
 
@@ -171,23 +155,9 @@ public class ClientesServiceImpl implements ClientesService {
             throw new ClienteAlreadyExistsException(request.getNombre());
         }
 
-        if (request.getPorcentajeComisionSocio().compareTo(BigDecimal.ZERO) < 0) {
-            throw new ClienteInvalidCommissionException(
-                    "El porcentaje de comisión por socio comercial no puede ser negativo"
-            );
-        }
-
-        if (request.getPorcentajeComisionOficina().compareTo(BigDecimal.ZERO) < 0) {
-            throw new ClienteInvalidCommissionException(
-                    "El porcentaje de comisión de oficina no puede ser negativo"
-            );
-        }
-
         cliente.setNombre(request.getNombre().trim());
         cliente.setActivo(request.getActivo());
         cliente.setNivelesRedComercial(request.getNivelesRedComercial());
-        cliente.setPorcentajeComisionSocio(request.getPorcentajeComisionSocio());
-        cliente.setPorcentajeComisionOficina(request.getPorcentajeComisionOficina());
 
         Clientes updated = clientesRepository.save(cliente);
 
@@ -251,8 +221,6 @@ public class ClientesServiceImpl implements ClientesService {
                 cliente.getNombre(),
                 cliente.getActivo(),
                 cliente.getNivelesRedComercial(),
-                cliente.getPorcentajeComisionSocio(),
-                cliente.getPorcentajeComisionOficina(),
                 cliente.getCreatedAt(),
                 cliente.getUpdatedAt()
         );
