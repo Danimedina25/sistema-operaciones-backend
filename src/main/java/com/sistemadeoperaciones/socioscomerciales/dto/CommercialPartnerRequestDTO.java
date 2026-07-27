@@ -2,6 +2,8 @@ package com.sistemadeoperaciones.socioscomerciales.dto;
 
 import jakarta.validation.constraints.*;
 
+import java.math.BigDecimal;
+
 public class CommercialPartnerRequestDTO {
 
     @NotBlank(message = "El nombre es obligatorio")
@@ -21,6 +23,11 @@ public class CommercialPartnerRequestDTO {
     private String titularCuenta;
 
     private Boolean activo = true;
+
+    @NotNull(message = "El porcentaje de comisión es obligatorio")
+    @DecimalMin(value = "0.00", message = "El porcentaje de comisión no puede ser negativo")
+    @DecimalMax(value = "100.00", message = "El porcentaje de comisión no puede ser mayor a 100")
+    private BigDecimal porcentajeComision;
 
     public CommercialPartnerRequestDTO() {
     }
@@ -64,6 +71,14 @@ public class CommercialPartnerRequestDTO {
 
     public void setActivo(Boolean activo) {
         this.activo = activo;
+    }
+
+    public BigDecimal getPorcentajeComision() {
+        return porcentajeComision;
+    }
+
+    public void setPorcentajeComision(BigDecimal porcentajeComision) {
+        this.porcentajeComision = porcentajeComision;
     }
 
 }

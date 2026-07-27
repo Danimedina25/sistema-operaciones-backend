@@ -38,6 +38,7 @@ import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
 import com.sistemadeoperaciones.socioscomerciales.models.CommercialPartner;
 import com.sistemadeoperaciones.socioscomerciales.repository.CommercialPartnerRepository;
 import com.sistemadeoperaciones.usuarios.model.User;
+import com.sistemadeoperaciones.usuarios.model.CommercialPartnerSettings;
 import com.sistemadeoperaciones.usuarios.repository.CommercialPartnerSettingsRepository;
 import com.sistemadeoperaciones.usuarios.repository.UserRepository;
 import org.springframework.data.domain.Page;
@@ -263,9 +264,16 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             porcentajeComisionSocioNivel3Efectivo = request.getPorcentajeComisionSocioNivel3();
         } else {
             porcentajeComisionOficinaEfectivo = cliente.getPorcentajeComisionOficina();
-            porcentajeComisionSocioNivel1Efectivo = cliente.getPorcentajeComisionSocio();
-            porcentajeComisionSocioNivel2Efectivo = cliente.getPorcentajeComisionSocio();
-            porcentajeComisionSocioNivel3Efectivo = cliente.getPorcentajeComisionSocio();
+            porcentajeComisionSocioNivel1Efectivo = commercialPartnerSettingsRepository
+                    .findByUsuarioId(socioComercial.getId())
+                    .map(CommercialPartnerSettings::getPorcentajeComision)
+                    .orElse(BigDecimal.ZERO);
+            porcentajeComisionSocioNivel2Efectivo = socioNivel2 != null
+                    ? socioNivel2.getPorcentajeComision()
+                    : null;
+            porcentajeComisionSocioNivel3Efectivo = socioNivel3 != null
+                    ? socioNivel3.getPorcentajeComision()
+                    : null;
         }
 
         if (!socioComercialTieneConfiguracionComision) {
@@ -564,10 +572,10 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             porcentajeComisionSocioNivel1Efectivo = operation.getPorcentajeComisionSocio();
             porcentajeComisionSocioNivel2Efectivo = operation.getPorcentajeComisionSocioNivel2() != null
                     ? operation.getPorcentajeComisionSocioNivel2()
-                    : cliente.getPorcentajeComisionSocio();
+                    : (socioNivel2 != null ? socioNivel2.getPorcentajeComision() : null);
             porcentajeComisionSocioNivel3Efectivo = operation.getPorcentajeComisionSocioNivel3() != null
                     ? operation.getPorcentajeComisionSocioNivel3()
-                    : cliente.getPorcentajeComisionSocio();
+                    : (socioNivel3 != null ? socioNivel3.getPorcentajeComision() : null);
         }
 
         // Igual que en createOperation: si el socio comercial nivel 1 de la

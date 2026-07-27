@@ -36,6 +36,9 @@ public class CommercialPartnerSettings {
     @Column(name = "titular_cuenta", length = 150)
     private String titularCuenta;
 
+    @Column(name = "porcentaje_comision", nullable = false, precision = 5, scale = 2)
+    private BigDecimal porcentajeComision = BigDecimal.ZERO;
+
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updated_by")
@@ -127,6 +130,14 @@ public class CommercialPartnerSettings {
 
     public void setTitularCuenta(String titularCuenta) {
         this.titularCuenta = titularCuenta;
+    }
+
+    public BigDecimal getPorcentajeComision() {
+        return porcentajeComision;
+    }
+
+    public void setPorcentajeComision(BigDecimal porcentajeComision) {
+        this.porcentajeComision = porcentajeComision;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {

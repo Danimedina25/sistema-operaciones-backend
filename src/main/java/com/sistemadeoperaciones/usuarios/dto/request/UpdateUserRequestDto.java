@@ -31,6 +31,10 @@ public class UpdateUserRequestDto {
     @Size(max = 150, message = "El titular de la cuenta no puede exceder 150 caracteres")
     private String titularCuenta;
 
+    @DecimalMin(value = "0.00", message = "El porcentaje de comisión no puede ser negativo")
+    @DecimalMax(value = "100.00", message = "El porcentaje de comisión no puede ser mayor a 100")
+    private BigDecimal porcentajeComision;
+
     public UpdateUserRequestDto() {
     }
 
@@ -88,5 +92,13 @@ public class UpdateUserRequestDto {
 
     public void setTitularCuenta(String titularCuenta) {
         this.titularCuenta = titularCuenta;
+    }
+
+    public BigDecimal getPorcentajeComision() {
+        return porcentajeComision;
+    }
+
+    public void setPorcentajeComision(BigDecimal porcentajeComision) {
+        this.porcentajeComision = porcentajeComision;
     }
 }

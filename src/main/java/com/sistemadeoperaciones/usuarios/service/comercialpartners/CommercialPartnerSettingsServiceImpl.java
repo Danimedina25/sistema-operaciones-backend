@@ -67,7 +67,8 @@ public class CommercialPartnerSettingsServiceImpl implements CommercialPartnerSe
                 settings.getBanco(),
                 settings.getTitularCuenta(),
                 settings.getCreatedAt(),
-                settings.getUpdatedAt()
+                settings.getUpdatedAt(),
+                settings.getPorcentajeComision()
         );
     }
 }

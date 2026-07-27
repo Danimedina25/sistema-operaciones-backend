@@ -3,6 +3,7 @@ package com.sistemadeoperaciones.socioscomerciales.models;
 import com.sistemadeoperaciones.usuarios.model.User;
 import jakarta.persistence.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +30,9 @@ public class CommercialPartner {
 
     @Column(nullable = false)
     private Boolean activo = true;
+
+    @Column(name = "porcentaje_comision", nullable = false, precision = 5, scale = 2)
+    private BigDecimal porcentajeComision = BigDecimal.ZERO;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
@@ -123,5 +127,13 @@ public class CommercialPartner {
 
     public void setSocioComercial(User socioComercial) {
         this.socioComercial = socioComercial;
+    }
+
+    public BigDecimal getPorcentajeComision() {
+        return porcentajeComision;
+    }
+
+    public void setPorcentajeComision(BigDecimal porcentajeComision) {
+        this.porcentajeComision = porcentajeComision;
     }
 }

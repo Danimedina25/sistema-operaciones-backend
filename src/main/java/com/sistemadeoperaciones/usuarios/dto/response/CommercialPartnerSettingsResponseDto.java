@@ -14,13 +14,15 @@ public class CommercialPartnerSettingsResponseDto {
     private String banco;
     private String titularCuenta;
 
+    private BigDecimal porcentajeComision;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
     public CommercialPartnerSettingsResponseDto() {
     }
 
-    public CommercialPartnerSettingsResponseDto(Long id, Long userId, Boolean appliesToNetwork, String cuentaBancaria, String banco, String titularCuenta, LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public CommercialPartnerSettingsResponseDto(Long id, Long userId, Boolean appliesToNetwork, String cuentaBancaria, String banco, String titularCuenta, LocalDateTime createdAt, LocalDateTime updatedAt, BigDecimal porcentajeComision) {
         this.id = id;
         this.userId = userId;
         this.appliesToNetwork = appliesToNetwork;
@@ -29,6 +31,7 @@ public class CommercialPartnerSettingsResponseDto {
         this.titularCuenta = titularCuenta;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.porcentajeComision = porcentajeComision;
     }
 
     public Long getId() {
@@ -93,5 +96,13 @@ public class CommercialPartnerSettingsResponseDto {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public BigDecimal getPorcentajeComision() {
+        return porcentajeComision;
+    }
+
+    public void setPorcentajeComision(BigDecimal porcentajeComision) {
+        this.porcentajeComision = porcentajeComision;
     }
 }

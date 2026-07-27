@@ -1,5 +1,7 @@
 package com.sistemadeoperaciones.socioscomerciales.dto;
 
+import java.math.BigDecimal;
+
 public class CommercialPartnerResponseDto {
 
     private Long id;
@@ -17,10 +19,12 @@ public class CommercialPartnerResponseDto {
     private Long socioComercialId;
     private String socioComercialNombre;
 
+    private BigDecimal porcentajeComision;
+
     public CommercialPartnerResponseDto() {
     }
 
-    public CommercialPartnerResponseDto(Long id, String nombre, String cuentaBancaria, String banco, String titularCuenta, Boolean activo, Long socioComercialId, String socioComercialNombre) {
+    public CommercialPartnerResponseDto(Long id, String nombre, String cuentaBancaria, String banco, String titularCuenta, Boolean activo, Long socioComercialId, String socioComercialNombre, BigDecimal porcentajeComision) {
         this.id = id;
         this.nombre = nombre;
         this.cuentaBancaria = cuentaBancaria;
@@ -29,6 +33,7 @@ public class CommercialPartnerResponseDto {
         this.activo = activo;
         this.socioComercialId = socioComercialId;
         this.socioComercialNombre = socioComercialNombre;
+        this.porcentajeComision = porcentajeComision;
     }
 
     public Long getId() {
@@ -93,5 +98,13 @@ public class CommercialPartnerResponseDto {
 
     public void setSocioComercialNombre(String socioComercialNombre) {
         this.socioComercialNombre = socioComercialNombre;
+    }
+
+    public BigDecimal getPorcentajeComision() {
+        return porcentajeComision;
+    }
+
+    public void setPorcentajeComision(BigDecimal porcentajeComision) {
+        this.porcentajeComision = porcentajeComision;
     }
 }

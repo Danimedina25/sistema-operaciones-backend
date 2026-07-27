@@ -100,11 +100,18 @@ public class UserManagementServiceImpl implements UserManagementService {
                 throw new TitularCuentaRequiredException();
             }
 
+            if (request.getPorcentajeComision() == null) {
+                throw new BadRequestException(
+                        "El porcentaje de comisión es obligatorio"
+                );
+            }
+
             CommercialPartnerSettings settings = new CommercialPartnerSettings();
             settings.setUsuario(savedUser);
             settings.setBanco(request.getBanco());
             settings.setCuentaBancaria(request.getCuentaBancaria());
             settings.setTitularCuenta(request.getTitularCuenta());
+            settings.setPorcentajeComision(request.getPorcentajeComision());
             settings.setAppliesToNetwork(
                     request.getAppliesToNetwork() != null ? request.getAppliesToNetwork() : true
             );
@@ -227,6 +234,12 @@ public class UserManagementServiceImpl implements UserManagementService {
                 throw new TitularCuentaRequiredException();
             }
 
+            if (request.getPorcentajeComision() == null) {
+                throw new BadRequestException(
+                        "El porcentaje de comisión es obligatorio"
+                );
+            }
+
             if (existingSettingsOpt.isPresent()) {
 
                 CommercialPartnerSettings settings =
@@ -248,6 +261,10 @@ public class UserManagementServiceImpl implements UserManagementService {
 
                 settings.setTitularCuenta(
                         request.getTitularCuenta().trim()
+                );
+
+                settings.setPorcentajeComision(
+                        request.getPorcentajeComision()
                 );
 
                 settings.setUpdatedBy(null);
@@ -279,6 +296,10 @@ public class UserManagementServiceImpl implements UserManagementService {
 
                 settings.setTitularCuenta(
                         request.getTitularCuenta().trim()
+                );
+
+                settings.setPorcentajeComision(
+                        request.getPorcentajeComision()
                 );
 
                 settings.setUpdatedBy(null);
@@ -368,7 +389,8 @@ public class UserManagementServiceImpl implements UserManagementService {
                             settings.getBanco(),
                             settings.getTitularCuenta(),
                             settings.getCreatedAt(),
-                            settings.getUpdatedAt()
+                            settings.getUpdatedAt(),
+                            settings.getPorcentajeComision()
                     ))
                     .orElse(null);
         }

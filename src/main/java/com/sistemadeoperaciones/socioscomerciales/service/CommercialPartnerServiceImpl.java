@@ -70,6 +70,7 @@ public class CommercialPartnerServiceImpl implements CommercialPartnerService {
         partner.setBanco(request.getBanco());
         partner.setTitularCuenta(request.getTitularCuenta());
         partner.setSocioComercial(socioComercial);
+        partner.setPorcentajeComision(request.getPorcentajeComision());
         partner.setActivo(
                 request.getActivo() != null
                         ? request.getActivo()
@@ -167,6 +168,7 @@ public class CommercialPartnerServiceImpl implements CommercialPartnerService {
         partner.setCuentaBancaria(request.getCuentaBancaria());
         partner.setBanco(request.getBanco());
         partner.setTitularCuenta(request.getTitularCuenta());
+        partner.setPorcentajeComision(request.getPorcentajeComision());
         if (request.getActivo() != null) {
             partner.setActivo(request.getActivo());
         }
@@ -311,7 +313,8 @@ public class CommercialPartnerServiceImpl implements CommercialPartnerService {
                         : null,
                 partner.getSocioComercial() != null
                         ? partner.getSocioComercial().getNombre()
-                        : null
+                        : null,
+                partner.getPorcentajeComision()
         );
     }
 }
