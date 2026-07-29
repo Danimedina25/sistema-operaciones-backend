@@ -1185,7 +1185,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
     private void notifyPaymentSubmitted(PaymentOperation operation, OperationPayment payment) {
         notificationService.createForRoles(
-                List.of(RoleName.JEFA_CAJAS, RoleName.GERENTE, RoleName.ADMIN),
+                resolvePaymentSubmittedRoles(payment.getTipoPago()),
                 "Nuevo comprobante pendiente de validación",
                 "Se registró un nuevo comprobante de pago para la operación #" + operation.getId()
                         + " del cliente " + operation.getCliente().getNombre() + ".",
@@ -1196,6 +1196,20 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 "/operaciones/" + operation.getId() + "?scrollToPayments=true",
                 NotificationPriority.HIGH
         );
+    }
+
+    private List<RoleName> resolvePaymentSubmittedRoles(PaymentType tipoPago) {
+        if (tipoPago == PaymentType.TRANSFERENCIA
+                || tipoPago == PaymentType.DEPOSITO
+                || tipoPago == PaymentType.CHEQUE) {
+            return List.of(RoleName.JEFA_CUENTAS, RoleName.AUXILIAR_CUENTAS, RoleName.ADMIN);
+        }
+
+        if (tipoPago == PaymentType.EFECTIVO) {
+            return List.of(RoleName.JEFA_CAJAS, RoleName.ADMIN);
+        }
+
+        return List.of(RoleName.ADMIN); // RETIRO_SIN_TARJETA no aplica a ingresos
     }
 
     private void notifyPaymentValidated(OperationPayment payment) {
