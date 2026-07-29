@@ -23,7 +23,7 @@ public class BankAccountController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<BankAccountResponseDto>> createBankAccount(
             @Valid @RequestBody BankAccountRequestDto request
     ) {
@@ -55,7 +55,7 @@ public class BankAccountController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<BankAccountResponseDto>> updateBankAccount(
             @PathVariable Long id,
             @Valid @RequestBody BankAccountRequestDto request

@@ -185,7 +185,7 @@ public class PaymentOperationController {
     }
 
     @PatchMapping("/{operationId}/invoice")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS', 'JEFA_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> markAsInvoiced(
             @PathVariable Long operationId
     ) {
