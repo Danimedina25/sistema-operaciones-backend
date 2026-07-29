@@ -46,7 +46,7 @@ public class ClientesController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL', 'JEFA_CAJAS')")
     public ResponseEntity<ApiResponse<List<ClienteResponseDto>>> findAll() {
         List<ClienteResponseDto> response = clientesService.findAll();
 

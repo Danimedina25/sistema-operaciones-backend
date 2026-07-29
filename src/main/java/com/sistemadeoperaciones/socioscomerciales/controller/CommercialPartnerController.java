@@ -43,7 +43,7 @@ public class CommercialPartnerController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL', 'JEFA_CAJAS')")
     public ResponseEntity<ApiResponse<Page<CommercialPartnerResponseDto>>> findAll(
 
             @RequestParam(defaultValue = "0")
