@@ -52,6 +52,11 @@ public class ReturnPaymentResponseDto {
      */
     private String comprobanteUrl;
 
+    /**
+     * Archivo de nóminas adjuntado por el socio comercial al solicitar el retorno.
+     */
+    private String archivoNominaUrl;
+
     private String observaciones;
 
     /**
@@ -139,6 +144,10 @@ public class ReturnPaymentResponseDto {
         return comprobanteUrl;
     }
 
+    public String getArchivoNominaUrl() {
+        return archivoNominaUrl;
+    }
+
     public String getObservaciones() {
         return observaciones;
     }
@@ -217,6 +226,10 @@ public class ReturnPaymentResponseDto {
 
     public void setComprobanteUrl(String comprobanteUrl) {
         this.comprobanteUrl = comprobanteUrl;
+    }
+
+    public void setArchivoNominaUrl(String archivoNominaUrl) {
+        this.archivoNominaUrl = archivoNominaUrl;
     }
 
     public void setObservaciones(String observaciones) {

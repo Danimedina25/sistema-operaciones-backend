@@ -92,6 +92,13 @@ public class OperationReturnPayment {
     @Column(name = "comprobante_url", length = 500)
     private String comprobanteUrl;
 
+    /**
+     * Archivo de nóminas (generalmente un Excel) que el socio comercial
+     * adjunta al solicitar el retorno, para repartir el pago entre empleados.
+     */
+    @Column(name = "archivo_nomina_url", length = 500)
+    private String archivoNominaUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private ReturnPaymentStatus estatus;
@@ -175,6 +182,14 @@ public class OperationReturnPayment {
 
     public String getComprobanteUrl() {
         return comprobanteUrl;
+    }
+
+    public String getArchivoNominaUrl() {
+        return archivoNominaUrl;
+    }
+
+    public void setArchivoNominaUrl(String archivoNominaUrl) {
+        this.archivoNominaUrl = archivoNominaUrl;
     }
 
     public ReturnPaymentStatus getEstatus() {

@@ -41,6 +41,9 @@ public class CreateReturnPaymentRequestDto {
     @Size(max = 30, message = "El nombre del autorizado 3 no debe superar los 30 carácteres")
     private String autorizadoParaRecibirEfectivo3;
 
+    @Size(max = 500, message = "La URL del archivo de nóminas no puede exceder 500 caracteres")
+    private String archivoNominaUrl;
+
     public BigDecimal getMonto() {
         return monto;
     }
@@ -119,5 +122,13 @@ public class CreateReturnPaymentRequestDto {
 
     public void setAutorizadoParaRecibirEfectivo3(String autorizadoParaRecibirEfectivo3) {
         this.autorizadoParaRecibirEfectivo3 = autorizadoParaRecibirEfectivo3;
+    }
+
+    public String getArchivoNominaUrl() {
+        return archivoNominaUrl;
+    }
+
+    public void setArchivoNominaUrl(String archivoNominaUrl) {
+        this.archivoNominaUrl = archivoNominaUrl;
     }
 }

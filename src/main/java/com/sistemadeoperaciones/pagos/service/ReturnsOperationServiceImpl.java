@@ -119,6 +119,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                     returnPayment.setAutorizadoParaRecibirEfectivo1(paymentRequest.getAutorizadoParaRecibirEfectivo1());
                     returnPayment.setAutorizadoParaRecibirEfectivo2(paymentRequest.getAutorizadoParaRecibirEfectivo2());
                     returnPayment.setAutorizadoParaRecibirEfectivo3(paymentRequest.getAutorizadoParaRecibirEfectivo3());
+                    returnPayment.setArchivoNominaUrl(paymentRequest.getArchivoNominaUrl());
 
                     return returnPayment;
                 })
@@ -198,6 +199,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         returnPayment.setObservaciones(
                 request.getObservaciones()
         );
+        returnPayment.setArchivoNominaUrl(request.getArchivoNominaUrl());
 
         if (request.getTipoPago() == PaymentType.EFECTIVO || request.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA) {
 
@@ -739,6 +741,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         dto.setCuentaDestinoCliente(returnPayment.getCuentaDestinoCliente());
         dto.setCuentaClabeCliente(returnPayment.getCuentaClabeCliente());
         dto.setComprobanteUrl(returnPayment.getComprobanteUrl());
+        dto.setArchivoNominaUrl(returnPayment.getArchivoNominaUrl());
         dto.setObservaciones(returnPayment.getObservaciones());
         dto.setEstatus(returnPayment.getEstatus());
         dto.setFechaSolicitud(returnPayment.getFechaSolicitud());
