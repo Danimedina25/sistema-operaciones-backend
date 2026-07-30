@@ -430,6 +430,9 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
         List<PaymentOperationResponseDto> filteredContent = page.getContent()
                 .stream()
+                .filter(dto -> dto.getMontoTotalDevolverCliente()
+                        .subtract(dto.getMontoSolicitadoRetorno())
+                        .compareTo(BigDecimal.ZERO) > 0)
                 .toList();
 
         return new PageImpl<>(

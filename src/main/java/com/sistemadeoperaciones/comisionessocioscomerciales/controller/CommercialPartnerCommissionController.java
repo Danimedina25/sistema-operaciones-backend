@@ -161,7 +161,7 @@ public class CommercialPartnerCommissionController {
     }
 
     @PatchMapping("/{commissionId}/pay")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
     public ResponseEntity<ApiResponse<CommercialPartnerCommissionResponseDto>>
     markAsPaid(
             @PathVariable Long commissionId,
@@ -186,7 +186,7 @@ public class CommercialPartnerCommissionController {
 
     @PostMapping("/pay-batch")
     @PreAuthorize(
-            "hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')"
+            "hasAnyRole('ADMIN', 'GERENTE')"
     )
     public ResponseEntity<ApiResponse<Void>>
     markBatchAsPaid(
