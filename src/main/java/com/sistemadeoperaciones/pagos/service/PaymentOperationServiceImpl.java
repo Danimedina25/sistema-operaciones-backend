@@ -797,7 +797,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         }
 
         User validadoPor = authenticatedUserService.getCurrentUser();
-        validateCurrentUserCanValidatePayments();
+        validateCurrentUserCanValidatePayments(payment.getTipoPago());
 
         payment.setEstatus(PaymentStatus.VALIDADA);
         payment.setValidadoPor(validadoPor);
@@ -843,7 +843,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         }
 
         User validadoPor = authenticatedUserService.getCurrentUser();
-        validateCurrentUserCanValidatePayments();
+        validateCurrentUserCanValidatePayments(payment.getTipoPago());
 
         payment.setEstatus(PaymentStatus.RECHAZADA);
         payment.setValidadoPor(validadoPor);
@@ -853,6 +853,26 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         OperationPayment updated = operationPaymentRepository.save(payment);
         recalculateOperation(payment.getOperacion());
         notifyPaymentRejected(updated);
+
+        return mapToPaymentResponse(updated);
+    }
+
+    @Override
+    @Transactional
+    public OperationPaymentResponseDto updateValidationReceipt(Long paymentId, UpdatePaymentStatusRequestDto request) {
+        OperationPayment payment = operationPaymentRepository.findById(paymentId)
+                .orElseThrow(() -> new OperationPaymentNotFoundException(paymentId));
+
+        if (payment.getEstatus() != PaymentStatus.VALIDADA) {
+            throw new InvalidPaymentStatusException(
+                    "Solo se puede editar el comprobante de validación de pagos en estatus VALIDADA");
+        }
+
+        validateCurrentUserCanValidatePayments(payment.getTipoPago());
+
+        payment.setComprobanteValidacionUrl(request.getComprobanteValidacionUrl());
+
+        OperationPayment updated = operationPaymentRepository.save(payment);
 
         return mapToPaymentResponse(updated);
     }
@@ -1111,15 +1131,24 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         }
     }
 
-    private void validateCurrentUserCanValidatePayments() {
+    private void validateCurrentUserCanValidatePayments(PaymentType tipoPago) {
         User currentUser = authenticatedUserService.getCurrentUser();
 
-        boolean allowed = currentUser.getRoles().stream()
-                .anyMatch(role ->
-                        role.getName() == RoleName.JEFA_CAJAS
-                                || role.getName() == RoleName.GERENTE
-                                || role.getName() == RoleName.ADMIN
-                );
+        boolean isAdmin = currentUser.getRoles().stream()
+                .anyMatch(role -> role.getName() == RoleName.ADMIN);
+        boolean isGerenteODireccion = currentUser.getRoles().stream()
+                .anyMatch(role -> role.getName() == RoleName.GERENTE || role.getName() == RoleName.DIRECCION);
+        boolean isJefaCajas = currentUser.getRoles().stream()
+                .anyMatch(role -> role.getName() == RoleName.JEFA_CAJAS);
+        boolean isCuentas = currentUser.getRoles().stream()
+                .anyMatch(role -> role.getName() == RoleName.JEFA_CUENTAS || role.getName() == RoleName.AUXILIAR_CUENTAS);
+
+        boolean allowed = isAdmin
+                || isGerenteODireccion
+                || (tipoPago == PaymentType.EFECTIVO && isJefaCajas)
+                || ((tipoPago == PaymentType.TRANSFERENCIA
+                        || tipoPago == PaymentType.DEPOSITO
+                        || tipoPago == PaymentType.CHEQUE) && isCuentas);
 
         if (!allowed) {
             throw new BusinessException("El usuario autenticado no tiene permiso para validar o rechazar comprobantes");

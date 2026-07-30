@@ -103,6 +103,19 @@ public class PaymentOperationController {
         );
     }
 
+    @PatchMapping("/payments/{paymentId}/validation-receipt")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    public ResponseEntity<ApiResponse<OperationPaymentResponseDto>> updateValidationReceipt(
+            @PathVariable Long paymentId,
+            @Valid @RequestBody UpdatePaymentStatusRequestDto request
+    ) {
+        OperationPaymentResponseDto response = paymentOperationService.updateValidationReceipt(paymentId, request);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Comprobante de validación actualizado exitosamente", response, null)
+        );
+    }
+
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<Page<PaymentOperationResponseDto>>> findAll(

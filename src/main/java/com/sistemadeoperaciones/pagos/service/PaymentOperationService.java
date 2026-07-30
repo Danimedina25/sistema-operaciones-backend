@@ -20,6 +20,8 @@ public interface PaymentOperationService {
 
     OperationPaymentResponseDto rejectPayment(Long paymentId, UpdatePaymentStatusRequestDto request);
 
+    OperationPaymentResponseDto updateValidationReceipt(Long paymentId, UpdatePaymentStatusRequestDto request);
+
     PaymentOperationResponseDto findById(Long id);
 
     Page<PaymentOperationResponseDto> findAll(PaymentOperationFilterDto filter, Pageable pageable);
