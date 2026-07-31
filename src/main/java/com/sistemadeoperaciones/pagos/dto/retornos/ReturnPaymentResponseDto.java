@@ -74,6 +74,13 @@ public class ReturnPaymentResponseDto {
     private String pagadoPorNombre;
 
     /**
+     * Usuario (jefa de cajas) que marcó el efectivo como entregado
+     */
+    private Long entregadoPorId;
+
+    private String entregadoPorNombre;
+
+    /**
      * Fecha en que el socio comercial solicitó el retorno
      */
     private LocalDateTime fechaSolicitud;
@@ -82,6 +89,11 @@ public class ReturnPaymentResponseDto {
      * Fecha en que se realizó el retorno
      */
     private LocalDateTime fechaPago;
+
+    /**
+     * Fecha en que se marcó el efectivo como entregado
+     */
+    private LocalDateTime fechaEntrega;
 
     private LocalDateTime createdAt;
 
@@ -168,12 +180,24 @@ public class ReturnPaymentResponseDto {
         return pagadoPorNombre;
     }
 
+    public Long getEntregadoPorId() {
+        return entregadoPorId;
+    }
+
+    public String getEntregadoPorNombre() {
+        return entregadoPorNombre;
+    }
+
     public LocalDateTime getFechaSolicitud() {
         return fechaSolicitud;
     }
 
     public LocalDateTime getFechaPago() {
         return fechaPago;
+    }
+
+    public LocalDateTime getFechaEntrega() {
+        return fechaEntrega;
     }
 
     public LocalDateTime getCreatedAt() {
@@ -252,12 +276,24 @@ public class ReturnPaymentResponseDto {
         this.pagadoPorNombre = pagadoPorNombre;
     }
 
+    public void setEntregadoPorId(Long entregadoPorId) {
+        this.entregadoPorId = entregadoPorId;
+    }
+
+    public void setEntregadoPorNombre(String entregadoPorNombre) {
+        this.entregadoPorNombre = entregadoPorNombre;
+    }
+
     public void setFechaSolicitud(LocalDateTime fechaSolicitud) {
         this.fechaSolicitud = fechaSolicitud;
     }
 
     public void setFechaPago(LocalDateTime fechaPago) {
         this.fechaPago = fechaPago;
+    }
+
+    public void setFechaEntrega(LocalDateTime fechaEntrega) {
+        this.fechaEntrega = fechaEntrega;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {

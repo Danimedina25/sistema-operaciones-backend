@@ -122,11 +122,22 @@ public class OperationReturnPayment {
     @JoinColumn(name = "pagado_por")
     private User pagadoPor;
 
+    /**
+     * Usuario que marcó el efectivo/retiro sin tarjeta como entregado.
+     * Normalmente JEFA_CAJAS.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "entregado_por")
+    private User entregadoPor;
+
     @Column(name = "fecha_solicitud", nullable = false)
     private LocalDateTime fechaSolicitud;
 
     @Column(name = "fecha_pago")
     private LocalDateTime fechaPago;
+
+    @Column(name = "fecha_entrega")
+    private LocalDateTime fechaEntrega;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -208,12 +219,20 @@ public class OperationReturnPayment {
         return pagadoPor;
     }
 
+    public User getEntregadoPor() {
+        return entregadoPor;
+    }
+
     public LocalDateTime getFechaSolicitud() {
         return fechaSolicitud;
     }
 
     public LocalDateTime getFechaPago() {
         return fechaPago;
+    }
+
+    public LocalDateTime getFechaEntrega() {
+        return fechaEntrega;
     }
 
     public LocalDateTime getCreatedAt() {
@@ -292,12 +311,20 @@ public class OperationReturnPayment {
         this.pagadoPor = pagadoPor;
     }
 
+    public void setEntregadoPor(User entregadoPor) {
+        this.entregadoPor = entregadoPor;
+    }
+
     public void setFechaSolicitud(LocalDateTime fechaSolicitud) {
         this.fechaSolicitud = fechaSolicitud;
     }
 
     public void setFechaPago(LocalDateTime fechaPago) {
         this.fechaPago = fechaPago;
+    }
+
+    public void setFechaEntrega(LocalDateTime fechaEntrega) {
+        this.fechaEntrega = fechaEntrega;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {

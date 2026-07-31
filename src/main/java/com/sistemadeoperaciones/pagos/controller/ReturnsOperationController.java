@@ -205,6 +205,24 @@ public class ReturnsOperationController {
         );
     }
 
+    @PatchMapping("/payments/{returnPaymentId}/mark-cash-delivered")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CAJAS')")
+    public ResponseEntity<ApiResponse<ReturnPaymentResponseDto>> markCashReturnAsDelivered(
+            @PathVariable Long returnPaymentId
+    ) {
+        ReturnPaymentResponseDto response =
+                returnsOperationService.markCashReturnAsDelivered(returnPaymentId);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Efectivo marcado como entregado exitosamente",
+                        response,
+                        null
+                )
+        );
+    }
+
     @PatchMapping("/payments/{returnPaymentId}/confirm-cash-pickup")
     @PreAuthorize("hasRole('SOCIO_COMERCIAL')")
     public ResponseEntity<ApiResponse<ReturnPaymentResponseDto>> confirmCashReturnPickup(

@@ -749,6 +749,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         dto.setEstatus(returnPayment.getEstatus());
         dto.setFechaSolicitud(returnPayment.getFechaSolicitud());
         dto.setFechaPago(returnPayment.getFechaPago());
+        dto.setFechaEntrega(returnPayment.getFechaEntrega());
         dto.setCreatedAt(returnPayment.getCreatedAt());
         dto.setCuentaDestinoTitular(returnPayment.getCuentaDestinoTitular());
         dto.setCuentaDestinoBanco(returnPayment.getCuentaDestinoBanco());
@@ -770,6 +771,11 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         if (returnPayment.getPagadoPor() != null) {
             dto.setPagadoPorId(returnPayment.getPagadoPor().getId());
             dto.setPagadoPorNombre(returnPayment.getPagadoPor().getNombre());
+        }
+
+        if (returnPayment.getEntregadoPor() != null) {
+            dto.setEntregadoPorId(returnPayment.getEntregadoPor().getId());
+            dto.setEntregadoPorNombre(returnPayment.getEntregadoPor().getNombre());
         }
 
         return dto;
@@ -1022,7 +1028,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
     @Override
     @Transactional
-    public ReturnPaymentResponseDto confirmCashReturnPickup(Long returnPaymentId) {
+    public ReturnPaymentResponseDto markCashReturnAsDelivered(Long returnPaymentId) {
         OperationReturnPayment returnPayment =
                 operationReturnPaymentRepository.findById(returnPaymentId)
                         .orElseThrow(ReturnPaymentNotFoundException::new);
@@ -1033,6 +1039,60 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         }
 
         if (returnPayment.getEstatus() != ReturnPaymentStatus.EN_RECOLECCION) {
+            throw new InvalidReturnPaymentStatusException();
+        }
+
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        returnPayment.setEstatus(ReturnPaymentStatus.ENTREGADO);
+        returnPayment.setEntregadoPor(currentUser);
+        returnPayment.setFechaEntrega(LocalDateTime.now());
+
+        OperationReturnPayment saved =
+                operationReturnPaymentRepository.save(returnPayment);
+
+        notifyCashReturnDelivered(saved);
+
+        return mapReturnToResponse(saved);
+    }
+
+    private void notifyCashReturnDelivered(OperationReturnPayment returnPayment) {
+        PaymentOperation operation = returnPayment.getOperacion();
+
+        if (operation.getSocioComercial() == null) {
+            return;
+        }
+
+        notificationService.createForUser(
+                operation.getSocioComercial().getId(),
+                "Retorno en efectivo entregado",
+                "Se entregó tu retorno en efectivo por $"
+                        + returnPayment.getMonto()
+                        + " de la operación #"
+                        + operation.getId()
+                        + ". Confirma la recepción cuando lo tengas en tus manos.",
+                NotificationType.SYSTEM_ALERT,
+                NotificationModule.PAGOS,
+                NotificationReferenceType.PAYMENT_OPERATION,
+                operation.getId(),
+                "/operaciones/" + operation.getId() + "?scrollToReturns=true",
+                NotificationPriority.HIGH
+        );
+    }
+
+    @Override
+    @Transactional
+    public ReturnPaymentResponseDto confirmCashReturnPickup(Long returnPaymentId) {
+        OperationReturnPayment returnPayment =
+                operationReturnPaymentRepository.findById(returnPaymentId)
+                        .orElseThrow(ReturnPaymentNotFoundException::new);
+
+        if (returnPayment.getTipoPago() != PaymentType.EFECTIVO
+                && returnPayment.getTipoPago() != PaymentType.RETIRO_SIN_TARJETA) {
+            throw new InvalidCashReturnPaymentTypeException();
+        }
+
+        if (returnPayment.getEstatus() != ReturnPaymentStatus.ENTREGADO) {
             throw new InvalidReturnPaymentStatusException();
         }
 

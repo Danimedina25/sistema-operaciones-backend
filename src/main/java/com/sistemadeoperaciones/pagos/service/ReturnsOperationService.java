@@ -71,9 +71,15 @@ public interface ReturnsOperationService {
     );
 
     /**
+     * JEFA_CAJAS/ADMIN: marca que el efectivo/retiro sin tarjeta ya fue
+     * entregado al cliente, habilitando que el socio comercial confirme.
+     */
+    ReturnPaymentResponseDto markCashReturnAsDelivered(Long returnPaymentId);
+
+    /**
      * SOCIO_COMERCIAL (dueño de la operación):
      * Confirma que recibió el retorno en efectivo/retiro sin tarjeta
-     * previamente programado por jefa de cajas.
+     * previamente marcado como entregado por jefa de cajas.
      */
     ReturnPaymentResponseDto confirmCashReturnPickup(Long returnPaymentId);
 }
