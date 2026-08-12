@@ -223,9 +223,6 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             );
         }
 
-        validateClienteOwnership(cliente, socioComercial);
-
-
         boolean isAllowedUser = socioComercial.getRoles()
                 .stream()
                 .anyMatch(role -> role.getName() == RoleName.SOCIO_COMERCIAL);
@@ -462,8 +459,6 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                     "El usuario seleccionado debe tener el rol SOCIO_COMERCIAL"
             );
         }
-
-        validateClienteOwnership(cliente, socioComercial);
 
         CommercialPartner socioNivel2 = null;
         CommercialPartner socioNivel3 = null;
@@ -1515,14 +1510,6 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             throw new BusinessException("Debe seleccionar un socio comercial");
         }
         return requestedId;
-    }
-
-    private void validateClienteOwnership(Clientes cliente, User socioComercial) {
-        if (cliente.getUser() == null || !cliente.getUser().getId().equals(socioComercial.getId())) {
-            throw new BusinessException(
-                    "El cliente seleccionado no pertenece al socio comercial de la operación"
-            );
-        }
     }
 
     private OperationPaymentResponseDto mapToPaymentResponse(OperationPayment payment) {
