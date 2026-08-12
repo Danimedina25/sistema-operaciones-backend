@@ -59,9 +59,17 @@ public class ClientesServiceImpl implements ClientesService {
             throw new ClienteAlreadyExistsException(request.getNombre());
         }
 
-        User user = userRepository.findById(request.getUserId())
+        User currentUser = authenticatedUserService.getCurrentUser();
+        boolean canChooseOwner = hasAnyRole(currentUser, RoleName.ADMIN, RoleName.GERENTE, RoleName.DIRECCION);
+        Long ownerId = canChooseOwner ? request.getUserId() : currentUser.getId();
+
+        User user = userRepository.findById(ownerId)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Usuario no encontrado con id: " + request.getUserId()));
+                        "Usuario no encontrado con id: " + ownerId));
+
+        if (!Boolean.TRUE.equals(user.getActivo()) || !hasAnyRole(user, RoleName.SOCIO_COMERCIAL)) {
+            throw new BadRequestException("El cliente debe asignarse a un socio comercial activo");
+        }
 
         Clientes cliente = new Clientes();
         cliente.setUser(user);
@@ -72,6 +80,12 @@ public class ClientesServiceImpl implements ClientesService {
         Clientes saved = clientesRepository.save(cliente);
 
         return mapToResponse(saved);
+    }
+
+    private boolean hasAnyRole(User user, RoleName... roles) {
+        return user.getRoles().stream().anyMatch(role ->
+                java.util.Arrays.asList(roles).contains(role.getName())
+        );
     }
 
     @Override

@@ -17,6 +17,7 @@ import com.sistemadeoperaciones.usuarios.exceptions.EmailSendException;
 import com.sistemadeoperaciones.usuarios.model.UserActivationToken;
 import com.sistemadeoperaciones.usuarios.repository.UserActivationTokenRepository;
 import com.sistemadeoperaciones.usuarios.repository.UserRepository;
+import com.sistemadeoperaciones.usuarios.repository.CommercialPartnerSettingsRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.DisabledException;
@@ -26,6 +27,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,11 +42,13 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final String frontendPasswordResetUrl;
     private final EmailService emailService;
+    private final CommercialPartnerSettingsRepository commercialPartnerSettingsRepository;
 
     public AuthServiceImpl(AuthenticationManager authenticationManager,
                            AuthRepository authRepository,
                            JwtUtil jwtUtil,
                            UserRepository userRepository,
+                           CommercialPartnerSettingsRepository commercialPartnerSettingsRepository,
                            UserActivationTokenRepository userActivationTokenRepository,
                            PasswordEncoder passwordEncoder,
                            EmailService emailService,
@@ -55,6 +59,7 @@ public class AuthServiceImpl implements AuthService {
         this.authRepository = authRepository;
         this.jwtUtil = jwtUtil;
         this.userRepository = userRepository;
+        this.commercialPartnerSettingsRepository = commercialPartnerSettingsRepository;
         this.userActivationTokenRepository = userActivationTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
@@ -83,12 +88,18 @@ public class AuthServiceImpl implements AuthService {
                     .map(role -> role.getName().name())
                     .toList();
 
+            BigDecimal porcentajeComision = commercialPartnerSettingsRepository
+                    .findByUsuarioId(user.getId())
+                    .map(settings -> settings.getPorcentajeComision())
+                    .orElse(BigDecimal.ZERO);
+
             return new AuthResponse(
                     token,
                     user.getId(),
                     user.getCorreo(),
                     user.getNombre(),
-                    roles
+                    roles,
+                    porcentajeComision
             );
 
         } catch (UsuarioInactivoException e) {

@@ -110,6 +110,9 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             CreatePaymentOperationRequestDto request
     ) {
 
+        User currentUser = authenticatedUserService.getCurrentUser();
+        Long socioComercialId = resolveSocioComercialId(currentUser, request.getSocioComercialId());
+
         if (
                 request.getSocioComercialNivel3Id() != null &&
                         request.getSocioComercialNivel2Id() == null
@@ -120,11 +123,11 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         }
 
         User socioComercial = userRepository.findById(
-                request.getSocioComercialId()
+                socioComercialId
         ).orElseThrow(() ->
                 new ResourceNotFoundException(
                         "Socio comercial no encontrado con id: "
-                                + request.getSocioComercialId()
+                                + socioComercialId
                 )
         );
 
@@ -220,17 +223,16 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             );
         }
 
+        validateClienteOwnership(cliente, socioComercial);
+
 
         boolean isAllowedUser = socioComercial.getRoles()
                 .stream()
-                .anyMatch(role ->
-                        role.getName() == RoleName.SOCIO_COMERCIAL
-                                || role.getName() == RoleName.ADMIN
-                );
+                .anyMatch(role -> role.getName() == RoleName.SOCIO_COMERCIAL);
 
         if (!isAllowedUser) {
             throw new BusinessException(
-                    "El usuario seleccionado debe tener el rol SOCIO_COMERCIAL o ADMIN"
+                    "El usuario seleccionado debe tener el rol SOCIO_COMERCIAL"
             );
         }
 
@@ -247,8 +249,6 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         // Un socio comercial no puede ver ni modificar estos valores: la operación
         // se crea siempre con los porcentajes sugeridos del cliente, sin importar
         // lo que venga en el request.
-        User currentUser = authenticatedUserService.getCurrentUser();
-
         boolean canSetCommission = currentUser.getRoles().stream()
                 .anyMatch(role ->
                         role.getName() == RoleName.ADMIN
@@ -396,10 +396,26 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             UpdatePaymentOperationRequestDto request
     ) {
 
+        User currentUserUpdate = authenticatedUserService.getCurrentUser();
+        Long socioComercialId = resolveSocioComercialId(currentUserUpdate, request.getSocioComercialId());
+
         PaymentOperation operation = paymentOperationRepository.findById(operationId)
                 .orElseThrow(() ->
                         new PaymentOperationNotFoundException(operationId)
                 );
+
+        boolean socioSinPrivilegiosAdministrativos = currentUserUpdate.getRoles().stream()
+                .anyMatch(role -> role.getName() == RoleName.SOCIO_COMERCIAL)
+                && currentUserUpdate.getRoles().stream().noneMatch(role ->
+                        role.getName() == RoleName.ADMIN
+                                || role.getName() == RoleName.GERENTE
+                                || role.getName() == RoleName.DIRECCION
+                );
+        if (socioSinPrivilegiosAdministrativos
+                && (operation.getSocioComercial() == null
+                || !operation.getSocioComercial().getId().equals(currentUserUpdate.getId()))) {
+            throw new BusinessException("No tiene permisos para modificar esta operación");
+        }
 
         Clientes cliente = clientesRepository.findById(
                 request.getClienteId()
@@ -425,11 +441,11 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         }
 
         User socioComercial = userRepository.findById(
-                request.getSocioComercialId()
+                socioComercialId
         ).orElseThrow(() ->
                 new ResourceNotFoundException(
                         "Socio comercial no encontrado con id: "
-                                + request.getSocioComercialId()
+                                + socioComercialId
                 )
         );
 
@@ -439,16 +455,15 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         boolean isAllowedUser = socioComercial.getRoles()
                 .stream()
-                .anyMatch(role ->
-                        role.getName() == RoleName.SOCIO_COMERCIAL
-                                || role.getName() == RoleName.ADMIN
-                );
+                .anyMatch(role -> role.getName() == RoleName.SOCIO_COMERCIAL);
 
         if (!isAllowedUser) {
             throw new BusinessException(
-                    "El usuario seleccionado debe tener el rol SOCIO_COMERCIAL o ADMIN"
+                    "El usuario seleccionado debe tener el rol SOCIO_COMERCIAL"
             );
         }
+
+        validateClienteOwnership(cliente, socioComercial);
 
         CommercialPartner socioNivel2 = null;
         CommercialPartner socioNivel3 = null;
@@ -552,8 +567,6 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         // si activa un nivel que antes no tenía porcentaje asignado, se usa el
         // valor sugerido del cliente como default seguro (nunca lo que venga en
         // el request).
-        User currentUserUpdate = authenticatedUserService.getCurrentUser();
-
         boolean canSetCommissionUpdate = currentUserUpdate.getRoles().stream()
                 .anyMatch(role ->
                         role.getName() == RoleName.ADMIN
@@ -1462,14 +1475,6 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     ) {
 
         if (
-                socioComercial.getRoles()
-                        .stream()
-                        .anyMatch(role -> role.getName() == RoleName.ADMIN)
-        ) {
-            return;
-        }
-
-        if (
                 socioNivel2 != null &&
                         !socioNivel2.getSocioComercial().getId()
                                 .equals(socioComercial.getId())
@@ -1487,6 +1492,35 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         ) {
             throw new BusinessException(
                     "El socio comercial nivel 3 no pertenece al socio comercial seleccionado"
+            );
+        }
+    }
+
+    private Long resolveSocioComercialId(User currentUser, Long requestedId) {
+        boolean isSocioComercial = currentUser.getRoles().stream()
+                .anyMatch(role -> role.getName() == RoleName.SOCIO_COMERCIAL);
+        boolean canChoose = currentUser.getRoles().stream().anyMatch(role ->
+                role.getName() == RoleName.ADMIN
+                        || role.getName() == RoleName.GERENTE
+                        || role.getName() == RoleName.DIRECCION
+        );
+
+        if (isSocioComercial && !canChoose) {
+            return currentUser.getId();
+        }
+        if (!canChoose) {
+            throw new BusinessException("No tiene permisos para seleccionar un socio comercial");
+        }
+        if (requestedId == null) {
+            throw new BusinessException("Debe seleccionar un socio comercial");
+        }
+        return requestedId;
+    }
+
+    private void validateClienteOwnership(Clientes cliente, User socioComercial) {
+        if (cliente.getUser() == null || !cliente.getUser().getId().equals(socioComercial.getId())) {
+            throw new BusinessException(
+                    "El cliente seleccionado no pertenece al socio comercial de la operación"
             );
         }
     }
