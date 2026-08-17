@@ -948,7 +948,11 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                         toStartOfDay(startDate),
                         toEndOfDay(endDate)
                 ))
-                .and(PaymentOperationSpecification.matchesActivoFilter(filter.getActivo()));
+                .and(PaymentOperationSpecification.matchesActivoFilter(filter.getActivo()))
+                .and(PaymentOperationSpecification.hasPaymentTypeIn(filter.getPaymentTypes()))
+                .and(PaymentOperationSpecification.hasPaymentStatus(filter.getPaymentStatus()))
+                .and(PaymentOperationSpecification.hasPaymentCuentaDestinoId(filter.getCuentaDestinoId()))
+                .and(PaymentOperationSpecification.hasPaymentBanco(filter.getBanco()));
 
         return paymentOperationRepository.findAll(specification, pageable)
                 .map(this::mapToOperationResponse);
@@ -983,7 +987,11 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                         toStartOfDay(startDate),
                         toEndOfDay(endDate)
                 ))
-                .and(PaymentOperationSpecification.matchesActivoFilter(filter.getActivo()));
+                .and(PaymentOperationSpecification.matchesActivoFilter(filter.getActivo()))
+                .and(PaymentOperationSpecification.hasPaymentTypeIn(filter.getPaymentTypes()))
+                .and(PaymentOperationSpecification.hasPaymentStatus(filter.getPaymentStatus()))
+                .and(PaymentOperationSpecification.hasPaymentCuentaDestinoId(filter.getCuentaDestinoId()))
+                .and(PaymentOperationSpecification.hasPaymentBanco(filter.getBanco()));
 
         return paymentOperationRepository.findAll(specification, pageable)
                 .map(this::mapToOperationResponse);
@@ -1014,11 +1022,36 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                         toStartOfDay(startDate),
                         toEndOfDay(endDate)
                 ))
-                .and(PaymentOperationSpecification.matchesActivoFilter(filter.getActivo()));
+                .and(PaymentOperationSpecification.matchesActivoFilter(filter.getActivo()))
+                .and(PaymentOperationSpecification.hasPaymentTypeIn(filter.getPaymentTypes()))
+                .and(PaymentOperationSpecification.hasPaymentStatus(filter.getPaymentStatus()))
+                .and(PaymentOperationSpecification.hasPaymentCuentaDestinoId(filter.getCuentaDestinoId()))
+                .and(PaymentOperationSpecification.hasPaymentBanco(filter.getBanco()));
 
         return paymentOperationRepository.findAll(specification, pageable)
                 .map(this::mapToOperationResponse);
     }
+
+    private static final List<OperationStatus> FINAL_OPERATION_STATUSES = List.of(
+            OperationStatus.COMPLETADA,
+            OperationStatus.RETORNADA,
+            OperationStatus.RECHAZADA
+    );
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PaymentOperationResponseDto> findStalledOperations(int thresholdHours, Pageable pageable) {
+        LocalDateTime threshold = LocalDateTime.now().minusHours(thresholdHours);
+
+        Specification<PaymentOperation> specification = Specification
+                .where(PaymentOperationSpecification.matchesActivoFilter("ACTIVE"))
+                .and(PaymentOperationSpecification.hasStatusNotIn(FINAL_OPERATION_STATUSES))
+                .and(PaymentOperationSpecification.updatedAtBefore(threshold));
+
+        return paymentOperationRepository.findAll(specification, pageable)
+                .map(this::mapToOperationResponse);
+    }
+
     private LocalDate resolveStartDate(PaymentOperationFilterDto filter) {
         if (filter.getDateFilter() != null) {
             LocalDate today = LocalDate.now();

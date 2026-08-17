@@ -11,6 +11,11 @@ import com.sistemadeoperaciones.comisionessocioscomerciales.exceptions.Commissio
 import com.sistemadeoperaciones.comisionessocioscomerciales.exceptions.InvalidCommissionStructureException;
 import com.sistemadeoperaciones.comisionessocioscomerciales.models.CommercialPartnerCommission;
 import com.sistemadeoperaciones.comisionessocioscomerciales.repository.CommercialPartnerCommissionRepository;
+import com.sistemadeoperaciones.notifications.enums.NotificationModule;
+import com.sistemadeoperaciones.notifications.enums.NotificationPriority;
+import com.sistemadeoperaciones.notifications.enums.NotificationReferenceType;
+import com.sistemadeoperaciones.notifications.enums.NotificationType;
+import com.sistemadeoperaciones.notifications.service.NotificationService;
 import com.sistemadeoperaciones.pagos.enums.CommissionStatus;
 import com.sistemadeoperaciones.pagos.enums.OperationStatus;
 import com.sistemadeoperaciones.pagos.model.PaymentOperation;
@@ -26,6 +31,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -39,17 +45,20 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
     private final PaymentOperationRepository operationRepository;
     private final CommercialPartnerSettingsRepository commercialPartnerSettingsRepository;
     private final AuthenticatedUserService authenticatedUserService;
+    private final NotificationService notificationService;
 
     public CommercialPartnerCommissionServiceImpl(
             CommercialPartnerCommissionRepository commissionRepository,
             PaymentOperationRepository operationRepository,
             CommercialPartnerSettingsRepository commercialPartnerSettingsRepository,
-            AuthenticatedUserService authenticatedUserService
+            AuthenticatedUserService authenticatedUserService,
+            NotificationService notificationService
     ) {
         this.commissionRepository = commissionRepository;
         this.operationRepository = operationRepository;
         this.commercialPartnerSettingsRepository = commercialPartnerSettingsRepository;
         this.authenticatedUserService = authenticatedUserService;
+        this.notificationService = notificationService;
     }
 
 
@@ -424,10 +433,22 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                                 BigDecimal.ZERO,
                                 BigDecimal::add
                         );
+
+        BigDecimal totalMontoOperado =
+                socios.stream()
+                        .map(
+                                CommissionPartnerSummaryResponseDto::getMontoOperado
+                        )
+                        .reduce(
+                                BigDecimal.ZERO,
+                                BigDecimal::add
+                        );
+
         return new CommissionPartnerSummaryListResponseDto(
                 totalComisiones,
                 totalPagadas,
                 totalPendientes,
+                totalMontoOperado,
                 socios.size(),
                 socios
         );
@@ -571,6 +592,22 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                                     .distinct()
                                     .count();
 
+                    BigDecimal montoOperado =
+                            group.stream()
+                                    .collect(
+                                            java.util.stream.Collectors.toMap(
+                                                    c -> c.getOperation().getId(),
+                                                    c -> c.getOperation().getMontoTotal(),
+                                                    (existing, duplicate) -> existing
+                                            )
+                                    )
+                                    .values()
+                                    .stream()
+                                    .reduce(
+                                            BigDecimal.ZERO,
+                                            BigDecimal::add
+                                    );
+
                     List<Long> pendingCommissionIds =
                             group.stream()
                                     .filter(
@@ -593,6 +630,7 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                             cuentaBancaria,
                             titularCuenta,
                             totalOperaciones,
+                            montoOperado,
                             totalComisiones,
                             totalPendientes,
                             totalPagadas,
@@ -1056,10 +1094,32 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                 LocalDateTime.now()
         );
 
-        return mapToResponse(
-                commissionRepository.save(
-                        commission
-                )
+        CommercialPartnerCommission saved = commissionRepository.save(commission);
+
+        notifyCommissionPaid(saved.getUser(), saved.getCommissionAmount(), saved.getId());
+
+        return mapToResponse(saved);
+    }
+
+    /**
+     * Solo los beneficiarios nivel 1 (con cuenta de usuario) reciben la
+     * notificación — los CommercialPartner de nivel 2/3 no tienen login.
+     */
+    private void notifyCommissionPaid(User beneficiary, BigDecimal amount, Long commissionId) {
+        if (beneficiary == null) {
+            return;
+        }
+
+        notificationService.createForUser(
+                beneficiary.getId(),
+                "Comisión pagada",
+                "Se pagó tu comisión por $" + amount + ".",
+                NotificationType.COMMISSION_PAID,
+                NotificationModule.COMISIONES,
+                NotificationReferenceType.COMMISSION,
+                commissionId,
+                "/mis-comisiones",
+                NotificationPriority.MEDIUM
         );
     }
 
@@ -1106,6 +1166,8 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
         LocalDateTime paidAt =
                 LocalDateTime.now();
 
+        List<CommercialPartnerCommission> newlyPaid = new ArrayList<>();
+
         for (
                 CommercialPartnerCommission commission
                 : commissions
@@ -1129,10 +1191,46 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
             commission.setPaidAt(
                     paidAt
             );
+
+            newlyPaid.add(commission);
         }
 
         commissionRepository.saveAll(
                 commissions
+        );
+
+        notifyCommissionsBatchPaid(newlyPaid);
+    }
+
+    /**
+     * Envía UNA notificación agregada por beneficiario (no una por
+     * comisión) para no saturar al socio cuando se le pagan varias
+     * comisiones juntas en el mismo lote.
+     */
+    private void notifyCommissionsBatchPaid(List<CommercialPartnerCommission> newlyPaid) {
+        Map<Long, BigDecimal> totalByBeneficiaryUserId = newlyPaid.stream()
+                .filter(commission -> commission.getUser() != null)
+                .collect(Collectors.groupingBy(
+                        commission -> commission.getUser().getId(),
+                        Collectors.reducing(
+                                BigDecimal.ZERO,
+                                CommercialPartnerCommission::getCommissionAmount,
+                                BigDecimal::add
+                        )
+                ));
+
+        totalByBeneficiaryUserId.forEach((userId, totalAmount) ->
+                notificationService.createForUser(
+                        userId,
+                        "Comisiones pagadas",
+                        "Se pagaron tus comisiones por un total de $" + totalAmount + ".",
+                        NotificationType.COMMISSION_PAID,
+                        NotificationModule.COMISIONES,
+                        NotificationReferenceType.COMMISSION,
+                        null,
+                        "/mis-comisiones",
+                        NotificationPriority.MEDIUM
+                )
         );
     }
 

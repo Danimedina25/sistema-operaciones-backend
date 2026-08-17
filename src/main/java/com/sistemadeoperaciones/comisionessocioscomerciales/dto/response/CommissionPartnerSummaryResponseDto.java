@@ -22,6 +22,12 @@ public class CommissionPartnerSummaryResponseDto {
 
     private Integer totalOperaciones;
 
+    /**
+     * Suma de `montoTotal` de las operaciones (distintas, sin duplicar)
+     * que generaron comisión para este beneficiario en el periodo.
+     */
+    private BigDecimal montoOperado;
+
     private BigDecimal totalComisiones;
 
     private BigDecimal totalPendientes;
@@ -39,7 +45,7 @@ public class CommissionPartnerSummaryResponseDto {
     public CommissionPartnerSummaryResponseDto() {
     }
 
-    public CommissionPartnerSummaryResponseDto(Long beneficiaryId, CommissionBeneficiaryType beneficiaryType, String nombre, String banco, String cuentaBancaria, String titularCuenta, Integer totalOperaciones, BigDecimal totalComisiones, BigDecimal totalPendientes, BigDecimal totalPagadas, LocalDateTime fechaPagada, Integer totalComisionesPendientes, List<Long> commissionIdsToPay, String paymentProofUrl) {
+    public CommissionPartnerSummaryResponseDto(Long beneficiaryId, CommissionBeneficiaryType beneficiaryType, String nombre, String banco, String cuentaBancaria, String titularCuenta, Integer totalOperaciones, BigDecimal montoOperado, BigDecimal totalComisiones, BigDecimal totalPendientes, BigDecimal totalPagadas, LocalDateTime fechaPagada, Integer totalComisionesPendientes, List<Long> commissionIdsToPay, String paymentProofUrl) {
         this.beneficiaryId = beneficiaryId;
         this.beneficiaryType = beneficiaryType;
         this.nombre = nombre;
@@ -47,6 +53,7 @@ public class CommissionPartnerSummaryResponseDto {
         this.cuentaBancaria = cuentaBancaria;
         this.titularCuenta = titularCuenta;
         this.totalOperaciones = totalOperaciones;
+        this.montoOperado = montoOperado;
         this.totalComisiones = totalComisiones;
         this.totalPendientes = totalPendientes;
         this.totalPagadas = totalPagadas;
@@ -110,6 +117,14 @@ public class CommissionPartnerSummaryResponseDto {
 
     public void setTotalOperaciones(Integer totalOperaciones) {
         this.totalOperaciones = totalOperaciones;
+    }
+
+    public BigDecimal getMontoOperado() {
+        return montoOperado;
+    }
+
+    public void setMontoOperado(BigDecimal montoOperado) {
+        this.montoOperado = montoOperado;
     }
 
     public BigDecimal getTotalComisiones() {

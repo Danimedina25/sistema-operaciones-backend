@@ -16,6 +16,7 @@ import com.sistemadeoperaciones.pagos.model.OperationReturnPayment;
 import com.sistemadeoperaciones.pagos.model.PaymentOperation;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
 import com.sistemadeoperaciones.pagos.repository.PaymentOperationRepository;
+import com.sistemadeoperaciones.pagos.repository.specification.OperationReturnPaymentSpecification;
 import com.sistemadeoperaciones.pagos.repository.specification.PaymentOperationSpecification;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.shared.enums.RoleName;
@@ -452,6 +453,11 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             filter = new PaymentOperationFilterDto();
         }
 
+        List<ReturnPaymentStatus> returnStatuses =
+                filter.getReturnStatuses() != null && !filter.getReturnStatuses().isEmpty()
+                        ? filter.getReturnStatuses()
+                        : List.of(ReturnPaymentStatus.SOLICITADO, ReturnPaymentStatus.EN_RECOLECCION);
+
         Specification<PaymentOperation> specification = buildReturnOperationSpecification(
                 filter,
                 List.of(
@@ -459,9 +465,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                         OperationStatus.RETORNO_TOTAL_SOLICITADO,
                         OperationStatus.RETORNO_PARCIAL_ENTREGADO
                 )
-        ).and(PaymentOperationSpecification.hasReturnWithStatusIn(
-                List.of(ReturnPaymentStatus.SOLICITADO, ReturnPaymentStatus.EN_RECOLECCION)
-        ));
+        ).and(PaymentOperationSpecification.hasReturnWithStatusIn(returnStatuses));
 
         User currentUser = authenticatedUserService.getCurrentUser();
 
@@ -655,12 +659,37 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         }
 
         if (!cashPayments.isEmpty()) {
-            sendReturnRequestedNotification(
-                    operation,
-                    cashPayments,
-                    List.of(RoleName.JEFA_CAJAS, RoleName.ADMIN)
-            );
+            sendCashReturnRequestedNotification(operation, cashPayments);
         }
+    }
+
+    /**
+     * Notificación dedicada para retornos en efectivo/retiro sin tarjeta,
+     * distinta del SYSTEM_ALERT genérico usado para retornos por
+     * transferencia/depósito, para que el frontend pueda distinguirla
+     * (icono propio) y enlazar directo a la cola de retornos por pagar.
+     */
+    private void sendCashReturnRequestedNotification(
+            PaymentOperation operation,
+            List<OperationReturnPayment> cashPayments
+    ) {
+        BigDecimal totalRequested = cashPayments.stream()
+                .map(OperationReturnPayment::getMonto)
+                .map(this::safe)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        notificationService.createForRoles(
+                List.of(RoleName.JEFA_CAJAS, RoleName.ADMIN),
+                "Nueva solicitud de retorno en efectivo",
+                "Se solicitó un retorno en efectivo por $" + totalRequested
+                        + " para la operación #" + operation.getId() + ".",
+                NotificationType.CASH_RETURN_REQUESTED,
+                NotificationModule.PAGOS,
+                NotificationReferenceType.RETURN_PAYMENT,
+                cashPayments.get(0).getId(),
+                "/retornos-por-pagar/" + operation.getId(),
+                NotificationPriority.MEDIUM
+        );
     }
 
     private void sendReturnRequestedNotification(
@@ -739,6 +768,12 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         dto.setId(returnPayment.getId());
         dto.setOperationId(returnPayment.getOperacion().getId());
         dto.setClientId(returnPayment.getOperacion().getCliente().getId());
+        dto.setClienteNombre(returnPayment.getOperacion().getCliente().getNombre());
+
+        if (returnPayment.getOperacion().getSocioComercial() != null) {
+            dto.setSocioComercialNombre(returnPayment.getOperacion().getSocioComercial().getNombre());
+            dto.setSocioComercialTelefono(returnPayment.getOperacion().getSocioComercial().getTelefono());
+        }
         dto.setMonto(returnPayment.getMonto());
         dto.setTipoPago(returnPayment.getTipoPago());
         dto.setCuentaDestinoCliente(returnPayment.getCuentaDestinoCliente());
@@ -750,6 +785,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         dto.setFechaSolicitud(returnPayment.getFechaSolicitud());
         dto.setFechaPago(returnPayment.getFechaPago());
         dto.setFechaEntrega(returnPayment.getFechaEntrega());
+        dto.setFechaConfirmacionRecoleccion(returnPayment.getFechaConfirmacionRecoleccion());
         dto.setCreatedAt(returnPayment.getCreatedAt());
         dto.setCuentaDestinoTitular(returnPayment.getCuentaDestinoTitular());
         dto.setCuentaDestinoBanco(returnPayment.getCuentaDestinoBanco());
@@ -1108,8 +1144,11 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             );
         }
 
+        LocalDateTime confirmedAt = LocalDateTime.now();
+
         returnPayment.setEstatus(ReturnPaymentStatus.RETORNADO);
-        returnPayment.setFechaPago(LocalDateTime.now());
+        returnPayment.setFechaPago(confirmedAt);
+        returnPayment.setFechaConfirmacionRecoleccion(confirmedAt);
         returnPayment.setPagadoPor(currentUser);
 
         OperationReturnPayment saved =
@@ -1140,5 +1179,42 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 "/operaciones/" + operation.getId() + "?scrollToReturns=true",
                 NotificationPriority.HIGH
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ReturnPaymentResponseDto> findTodayCashDeliveries(
+            LocalDate fecha,
+            List<PaymentType> tipos,
+            Pageable pageable
+    ) {
+        LocalDate targetDate = fecha != null ? fecha : LocalDate.now();
+        LocalDateTime start = targetDate.atStartOfDay();
+        LocalDateTime end = targetDate.atTime(23, 59, 59);
+
+        List<PaymentType> tiposFiltro = tipos != null && !tipos.isEmpty()
+                ? tipos
+                : List.of(PaymentType.EFECTIVO, PaymentType.RETIRO_SIN_TARJETA);
+
+        Specification<OperationReturnPayment> specification = Specification
+                .where(OperationReturnPaymentSpecification.hasTipoPagoIn(tiposFiltro))
+                .and(OperationReturnPaymentSpecification.fechaRecoleccionBetween(start, end));
+
+        return operationReturnPaymentRepository.findAll(specification, pageable)
+                .map(this::mapReturnToResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ReturnPaymentResponseDto> findLateReturns(Pageable pageable) {
+        Specification<OperationReturnPayment> specification = Specification
+                .where(OperationReturnPaymentSpecification.hasTipoPagoIn(
+                        List.of(PaymentType.EFECTIVO, PaymentType.RETIRO_SIN_TARJETA)
+                ))
+                .and(OperationReturnPaymentSpecification.hasEstatus(ReturnPaymentStatus.EN_RECOLECCION))
+                .and(OperationReturnPaymentSpecification.fechaRecoleccionBetween(null, LocalDateTime.now()));
+
+        return operationReturnPaymentRepository.findAll(specification, pageable)
+                .map(this::mapReturnToResponse);
     }
 }

@@ -41,4 +41,12 @@ public interface PaymentOperationService {
     PaymentOperationResponseDto activate(Long id);
 
     PaymentOperationResponseDto deactivate(Long id);
+
+    /**
+     * ADMIN/GERENTE/DIRECCION:
+     * Operaciones activas, no finalizadas (excluye COMPLETADA, RETORNADA,
+     * RECHAZADA), sin actualizarse desde hace más de `thresholdHours`
+     * horas — ordenadas por `updatedAt` ascendente (las más antiguas primero).
+     */
+    Page<PaymentOperationResponseDto> findStalledOperations(int thresholdHours, Pageable pageable);
 }

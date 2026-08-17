@@ -24,6 +24,9 @@ public class CreateUserRequestDto {
     @NotNull(message = "El rol es obligatorio")
     private Long roleId;
 
+    @Size(max = 20, message = "El teléfono no puede exceder 20 caracteres")
+    private String telefono;
+
     // Solo aplica si el rol es SOCIO_COMERCIAL
     private Boolean appliesToNetwork = true;
 
@@ -43,10 +46,11 @@ public class CreateUserRequestDto {
     public CreateUserRequestDto() {
     }
 
-    public CreateUserRequestDto(String nombre, String correo, Long roleId, Boolean appliesToNetwork, String cuentaBancaria, String banco, String titularCuenta, BigDecimal porcentajeComision) {
+    public CreateUserRequestDto(String nombre, String correo, Long roleId, String telefono, Boolean appliesToNetwork, String cuentaBancaria, String banco, String titularCuenta, BigDecimal porcentajeComision) {
         this.nombre = nombre;
         this.correo = correo;
         this.roleId = roleId;
+        this.telefono = telefono;
         this.appliesToNetwork = appliesToNetwork;
         this.cuentaBancaria = cuentaBancaria;
         this.banco = banco;
@@ -76,6 +80,14 @@ public class CreateUserRequestDto {
 
     public void setRoleId(Long roleId) {
         this.roleId = roleId;
+    }
+
+    public String getTelefono() {
+        return telefono;
+    }
+
+    public void setTelefono(String telefono) {
+        this.telefono = telefono;
     }
 
     public Boolean getAppliesToNetwork() {

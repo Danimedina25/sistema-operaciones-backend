@@ -18,6 +18,9 @@ public class UpdateUserRequestDto {
     @NotNull(message = "El rol es obligatorio")
     private Long roleId;
 
+    @Size(max = 20, message = "El teléfono no puede exceder 20 caracteres")
+    private String telefono;
+
     private Boolean activo;
 
     private Boolean appliesToNetwork = true;
@@ -52,6 +55,14 @@ public class UpdateUserRequestDto {
 
     public void setRoleId(Long roleId) {
         this.roleId = roleId;
+    }
+
+    public String getTelefono() {
+        return telefono;
+    }
+
+    public void setTelefono(String telefono) {
+        this.telefono = telefono;
     }
 
     public Boolean getActivo() {

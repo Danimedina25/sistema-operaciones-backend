@@ -1,6 +1,8 @@
 package com.sistemadeoperaciones.pagos.repository.specification;
 
 import com.sistemadeoperaciones.pagos.enums.OperationStatus;
+import com.sistemadeoperaciones.pagos.enums.PaymentStatus;
+import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
 import com.sistemadeoperaciones.pagos.model.PaymentOperation;
 import jakarta.persistence.criteria.Join;
@@ -106,6 +108,83 @@ public final class PaymentOperationSpecification {
             }
 
             return root.get("estatus").in(statuses);
+        };
+    }
+
+    public static Specification<PaymentOperation> hasStatusNotIn(List<OperationStatus> statuses) {
+        return (root, query, cb) -> {
+            if (statuses == null || statuses.isEmpty()) {
+                return cb.conjunction();
+            }
+
+            return cb.not(root.get("estatus").in(statuses));
+        };
+    }
+
+    public static Specification<PaymentOperation> updatedAtBefore(LocalDateTime threshold) {
+        return (root, query, cb) -> {
+            if (threshold == null) {
+                return cb.conjunction();
+            }
+
+            return cb.lessThan(root.get("updatedAt"), threshold);
+        };
+    }
+
+    public static Specification<PaymentOperation> hasPaymentTypeIn(List<PaymentType> paymentTypes) {
+        return (root, query, cb) -> {
+            if (paymentTypes == null || paymentTypes.isEmpty()) {
+                return cb.conjunction();
+            }
+
+            query.distinct(true);
+
+            Join<Object, Object> pagos = root.join("pagos");
+
+            return pagos.get("tipoPago").in(paymentTypes);
+        };
+    }
+
+    public static Specification<PaymentOperation> hasPaymentStatus(PaymentStatus paymentStatus) {
+        return (root, query, cb) -> {
+            if (paymentStatus == null) {
+                return cb.conjunction();
+            }
+
+            query.distinct(true);
+
+            Join<Object, Object> pagos = root.join("pagos");
+
+            return cb.equal(pagos.get("estatus"), paymentStatus);
+        };
+    }
+
+    public static Specification<PaymentOperation> hasPaymentCuentaDestinoId(Long cuentaDestinoId) {
+        return (root, query, cb) -> {
+            if (cuentaDestinoId == null) {
+                return cb.conjunction();
+            }
+
+            query.distinct(true);
+
+            Join<Object, Object> pagos = root.join("pagos");
+
+            return cb.equal(pagos.get("cuentaDestino").get("id"), cuentaDestinoId);
+        };
+    }
+
+    public static Specification<PaymentOperation> hasPaymentBanco(String banco) {
+        return (root, query, cb) -> {
+            if (banco == null || banco.isBlank()) {
+                return cb.conjunction();
+            }
+
+            query.distinct(true);
+
+            Join<Object, Object> pagos = root.join("pagos");
+            Join<Object, Object> cuentaDestino = pagos.join("cuentaDestino");
+
+            return cb.equal(cuentaDestino.get("banco"), banco);
         };
     }
 

@@ -5,6 +5,7 @@ public class UserResponseDto {
     private Long id;
     private String nombre;
     private String correo;
+    private String telefono;
     private Boolean activo;
     private Long roleId;
     private String roleName;
@@ -15,12 +16,13 @@ public class UserResponseDto {
     public UserResponseDto() {
     }
 
-    public UserResponseDto(Long id, String nombre, String correo, Boolean activo, Long roleId, String roleName,
+    public UserResponseDto(Long id, String nombre, String correo, String telefono, Boolean activo, Long roleId, String roleName,
                            Boolean correoVerificado, Boolean debeCambiarPassword,
                            CommercialPartnerSettingsResponseDto commercialSettings) {
         this.id = id;
         this.nombre = nombre;
         this.correo = correo;
+        this.telefono = telefono;
         this.activo = activo;
         this.roleId = roleId;
         this.roleName = roleName;
@@ -39,6 +41,14 @@ public class UserResponseDto {
 
     public String getCorreo() {
         return correo;
+    }
+
+    public String getTelefono() {
+        return telefono;
+    }
+
+    public void setTelefono(String telefono) {
+        this.telefono = telefono;
     }
 
     public Boolean getActivo() {

@@ -23,6 +23,9 @@ public class User {
     @Column(length = 255)
     private String password;
 
+    @Column(length = 20)
+    private String telefono;
+
     @Column(nullable = false)
     private Boolean activo = true;
 
@@ -83,6 +86,14 @@ public class User {
 
     public String getPassword() {
         return password;
+    }
+
+    public String getTelefono() {
+        return telefono;
+    }
+
+    public void setTelefono(String telefono) {
+        this.telefono = telefono;
     }
 
     public Boolean getActivo() {

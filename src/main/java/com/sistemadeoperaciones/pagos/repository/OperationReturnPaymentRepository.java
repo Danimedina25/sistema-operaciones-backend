@@ -6,6 +6,7 @@ import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
 import com.sistemadeoperaciones.pagos.model.OperationReturnPayment;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -14,7 +15,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface OperationReturnPaymentRepository
-        extends JpaRepository<OperationReturnPayment, Long> {
+        extends JpaRepository<OperationReturnPayment, Long>,
+        JpaSpecificationExecutor<OperationReturnPayment> {
     @Query("""
         SELECT COALESCE(SUM(r.monto), 0)
         FROM OperationReturnPayment r

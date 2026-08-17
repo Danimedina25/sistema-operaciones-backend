@@ -139,6 +139,14 @@ public class OperationReturnPayment {
     @Column(name = "fecha_entrega")
     private LocalDateTime fechaEntrega;
 
+    /**
+     * Fecha en que el socio comercial confirmó haber recibido el
+     * efectivo/retiro sin tarjeta (PATCH .../confirm-cash-pickup).
+     * Distinta de fechaEntrega (cuándo JEFA_CAJAS entregó físicamente).
+     */
+    @Column(name = "fecha_confirmacion_recoleccion")
+    private LocalDateTime fechaConfirmacionRecoleccion;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -235,6 +243,10 @@ public class OperationReturnPayment {
         return fechaEntrega;
     }
 
+    public LocalDateTime getFechaConfirmacionRecoleccion() {
+        return fechaConfirmacionRecoleccion;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -325,6 +337,10 @@ public class OperationReturnPayment {
 
     public void setFechaEntrega(LocalDateTime fechaEntrega) {
         this.fechaEntrega = fechaEntrega;
+    }
+
+    public void setFechaConfirmacionRecoleccion(LocalDateTime fechaConfirmacionRecoleccion) {
+        this.fechaConfirmacionRecoleccion = fechaConfirmacionRecoleccion;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {

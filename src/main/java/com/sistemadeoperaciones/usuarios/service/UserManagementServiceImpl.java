@@ -65,9 +65,15 @@ public class UserManagementServiceImpl implements UserManagementService {
         Role role = roleRepository.findById(request.getRoleId())
                 .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado con id: " + request.getRoleId()));
 
+        if (requiresTelefono(role.getName())
+                && (request.getTelefono() == null || request.getTelefono().isBlank())) {
+            throw new TelefonoRequiredException();
+        }
+
         User user = new User();
         user.setNombre(request.getNombre().trim());
         user.setCorreo(correoNormalizado);
+        user.setTelefono(request.getTelefono() != null ? request.getTelefono().trim() : null);
         user.setPassword(null);
         user.setActivo(false);
         user.setDebeCambiarPassword(true);
@@ -198,7 +204,13 @@ public class UserManagementServiceImpl implements UserManagementService {
                                         + request.getRoleId()
                         ));
 
+        if (requiresTelefono(role.getName())
+                && (request.getTelefono() == null || request.getTelefono().isBlank())) {
+            throw new TelefonoRequiredException();
+        }
+
         user.setNombre(request.getNombre().trim());
+        user.setTelefono(request.getTelefono() != null ? request.getTelefono().trim() : null);
 
         if (request.getActivo() != null) {
             user.setActivo(request.getActivo());
@@ -399,6 +411,7 @@ public class UserManagementServiceImpl implements UserManagementService {
                 user.getId(),
                 user.getNombre(),
                 user.getCorreo(),
+                user.getTelefono(),
                 user.getActivo(),
                 roleId,
                 roleName,
@@ -406,5 +419,16 @@ public class UserManagementServiceImpl implements UserManagementService {
                 user.getDebeCambiarPassword(),
                 commercialSettings
         );
+    }
+
+    /**
+     * Roles que necesitan teléfono registrado para poder enviarles avisos
+     * por WhatsApp (retornos en efectivo programados, comisiones pagadas, etc.).
+     */
+    private boolean requiresTelefono(RoleName roleName) {
+        return roleName == RoleName.SOCIO_COMERCIAL
+                || roleName == RoleName.JEFA_CAJAS
+                || roleName == RoleName.JEFA_CUENTAS
+                || roleName == RoleName.AUXILIAR_CUENTAS;
     }
 }

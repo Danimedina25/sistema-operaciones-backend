@@ -167,6 +167,20 @@ public class PaymentOperationController {
         );
     }
 
+    @GetMapping("/stalled")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
+    public ResponseEntity<ApiResponse<Page<PaymentOperationResponseDto>>> findStalledOperations(
+            @RequestParam(defaultValue = "48") int thresholdHours,
+            @PageableDefault(size = 20, sort = "updatedAt", direction = Sort.Direction.ASC) Pageable pageable
+    ) {
+        Page<PaymentOperationResponseDto> response =
+                paymentOperationService.findStalledOperations(thresholdHours, pageable);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Operaciones detenidas obtenidas exitosamente", response, null)
+        );
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> findById(@PathVariable Long id) {

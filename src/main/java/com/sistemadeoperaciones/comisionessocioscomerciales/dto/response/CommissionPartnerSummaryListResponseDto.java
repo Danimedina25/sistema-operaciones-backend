@@ -11,6 +11,13 @@ public class CommissionPartnerSummaryListResponseDto {
 
     private BigDecimal totalPendientes;
 
+    /**
+     * Suma de `montoOperado` de todos los socios — volumen operado en el
+     * periodo que ya generó comisión (operaciones validadas), no todo lo
+     * creado.
+     */
+    private BigDecimal totalMontoOperado;
+
     private Integer totalBeneficiarios;
 
     private List<CommissionPartnerSummaryResponseDto> socios;
@@ -18,10 +25,11 @@ public class CommissionPartnerSummaryListResponseDto {
     public CommissionPartnerSummaryListResponseDto() {
     }
 
-    public CommissionPartnerSummaryListResponseDto(BigDecimal totalComisiones, BigDecimal totalPagadas, BigDecimal totalPendientes, Integer totalBeneficiarios, List<CommissionPartnerSummaryResponseDto> socios) {
+    public CommissionPartnerSummaryListResponseDto(BigDecimal totalComisiones, BigDecimal totalPagadas, BigDecimal totalPendientes, BigDecimal totalMontoOperado, Integer totalBeneficiarios, List<CommissionPartnerSummaryResponseDto> socios) {
         this.totalComisiones = totalComisiones;
         this.totalPagadas = totalPagadas;
         this.totalPendientes = totalPendientes;
+        this.totalMontoOperado = totalMontoOperado;
         this.totalBeneficiarios = totalBeneficiarios;
         this.socios = socios;
     }
@@ -48,6 +56,14 @@ public class CommissionPartnerSummaryListResponseDto {
 
     public void setTotalPendientes(BigDecimal totalPendientes) {
         this.totalPendientes = totalPendientes;
+    }
+
+    public BigDecimal getTotalMontoOperado() {
+        return totalMontoOperado;
+    }
+
+    public void setTotalMontoOperado(BigDecimal totalMontoOperado) {
+        this.totalMontoOperado = totalMontoOperado;
     }
 
     public Integer getTotalBeneficiarios() {

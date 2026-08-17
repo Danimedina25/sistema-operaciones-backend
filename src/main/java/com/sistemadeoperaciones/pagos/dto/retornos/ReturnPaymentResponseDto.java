@@ -15,6 +15,12 @@ public class ReturnPaymentResponseDto {
 
     private Long clientId;
 
+    private String clienteNombre;
+
+    private String socioComercialNombre;
+
+    private String socioComercialTelefono;
+
     private BigDecimal monto;
 
     private PaymentType tipoPago;
@@ -95,6 +101,12 @@ public class ReturnPaymentResponseDto {
      */
     private LocalDateTime fechaEntrega;
 
+    /**
+     * Fecha en que el socio comercial confirmó haber recibido el
+     * efectivo/retiro sin tarjeta, distinta de fechaEntrega.
+     */
+    private LocalDateTime fechaConfirmacionRecoleccion;
+
     private LocalDateTime createdAt;
 
     private String autorizadoParaRecibirEfectivo1;
@@ -122,6 +134,30 @@ public class ReturnPaymentResponseDto {
 
     public void setClientId(Long clientdId) {
         this.clientId = clientdId;
+    }
+
+    public String getClienteNombre() {
+        return clienteNombre;
+    }
+
+    public void setClienteNombre(String clienteNombre) {
+        this.clienteNombre = clienteNombre;
+    }
+
+    public String getSocioComercialNombre() {
+        return socioComercialNombre;
+    }
+
+    public void setSocioComercialNombre(String socioComercialNombre) {
+        this.socioComercialNombre = socioComercialNombre;
+    }
+
+    public String getSocioComercialTelefono() {
+        return socioComercialTelefono;
+    }
+
+    public void setSocioComercialTelefono(String socioComercialTelefono) {
+        this.socioComercialTelefono = socioComercialTelefono;
     }
 
     public BigDecimal getMonto() {
@@ -198,6 +234,14 @@ public class ReturnPaymentResponseDto {
 
     public LocalDateTime getFechaEntrega() {
         return fechaEntrega;
+    }
+
+    public LocalDateTime getFechaConfirmacionRecoleccion() {
+        return fechaConfirmacionRecoleccion;
+    }
+
+    public void setFechaConfirmacionRecoleccion(LocalDateTime fechaConfirmacionRecoleccion) {
+        this.fechaConfirmacionRecoleccion = fechaConfirmacionRecoleccion;
     }
 
     public LocalDateTime getCreatedAt() {
