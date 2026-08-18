@@ -23,7 +23,7 @@ public class BankAccountController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CUENTAS')")
     public ResponseEntity<ApiResponse<BankAccountResponseDto>> createBankAccount(
             @Valid @RequestBody BankAccountRequestDto request
     ) {
