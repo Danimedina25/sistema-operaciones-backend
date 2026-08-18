@@ -499,6 +499,11 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
 
                     String titularCuenta;
 
+                    // Solo se puebla para beneficiarios USER: CommercialPartner
+                    // (nivel 2/3, sin cuenta de usuario) no tiene columna de
+                    // teléfono en el sistema.
+                    String telefono;
+
                     if (first.getUser() != null) {
 
                         beneficiaryId =
@@ -509,6 +514,9 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
 
                         nombre =
                                 first.getUser().getNombre();
+
+                        telefono =
+                                first.getUser().getTelefono();
 
                         var settings =
                                 commercialPartnerSettingsRepository
@@ -542,6 +550,8 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
 
                         nombre =
                                 first.getCommercialPartner().getNombre();
+
+                        telefono = null;
 
                         banco =
                                 first.getCommercialPartner().getBanco();
@@ -661,6 +671,7 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                             banco,
                             cuentaBancaria,
                             titularCuenta,
+                            telefono,
                             totalOperaciones,
                             montoOperado,
                             totalComisiones,

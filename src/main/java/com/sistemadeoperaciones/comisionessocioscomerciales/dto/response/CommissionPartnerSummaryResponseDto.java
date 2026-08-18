@@ -20,6 +20,13 @@ public class CommissionPartnerSummaryResponseDto {
 
     private String titularCuenta;
 
+    /**
+     * Solo poblado cuando beneficiaryType == USER (User.telefono). Los
+     * CommercialPartner (nivel 2/3, sin cuenta de usuario) no tienen
+     * columna de teléfono en el sistema, así que queda null para ellos.
+     */
+    private String telefono;
+
     private Integer totalOperaciones;
 
     /**
@@ -53,13 +60,14 @@ public class CommissionPartnerSummaryResponseDto {
     public CommissionPartnerSummaryResponseDto() {
     }
 
-    public CommissionPartnerSummaryResponseDto(Long beneficiaryId, CommissionBeneficiaryType beneficiaryType, String nombre, String banco, String cuentaBancaria, String titularCuenta, Integer totalOperaciones, BigDecimal montoOperado, BigDecimal totalComisiones, BigDecimal totalPendientes, BigDecimal totalPagadas, LocalDateTime fechaPagada, Integer totalComisionesPendientes, List<Long> commissionIdsToPay, String paymentProofUrl, String estatus) {
+    public CommissionPartnerSummaryResponseDto(Long beneficiaryId, CommissionBeneficiaryType beneficiaryType, String nombre, String banco, String cuentaBancaria, String titularCuenta, String telefono, Integer totalOperaciones, BigDecimal montoOperado, BigDecimal totalComisiones, BigDecimal totalPendientes, BigDecimal totalPagadas, LocalDateTime fechaPagada, Integer totalComisionesPendientes, List<Long> commissionIdsToPay, String paymentProofUrl, String estatus) {
         this.beneficiaryId = beneficiaryId;
         this.beneficiaryType = beneficiaryType;
         this.nombre = nombre;
         this.banco = banco;
         this.cuentaBancaria = cuentaBancaria;
         this.titularCuenta = titularCuenta;
+        this.telefono = telefono;
         this.totalOperaciones = totalOperaciones;
         this.montoOperado = montoOperado;
         this.totalComisiones = totalComisiones;
@@ -118,6 +126,14 @@ public class CommissionPartnerSummaryResponseDto {
 
     public void setTitularCuenta(String titularCuenta) {
         this.titularCuenta = titularCuenta;
+    }
+
+    public String getTelefono() {
+        return telefono;
+    }
+
+    public void setTelefono(String telefono) {
+        this.telefono = telefono;
     }
 
     public Integer getTotalOperaciones() {

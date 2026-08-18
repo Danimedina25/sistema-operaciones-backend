@@ -19,6 +19,7 @@ public class PaymentOperationResponseDto {
     private OperationStatus estatus;
     private Long socioComercialId;
     private String socioComercialNombre;
+    private String socioComercialTelefono;
     private Long socioComercialNivel2Id;
     private String socioComercialNivel2Nombre;
     private Long socioComercialNivel3Id;
@@ -147,6 +148,14 @@ public class PaymentOperationResponseDto {
 
     public String getSocioComercialNombre() {
         return socioComercialNombre;
+    }
+
+    public String getSocioComercialTelefono() {
+        return socioComercialTelefono;
+    }
+
+    public void setSocioComercialTelefono(String socioComercialTelefono) {
+        this.socioComercialTelefono = socioComercialTelefono;
     }
 
     public Long getSocioComercialNivel2Id() {

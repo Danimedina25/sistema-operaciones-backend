@@ -844,6 +844,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         if (operation.getSocioComercial() != null) {
             dto.setSocioComercialId(operation.getSocioComercial().getId());
             dto.setSocioComercialNombre(operation.getSocioComercial().getNombre());
+            dto.setSocioComercialTelefono(operation.getSocioComercial().getTelefono());
         }
 
         dto.setNivelesRedComercial(operation.getNivelesRedComercial());

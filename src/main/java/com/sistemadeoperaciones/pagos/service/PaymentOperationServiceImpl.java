@@ -1373,6 +1373,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         if (operation.getSocioComercial() != null) {
             dto.setSocioComercialId(operation.getSocioComercial().getId());
             dto.setSocioComercialNombre(operation.getSocioComercial().getNombre());
+            dto.setSocioComercialTelefono(operation.getSocioComercial().getTelefono());
         }
 
         if (operation.getSocioComercialNivel2() != null) {
