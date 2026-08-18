@@ -608,11 +608,17 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                                             BigDecimal::add
                                     );
 
+                    // Excluye comisiones GENERADA de $0 (ej. nivel con
+                    // porcentaje 0%): no hay nada real que pagar en ellas,
+                    // y dejarlas en la lista de "pendientes por pagar"
+                    // contradice a totalPendientes (que sí da $0).
                     List<Long> pendingCommissionIds =
                             group.stream()
                                     .filter(
                                             c -> c.getStatus()
                                                     == CommissionStatus.GENERADA
+                                                    && c.getCommissionAmount()
+                                                    .compareTo(BigDecimal.ZERO) > 0
                                     )
                                     .map(
                                             CommercialPartnerCommission::getId
@@ -621,6 +627,27 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
 
                     Integer totalComisionesPendientes =
                             pendingCommissionIds.size();
+
+                    CommercialPartnerCommission latestPaid =
+                            group.stream()
+                                    .filter(
+                                            c -> c.getStatus()
+                                                    == CommissionStatus.PAGADA
+                                    )
+                                    .max(
+                                            Comparator.comparing(
+                                                    CommercialPartnerCommission::getPaidAt,
+                                                    Comparator.nullsFirst(Comparator.naturalOrder())
+                                            )
+                                    )
+                                    .orElse(null);
+
+                    String estatus =
+                            pendingCommissionIds.isEmpty()
+                                    ? "PAGADA"
+                                    : totalPagadas.compareTo(BigDecimal.ZERO) == 0
+                                    ? "PENDIENTE"
+                                    : "PARCIAL";
 
                     return new CommissionPartnerSummaryResponseDto(
                             beneficiaryId,
@@ -634,10 +661,11 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                             totalComisiones,
                             totalPendientes,
                             totalPagadas,
-                            first.getPaidAt(),
+                            latestPaid != null ? latestPaid.getPaidAt() : null,
                             totalComisionesPendientes,
                             pendingCommissionIds,
-                            first.getPaymentProofUrl()
+                            latestPaid != null ? latestPaid.getPaymentProofUrl() : null,
+                            estatus
                     );
                 })
 

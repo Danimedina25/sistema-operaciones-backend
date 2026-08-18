@@ -42,10 +42,18 @@ public class CommissionPartnerSummaryResponseDto {
 
     private String paymentProofUrl;
 
+    /**
+     * Estatus autoritativo calculado en el servidor a partir de
+     * commissionIdsToPay (PAGADA/PARCIAL/PENDIENTE), para que el frontend
+     * no tenga que derivarlo por su cuenta a partir de totalPendientes
+     * (que puede dar 0 con comisiones $0 aún GENERADA).
+     */
+    private String estatus;
+
     public CommissionPartnerSummaryResponseDto() {
     }
 
-    public CommissionPartnerSummaryResponseDto(Long beneficiaryId, CommissionBeneficiaryType beneficiaryType, String nombre, String banco, String cuentaBancaria, String titularCuenta, Integer totalOperaciones, BigDecimal montoOperado, BigDecimal totalComisiones, BigDecimal totalPendientes, BigDecimal totalPagadas, LocalDateTime fechaPagada, Integer totalComisionesPendientes, List<Long> commissionIdsToPay, String paymentProofUrl) {
+    public CommissionPartnerSummaryResponseDto(Long beneficiaryId, CommissionBeneficiaryType beneficiaryType, String nombre, String banco, String cuentaBancaria, String titularCuenta, Integer totalOperaciones, BigDecimal montoOperado, BigDecimal totalComisiones, BigDecimal totalPendientes, BigDecimal totalPagadas, LocalDateTime fechaPagada, Integer totalComisionesPendientes, List<Long> commissionIdsToPay, String paymentProofUrl, String estatus) {
         this.beneficiaryId = beneficiaryId;
         this.beneficiaryType = beneficiaryType;
         this.nombre = nombre;
@@ -61,6 +69,7 @@ public class CommissionPartnerSummaryResponseDto {
         this.totalComisionesPendientes = totalComisionesPendientes;
         this.commissionIdsToPay = commissionIdsToPay;
         this.paymentProofUrl = paymentProofUrl;
+        this.estatus = estatus;
     }
 
     public Long getBeneficiaryId() {
@@ -181,5 +190,13 @@ public class CommissionPartnerSummaryResponseDto {
 
     public void setFechaPagada(LocalDateTime fechaPagada) {
         this.fechaPagada = fechaPagada;
+    }
+
+    public String getEstatus() {
+        return estatus;
+    }
+
+    public void setEstatus(String estatus) {
+        this.estatus = estatus;
     }
 }
