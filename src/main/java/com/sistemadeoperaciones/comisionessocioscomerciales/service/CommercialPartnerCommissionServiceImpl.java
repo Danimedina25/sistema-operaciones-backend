@@ -642,11 +642,16 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                                     )
                                     .orElse(null);
 
+                    // Debe revisar primero si algo se pagó de verdad: un
+                    // beneficiario cuya única comisión sea GENERADA de $0
+                    // (excluida arriba de pendingCommissionIds) tiene esa
+                    // lista vacía pero totalPagadas también en $0 — nunca
+                    // se le pagó nada, así que no puede marcarse "PAGADA".
                     String estatus =
-                            pendingCommissionIds.isEmpty()
-                                    ? "PAGADA"
-                                    : totalPagadas.compareTo(BigDecimal.ZERO) == 0
+                            totalPagadas.compareTo(BigDecimal.ZERO) == 0
                                     ? "PENDIENTE"
+                                    : pendingCommissionIds.isEmpty()
+                                    ? "PAGADA"
                                     : "PARCIAL";
 
                     return new CommissionPartnerSummaryResponseDto(
