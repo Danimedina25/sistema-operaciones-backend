@@ -1063,6 +1063,12 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         );
     }
 
+    /**
+     * Paso final del flujo de efectivo: JEFA_CAJAS cierra el retorno después
+     * de que el socio comercial ya confirmó haberlo recogido
+     * (confirmCashReturnPickup). Antes era al revés — se invirtió el orden
+     * de estos dos pasos a propósito, sin cambiar de método ni de rol.
+     */
     @Override
     @Transactional
     public ReturnPaymentResponseDto markCashReturnAsDelivered(Long returnPaymentId) {
@@ -1075,18 +1081,21 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             throw new InvalidCashReturnPaymentTypeException();
         }
 
-        if (returnPayment.getEstatus() != ReturnPaymentStatus.EN_RECOLECCION) {
+        if (returnPayment.getEstatus() != ReturnPaymentStatus.ENTREGADO) {
             throw new InvalidReturnPaymentStatusException();
         }
 
         User currentUser = authenticatedUserService.getCurrentUser();
+        PaymentOperation operation = returnPayment.getOperacion();
 
-        returnPayment.setEstatus(ReturnPaymentStatus.ENTREGADO);
+        returnPayment.setEstatus(ReturnPaymentStatus.RETORNADO);
         returnPayment.setEntregadoPor(currentUser);
         returnPayment.setFechaEntrega(LocalDateTime.now());
 
         OperationReturnPayment saved =
                 operationReturnPaymentRepository.save(returnPayment);
+
+        updateOperationStatusAfterReturnRealized(operation);
 
         notifyCashReturnDelivered(saved);
 
@@ -1102,12 +1111,12 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
         notificationService.createForUser(
                 operation.getSocioComercial().getId(),
-                "Retorno en efectivo entregado",
-                "Se entregó tu retorno en efectivo por $"
+                "Retorno en efectivo confirmado",
+                "Tu retorno en efectivo por $"
                         + returnPayment.getMonto()
                         + " de la operación #"
                         + operation.getId()
-                        + ". Confirma la recepción cuando lo tengas en tus manos.",
+                        + " fue confirmado y cerrado.",
                 NotificationType.SYSTEM_ALERT,
                 NotificationModule.PAGOS,
                 NotificationReferenceType.PAYMENT_OPERATION,
@@ -1117,6 +1126,12 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         );
     }
 
+    /**
+     * Primer paso del socio tras la recolección programada: confirma que
+     * recogió/recibió el efectivo. Ya no es el paso final — ahora deja el
+     * retorno en ENTREGADO, pendiente de que JEFA_CAJAS lo cierre con
+     * markCashReturnAsDelivered.
+     */
     @Override
     @Transactional
     public ReturnPaymentResponseDto confirmCashReturnPickup(Long returnPaymentId) {
@@ -1129,7 +1144,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             throw new InvalidCashReturnPaymentTypeException();
         }
 
-        if (returnPayment.getEstatus() != ReturnPaymentStatus.ENTREGADO) {
+        if (returnPayment.getEstatus() != ReturnPaymentStatus.EN_RECOLECCION) {
             throw new InvalidReturnPaymentStatusException();
         }
 
@@ -1147,15 +1162,13 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
         LocalDateTime confirmedAt = LocalDateTime.now();
 
-        returnPayment.setEstatus(ReturnPaymentStatus.RETORNADO);
+        returnPayment.setEstatus(ReturnPaymentStatus.ENTREGADO);
         returnPayment.setFechaPago(confirmedAt);
         returnPayment.setFechaConfirmacionRecoleccion(confirmedAt);
         returnPayment.setPagadoPor(currentUser);
 
         OperationReturnPayment saved =
                 operationReturnPaymentRepository.save(returnPayment);
-
-        updateOperationStatusAfterReturnRealized(operation);
 
         notifyCashReturnPickupConfirmed(saved);
 
@@ -1167,17 +1180,17 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
         notificationService.createForRoles(
                 List.of(RoleName.JEFA_CAJAS, RoleName.ADMIN),
-                "Retorno en efectivo confirmado",
+                "Socio confirmó recolección de efectivo",
                 "El socio comercial confirmó haber recibido el retorno en efectivo por $"
                         + returnPayment.getMonto()
                         + " de la operación #"
                         + operation.getId()
-                        + ".",
+                        + ". Puedes cerrarlo desde Entregas de hoy.",
                 NotificationType.SYSTEM_ALERT,
                 NotificationModule.PAGOS,
                 NotificationReferenceType.PAYMENT_OPERATION,
                 operation.getId(),
-                "/operaciones/" + operation.getId() + "?scrollToReturns=true",
+                "/entregas-de-hoy",
                 NotificationPriority.HIGH
         );
     }
