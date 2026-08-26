@@ -779,6 +779,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         dto.setCuentaDestinoCliente(returnPayment.getCuentaDestinoCliente());
         dto.setCuentaClabeCliente(returnPayment.getCuentaClabeCliente());
         dto.setComprobanteUrl(returnPayment.getComprobanteUrl());
+        dto.setComprobanteEntregaEfectivoUrl(returnPayment.getComprobanteEntregaEfectivoUrl());
         dto.setArchivoNominaUrl(returnPayment.getArchivoNominaUrl());
         dto.setObservaciones(returnPayment.getObservaciones());
         dto.setEstatus(returnPayment.getEstatus());
@@ -1071,7 +1072,10 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
      */
     @Override
     @Transactional
-    public ReturnPaymentResponseDto markCashReturnAsDelivered(Long returnPaymentId) {
+    public ReturnPaymentResponseDto markCashReturnAsDelivered(
+            Long returnPaymentId,
+            MarkCashReturnDeliveredRequestDto request
+    ) {
         OperationReturnPayment returnPayment =
                 operationReturnPaymentRepository.findById(returnPaymentId)
                         .orElseThrow(ReturnPaymentNotFoundException::new);
@@ -1091,6 +1095,9 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         returnPayment.setEstatus(ReturnPaymentStatus.RETORNADO);
         returnPayment.setEntregadoPor(currentUser);
         returnPayment.setFechaEntrega(LocalDateTime.now());
+        returnPayment.setComprobanteEntregaEfectivoUrl(
+                request.getComprobanteEntregaEfectivoUrl().trim()
+        );
 
         OperationReturnPayment saved =
                 operationReturnPaymentRepository.save(returnPayment);

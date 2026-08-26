@@ -92,6 +92,9 @@ public class OperationReturnPayment {
     @Column(name = "comprobante_url", length = 500)
     private String comprobanteUrl;
 
+    @Column(name = "comprobante_entrega_efectivo_url", length = 500)
+    private String comprobanteEntregaEfectivoUrl;
+
     /**
      * Archivo de nóminas (generalmente un Excel) que el socio comercial
      * adjunta al solicitar el retorno, para repartir el pago entre empleados.
@@ -203,6 +206,10 @@ public class OperationReturnPayment {
         return comprobanteUrl;
     }
 
+    public String getComprobanteEntregaEfectivoUrl() {
+        return comprobanteEntregaEfectivoUrl;
+    }
+
     public String getArchivoNominaUrl() {
         return archivoNominaUrl;
     }
@@ -305,6 +312,10 @@ public class OperationReturnPayment {
 
     public void setComprobanteUrl(String comprobanteUrl) {
         this.comprobanteUrl = comprobanteUrl;
+    }
+
+    public void setComprobanteEntregaEfectivoUrl(String comprobanteEntregaEfectivoUrl) {
+        this.comprobanteEntregaEfectivoUrl = comprobanteEntregaEfectivoUrl;
     }
 
     public void setEstatus(ReturnPaymentStatus estatus) {
