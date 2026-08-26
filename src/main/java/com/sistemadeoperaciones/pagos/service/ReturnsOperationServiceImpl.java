@@ -793,6 +793,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         dto.setAutorizadoParaRecibirEfectivo2(returnPayment.getAutorizadoParaRecibirEfectivo2());
         dto.setAutorizadoParaRecibirEfectivo3(returnPayment.getAutorizadoParaRecibirEfectivo3());
         dto.setFechaHoraRecoleccionEfectivo(returnPayment.getFechaHoraRecoleccionEfectivo());
+        dto.setCodigoRetiroSinTarjeta(returnPayment.getCodigoRetiroSinTarjeta());
 
         if (returnPayment.getCuentaOrigen() != null) {
             dto.setCuentaOrigenId(returnPayment.getCuentaOrigen().getId());
@@ -1017,6 +1018,15 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                     .orElseThrow(() -> new IllegalArgumentException("Cuenta origen no encontrada"));
 
             returnPayment.setCuentaOrigen(cuentaOrigen);
+
+            if (request.getCodigoRetiroSinTarjeta() == null
+                    || request.getCodigoRetiroSinTarjeta().isBlank()) {
+                throw new CashReturnWithdrawalCodeRequiredException();
+            }
+
+            returnPayment.setCodigoRetiroSinTarjeta(
+                    request.getCodigoRetiroSinTarjeta().trim()
+            );
         }
 
         returnPayment.setFechaHoraRecoleccionEfectivo(

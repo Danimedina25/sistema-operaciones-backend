@@ -13,6 +13,8 @@ public class ScheduleCashReturnPickupRequestDto {
 
     private String observaciones;
 
+    private String codigoRetiroSinTarjeta;
+
     public LocalDateTime getFechaHoraRecoleccionEfectivo() {
         return fechaHoraRecoleccionEfectivo;
     }
@@ -35,5 +37,13 @@ public class ScheduleCashReturnPickupRequestDto {
 
     public void setObservaciones(String observaciones) {
         this.observaciones = observaciones;
+    }
+
+    public String getCodigoRetiroSinTarjeta() {
+        return codigoRetiroSinTarjeta;
+    }
+
+    public void setCodigoRetiroSinTarjeta(String codigoRetiroSinTarjeta) {
+        this.codigoRetiroSinTarjeta = codigoRetiroSinTarjeta;
     }
 }

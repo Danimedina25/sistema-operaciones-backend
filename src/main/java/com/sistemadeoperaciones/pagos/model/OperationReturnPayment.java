@@ -86,6 +86,14 @@ public class OperationReturnPayment {
     private LocalDateTime fechaHoraRecoleccionEfectivo;
 
     /**
+     * Código generado externamente por el banco para el retiro sin tarjeta.
+     * Lo captura la jefa de cuentas al programar la recolección, una vez
+     * que el banco lo genera.
+     */
+    @Column(name = "codigo_retiro_sin_tarjeta", length = 30)
+    private String codigoRetiroSinTarjeta;
+
+    /**
      * Comprobante del retorno.
      * Lo carga la jefa de cuentas cuando realiza el pago.
      */
@@ -381,5 +389,13 @@ public class OperationReturnPayment {
 
     public void setFechaHoraRecoleccionEfectivo(LocalDateTime fechaHoraRecoleccionEfectivo) {
         this.fechaHoraRecoleccionEfectivo = fechaHoraRecoleccionEfectivo;
+    }
+
+    public String getCodigoRetiroSinTarjeta() {
+        return codigoRetiroSinTarjeta;
+    }
+
+    public void setCodigoRetiroSinTarjeta(String codigoRetiroSinTarjeta) {
+        this.codigoRetiroSinTarjeta = codigoRetiroSinTarjeta;
     }
 }

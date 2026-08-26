@@ -117,6 +117,11 @@ public class ReturnPaymentResponseDto {
 
     private LocalDateTime fechaHoraRecoleccionEfectivo;
 
+    /**
+     * Código generado externamente por el banco para el retiro sin tarjeta.
+     */
+    private String codigoRetiroSinTarjeta;
+
     public ReturnPaymentResponseDto() {
     }
 
@@ -391,5 +396,13 @@ public class ReturnPaymentResponseDto {
 
     public void setFechaHoraRecoleccionEfectivo(LocalDateTime fechaHoraRecoleccionEfectivo) {
         this.fechaHoraRecoleccionEfectivo = fechaHoraRecoleccionEfectivo;
+    }
+
+    public String getCodigoRetiroSinTarjeta() {
+        return codigoRetiroSinTarjeta;
+    }
+
+    public void setCodigoRetiroSinTarjeta(String codigoRetiroSinTarjeta) {
+        this.codigoRetiroSinTarjeta = codigoRetiroSinTarjeta;
     }
 }
