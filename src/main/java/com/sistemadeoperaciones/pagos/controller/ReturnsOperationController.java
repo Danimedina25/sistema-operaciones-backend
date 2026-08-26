@@ -211,10 +211,11 @@ public class ReturnsOperationController {
     @PatchMapping("/payments/{returnPaymentId}/mark-cash-delivered")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CAJAS')")
     public ResponseEntity<ApiResponse<ReturnPaymentResponseDto>> markCashReturnAsDelivered(
-            @PathVariable Long returnPaymentId
+            @PathVariable Long returnPaymentId,
+            @Valid @RequestBody MarkCashReturnDeliveredRequestDto request
     ) {
         ReturnPaymentResponseDto response =
-                returnsOperationService.markCashReturnAsDelivered(returnPaymentId);
+                returnsOperationService.markCashReturnAsDelivered(returnPaymentId, request);
 
         return ResponseEntity.ok(
                 new ApiResponse<>(
