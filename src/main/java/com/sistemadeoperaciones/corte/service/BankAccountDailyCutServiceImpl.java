@@ -128,9 +128,21 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
                                 )
                 );
 
+        BigDecimal entradasCheque =
+                nvl(
+                        operationPaymentRepository
+                                .sumEntradasChequeCuenta(
+                                        bankAccountId,
+                                        PaymentStatus.VALIDADA,
+                                        inicio,
+                                        fin
+                                )
+                );
+
         BigDecimal totalEntradas =
                 entradasTransferencia
-                        .add(entradasDeposito);
+                        .add(entradasDeposito)
+                        .add(entradasCheque);
 
         BigDecimal salidasRetornos =
                 nvl(
@@ -183,6 +195,10 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
 
         dto.setEntradasDeposito(
                 entradasDeposito
+        );
+
+        dto.setEntradasCheque(
+                entradasCheque
         );
 
         dto.setTotalEntradas(
@@ -363,6 +379,10 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
                     calculado.getEntradasDeposito()
             );
 
+            cut.setEntradasCheque(
+                    calculado.getEntradasCheque()
+            );
+
             cut.setSalidasRetornos(
                     calculado.getSalidasRetornos()
             );
@@ -427,6 +447,10 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
 
             cut.setEntradasDeposito(
                     calculado.getEntradasDeposito()
+            );
+
+            cut.setEntradasCheque(
+                    calculado.getEntradasCheque()
             );
 
             cut.setSalidasRetornos(
@@ -495,6 +519,10 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
 
         dto.setEntradasDeposito(
                 cut.getEntradasDeposito()
+        );
+
+        dto.setEntradasCheque(
+                cut.getEntradasCheque()
         );
 
         dto.setTotalEntradas(
@@ -585,8 +613,19 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
                                 )
                 );
 
+        BigDecimal entradasCheque =
+                nvl(
+                        operationPaymentRepository
+                                .sumEntradasChequeCuenta(
+                                        account.getId(),
+                                        PaymentStatus.VALIDADA,
+                                        inicio,
+                                        fin
+                                )
+                );
+
         BigDecimal totalEntradas =
-                entradasTransferencia.add(entradasDeposito);
+                entradasTransferencia.add(entradasDeposito).add(entradasCheque);
 
         BigDecimal salidasRetornos =
                 nvl(
@@ -621,6 +660,7 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
         dto.setSaldoInicial(saldoInicial);
         dto.setEntradasTransferencia(entradasTransferencia);
         dto.setEntradasDeposito(entradasDeposito);
+        dto.setEntradasCheque(entradasCheque);
         dto.setTotalEntradas(totalEntradas);
         dto.setSalidasRetornos(salidasRetornos);
         dto.setSalidasComisiones(salidasComisiones);

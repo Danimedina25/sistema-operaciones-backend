@@ -50,6 +50,9 @@ public class DailyCashCut {
     @Column(name = "entradas_efectivo", nullable = false, precision = 15, scale = 2)
     private BigDecimal entradasEfectivo = BigDecimal.ZERO;
 
+    @Column(name = "entradas_cheque", nullable = false, precision = 15, scale = 2)
+    private BigDecimal entradasCheque = BigDecimal.ZERO;
+
     @Column(name = "total_entradas", nullable = false, precision = 15, scale = 2)
     private BigDecimal totalEntradas = BigDecimal.ZERO;
 
@@ -65,6 +68,9 @@ public class DailyCashCut {
 
     @Column(name = "retornos_efectivo", nullable = false, precision = 15, scale = 2)
     private BigDecimal retornosEfectivo = BigDecimal.ZERO;
+
+    @Column(name = "retornos_cheque", nullable = false, precision = 15, scale = 2)
+    private BigDecimal retornosCheque = BigDecimal.ZERO;
 
     @Column(name = "total_retornos", nullable = false, precision = 15, scale = 2)
     private BigDecimal totalRetornos = BigDecimal.ZERO;
@@ -200,6 +206,14 @@ public class DailyCashCut {
         this.entradasEfectivo = entradasEfectivo;
     }
 
+    public BigDecimal getEntradasCheque() {
+        return entradasCheque;
+    }
+
+    public void setEntradasCheque(BigDecimal entradasCheque) {
+        this.entradasCheque = entradasCheque;
+    }
+
     public BigDecimal getTotalEntradas() {
         return totalEntradas;
     }
@@ -230,6 +244,14 @@ public class DailyCashCut {
 
     public void setRetornosEfectivo(BigDecimal retornosEfectivo) {
         this.retornosEfectivo = retornosEfectivo;
+    }
+
+    public BigDecimal getRetornosCheque() {
+        return retornosCheque;
+    }
+
+    public void setRetornosCheque(BigDecimal retornosCheque) {
+        this.retornosCheque = retornosCheque;
     }
 
     public BigDecimal getTotalRetornos() {

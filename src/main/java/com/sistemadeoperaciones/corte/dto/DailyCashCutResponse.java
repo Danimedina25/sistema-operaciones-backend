@@ -14,11 +14,13 @@ public class DailyCashCutResponse {
     private BigDecimal entradasTransferencia;
     private BigDecimal entradasDeposito;
     private BigDecimal entradasEfectivo;
+    private BigDecimal entradasCheque;
     private BigDecimal totalEntradas;
 
     private BigDecimal retornosTransferencia;
     private BigDecimal retornosDeposito;
     private BigDecimal retornosEfectivo;
+    private BigDecimal retornosCheque;
     private BigDecimal totalRetornos;
 
     private BigDecimal totalComisionesSocios;
@@ -80,6 +82,14 @@ public class DailyCashCutResponse {
         this.entradasEfectivo = entradasEfectivo;
     }
 
+    public BigDecimal getEntradasCheque() {
+        return entradasCheque;
+    }
+
+    public void setEntradasCheque(BigDecimal entradasCheque) {
+        this.entradasCheque = entradasCheque;
+    }
+
     public BigDecimal getTotalEntradas() {
         return totalEntradas;
     }
@@ -110,6 +120,14 @@ public class DailyCashCutResponse {
 
     public void setRetornosEfectivo(BigDecimal retornosEfectivo) {
         this.retornosEfectivo = retornosEfectivo;
+    }
+
+    public BigDecimal getRetornosCheque() {
+        return retornosCheque;
+    }
+
+    public void setRetornosCheque(BigDecimal retornosCheque) {
+        this.retornosCheque = retornosCheque;
     }
 
     public BigDecimal getTotalRetornos() {

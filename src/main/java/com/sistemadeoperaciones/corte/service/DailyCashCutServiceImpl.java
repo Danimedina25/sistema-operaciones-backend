@@ -109,6 +109,10 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
                 corte.getEntradasEfectivo()
         );
 
+        response.setEntradasCheque(
+                corte.getEntradasCheque()
+        );
+
         response.setTotalEntradas(
                 corte.getTotalEntradas()
         );
@@ -123,6 +127,10 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
 
         response.setRetornosEfectivo(
                 corte.getRetornosEfectivo()
+        );
+
+        response.setRetornosCheque(
+                corte.getRetornosCheque()
         );
 
         response.setTotalRetornos(
@@ -199,11 +207,13 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         corte.setEntradasTransferencia(calculado.getEntradasTransferencia());
         corte.setEntradasDeposito(calculado.getEntradasDeposito());
         corte.setEntradasEfectivo(calculado.getEntradasEfectivo());
+        corte.setEntradasCheque(calculado.getEntradasCheque());
         corte.setTotalEntradas(calculado.getTotalEntradas());
 
         corte.setRetornosTransferencia(calculado.getRetornosTransferencia());
         corte.setRetornosDeposito(calculado.getRetornosDeposito());
         corte.setRetornosEfectivo(calculado.getRetornosEfectivo());
+        corte.setRetornosCheque(calculado.getRetornosCheque());
         corte.setTotalRetornos(calculado.getTotalRetornos());
 
         corte.setTotalComisionesSocios(calculado.getTotalComisionesSocios());
@@ -292,11 +302,13 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         BigDecimal entradasTransferencia = BigDecimal.ZERO;
         BigDecimal entradasDeposito = BigDecimal.ZERO;
         BigDecimal entradasEfectivo = BigDecimal.ZERO;
+        BigDecimal entradasCheque = BigDecimal.ZERO;
         BigDecimal totalEntradas = BigDecimal.ZERO;
 
         BigDecimal retornosTransferencia = BigDecimal.ZERO;
         BigDecimal retornosDeposito = BigDecimal.ZERO;
         BigDecimal retornosEfectivo = BigDecimal.ZERO;
+        BigDecimal retornosCheque = BigDecimal.ZERO;
         BigDecimal totalRetornos = BigDecimal.ZERO;
 
         BigDecimal totalComisionesSocios = BigDecimal.ZERO;
@@ -313,6 +325,9 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
             entradasEfectivo = entradasEfectivo
                     .add(corte.getEntradasEfectivo());
 
+            entradasCheque = entradasCheque
+                    .add(corte.getEntradasCheque());
+
             totalEntradas = totalEntradas
                     .add(corte.getTotalEntradas());
 
@@ -324,6 +339,9 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
 
             retornosEfectivo = retornosEfectivo
                     .add(corte.getRetornosEfectivo());
+
+            retornosCheque = retornosCheque
+                    .add(corte.getRetornosCheque());
 
             totalRetornos = totalRetornos
                     .add(corte.getTotalRetornos());
@@ -358,6 +376,11 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
                             corteHoy.getEntradasEfectivo()
                     );
 
+            entradasCheque =
+                    entradasCheque.add(
+                            corteHoy.getEntradasCheque()
+                    );
+
             totalEntradas =
                     totalEntradas.add(
                             corteHoy.getTotalEntradas()
@@ -376,6 +399,11 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
             retornosEfectivo =
                     retornosEfectivo.add(
                             corteHoy.getRetornosEfectivo()
+                    );
+
+            retornosCheque =
+                    retornosCheque.add(
+                            corteHoy.getRetornosCheque()
                     );
 
             totalRetornos =
@@ -414,11 +442,13 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         response.setEntradasTransferencia(entradasTransferencia);
         response.setEntradasDeposito(entradasDeposito);
         response.setEntradasEfectivo(entradasEfectivo);
+        response.setEntradasCheque(entradasCheque);
         response.setTotalEntradas(totalEntradas);
 
         response.setRetornosTransferencia(retornosTransferencia);
         response.setRetornosDeposito(retornosDeposito);
         response.setRetornosEfectivo(retornosEfectivo);
+        response.setRetornosCheque(retornosCheque);
         response.setTotalRetornos(totalRetornos);
 
         response.setTotalComisionesSocios(totalComisionesSocios);
@@ -455,6 +485,12 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
                 fin
         );
 
+        BigDecimal entradasCheque = sumEntradaByTipo(
+                PaymentType.CHEQUE,
+                inicio,
+                fin
+        );
+
         BigDecimal totalComisionesOficina = sumComisionesOficina(
                 inicio,
                 fin
@@ -462,7 +498,8 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
 
         BigDecimal totalEntradas = entradasTransferencia
                 .add(entradasDeposito)
-                .add(entradasEfectivo);
+                .add(entradasEfectivo)
+                .add(entradasCheque);
 
         BigDecimal retornosTransferencia = sumRetornoByTipo(
                 PaymentType.TRANSFERENCIA,
@@ -482,9 +519,16 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
                 fin
         );
 
+        BigDecimal retornosCheque = sumRetornoByTipo(
+                PaymentType.CHEQUE,
+                inicio,
+                fin
+        );
+
         BigDecimal totalRetornos = retornosTransferencia
                 .add(retornosDeposito)
-                .add(retornosEfectivo);
+                .add(retornosEfectivo)
+                .add(retornosCheque);
 
         BigDecimal totalComisionesSocios = nvl(
                 commercialPartnerCommissionRepository
@@ -511,11 +555,13 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         response.setEntradasTransferencia(entradasTransferencia);
         response.setEntradasDeposito(entradasDeposito);
         response.setEntradasEfectivo(entradasEfectivo);
+        response.setEntradasCheque(entradasCheque);
         response.setTotalEntradas(totalEntradas);
 
         response.setRetornosTransferencia(retornosTransferencia);
         response.setRetornosDeposito(retornosDeposito);
         response.setRetornosEfectivo(retornosEfectivo);
+        response.setRetornosCheque(retornosCheque);
         response.setTotalRetornos(totalRetornos);
 
         response.setTotalComisionesSocios(totalComisionesSocios);
