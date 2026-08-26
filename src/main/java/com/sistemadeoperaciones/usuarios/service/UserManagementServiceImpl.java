@@ -35,6 +35,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final CommercialPartnerSettingsRepository commercialPartnerSettingsRepository;
     private final AuthenticatedUserService authenticatedUserService;
     private final UserDeletionGuard userDeletionGuard;
+    private final UserDeletionDependencyCleaner userDeletionDependencyCleaner;
     private final DeletionAuditService deletionAuditService;
 
     public UserManagementServiceImpl(UserRepository userRepository,
@@ -43,6 +44,7 @@ public class UserManagementServiceImpl implements UserManagementService {
                                      CommercialPartnerSettingsRepository commercialPartnerSettingsRepository,
                                      AuthenticatedUserService authenticatedUserService,
                                      UserDeletionGuard userDeletionGuard,
+                                     UserDeletionDependencyCleaner userDeletionDependencyCleaner,
                                      DeletionAuditService deletionAuditService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
@@ -50,6 +52,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         this.commercialPartnerSettingsRepository = commercialPartnerSettingsRepository;
         this.authenticatedUserService = authenticatedUserService;
         this.userDeletionGuard = userDeletionGuard;
+        this.userDeletionDependencyCleaner = userDeletionDependencyCleaner;
         this.deletionAuditService = deletionAuditService;
     }
 
@@ -372,6 +375,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         userDeletionGuard.assertCanDelete(currentUser, target);
 
         deletionAuditService.record("USER", target.getId(), target.getNombre() + " (" + target.getCorreo() + ")", currentUser);
+        userDeletionDependencyCleaner.clean(target.getId(), currentUser.getId());
 
         try {
             userRepository.delete(target);

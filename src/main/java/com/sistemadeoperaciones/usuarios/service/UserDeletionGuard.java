@@ -1,21 +1,11 @@
 package com.sistemadeoperaciones.usuarios.service;
 
-import com.sistemadeoperaciones.clientes.repository.ClientesRepository;
-import com.sistemadeoperaciones.comisionessocioscomerciales.repository.CommercialPartnerCommissionRepository;
-import com.sistemadeoperaciones.corte.repository.DailyCashCutRepository;
-import com.sistemadeoperaciones.notifications.repository.NotificationRepository;
-import com.sistemadeoperaciones.notifications.repository.UserNotificationRepository;
-import com.sistemadeoperaciones.pagos.repository.OperationPaymentRepository;
-import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
-import com.sistemadeoperaciones.pagos.repository.PaymentOperationRepository;
 import com.sistemadeoperaciones.shared.enums.RoleName;
 import com.sistemadeoperaciones.shared.exception.BadRequestException;
 import com.sistemadeoperaciones.shared.exception.EntityHasDependenciesException;
-import com.sistemadeoperaciones.socioscomerciales.repository.CommercialPartnerRepository;
 import com.sistemadeoperaciones.usuarios.model.User;
-import com.sistemadeoperaciones.usuarios.repository.CommercialPartnerSettingsRepository;
-import com.sistemadeoperaciones.usuarios.repository.UserActivationTokenRepository;
 import com.sistemadeoperaciones.usuarios.repository.UserRepository;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -25,44 +15,14 @@ import java.util.Map;
 public class UserDeletionGuard {
 
     private final UserRepository userRepository;
-    private final CommercialPartnerSettingsRepository commercialPartnerSettingsRepository;
-    private final UserActivationTokenRepository userActivationTokenRepository;
-    private final CommercialPartnerRepository commercialPartnerRepository;
-    private final ClientesRepository clientesRepository;
-    private final NotificationRepository notificationRepository;
-    private final UserNotificationRepository userNotificationRepository;
-    private final PaymentOperationRepository paymentOperationRepository;
-    private final OperationPaymentRepository operationPaymentRepository;
-    private final OperationReturnPaymentRepository operationReturnPaymentRepository;
-    private final DailyCashCutRepository dailyCashCutRepository;
-    private final CommercialPartnerCommissionRepository commercialPartnerCommissionRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     public UserDeletionGuard(
             UserRepository userRepository,
-            CommercialPartnerSettingsRepository commercialPartnerSettingsRepository,
-            UserActivationTokenRepository userActivationTokenRepository,
-            CommercialPartnerRepository commercialPartnerRepository,
-            ClientesRepository clientesRepository,
-            NotificationRepository notificationRepository,
-            UserNotificationRepository userNotificationRepository,
-            PaymentOperationRepository paymentOperationRepository,
-            OperationPaymentRepository operationPaymentRepository,
-            OperationReturnPaymentRepository operationReturnPaymentRepository,
-            DailyCashCutRepository dailyCashCutRepository,
-            CommercialPartnerCommissionRepository commercialPartnerCommissionRepository
+            JdbcTemplate jdbcTemplate
     ) {
         this.userRepository = userRepository;
-        this.commercialPartnerSettingsRepository = commercialPartnerSettingsRepository;
-        this.userActivationTokenRepository = userActivationTokenRepository;
-        this.commercialPartnerRepository = commercialPartnerRepository;
-        this.clientesRepository = clientesRepository;
-        this.notificationRepository = notificationRepository;
-        this.userNotificationRepository = userNotificationRepository;
-        this.paymentOperationRepository = paymentOperationRepository;
-        this.operationPaymentRepository = operationPaymentRepository;
-        this.operationReturnPaymentRepository = operationReturnPaymentRepository;
-        this.dailyCashCutRepository = dailyCashCutRepository;
-        this.commercialPartnerCommissionRepository = commercialPartnerCommissionRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     public void assertCanDelete(User currentUser, User target) {
@@ -85,31 +45,42 @@ public class UserDeletionGuard {
             throw new BadRequestException("No se puede eliminar al último usuario con rol Dirección activo del sistema");
         }
 
-        Long id = target.getId();
         Map<String, Long> dependencies = new LinkedHashMap<>();
-
-        if (commercialPartnerSettingsRepository.existsByUsuarioId(id)) {
-            dependencies.put("configuracionSocioComercial", 1L);
-        }
-        putIfPositive(dependencies, "tokensActivacion", userActivationTokenRepository.countByUserId(id));
-        putIfPositive(dependencies, "sociosComercialesPropios", commercialPartnerRepository.countBySocioComercialId(id));
-        putIfPositive(dependencies, "clientesAsignados", clientesRepository.countByUserId(id));
-        putIfPositive(dependencies, "notificacionesCreadas", notificationRepository.countByCreatedById(id));
-        putIfPositive(dependencies, "notificacionesRecibidas", userNotificationRepository.countByUsuarioId(id));
-        putIfPositive(dependencies, "operacionesComoSocioComercial", paymentOperationRepository.countBySocioComercialId(id));
-        putIfPositive(dependencies, "pagosRegistrados", operationPaymentRepository.countByRegistradoPorId(id));
-        putIfPositive(dependencies, "pagosValidados", operationPaymentRepository.countByValidadoPorId(id));
-        putIfPositive(dependencies, "retornosSolicitados", operationReturnPaymentRepository.countBySolicitadoPorId(id));
-        putIfPositive(dependencies, "retornosPagados", operationReturnPaymentRepository.countByPagadoPorId(id));
-        putIfPositive(dependencies, "cortesDiariosGenerados", dailyCashCutRepository.countByGeneradoPorId(id));
-        putIfPositive(dependencies, "comisionesComoBeneficiario", commercialPartnerCommissionRepository.countByUserId(id));
+        putIfPositive(dependencies, "operacionesComoSocioComercial", countRelatedOperations(target.getId()));
 
         if (!dependencies.isEmpty()) {
             throw new EntityHasDependenciesException(
-                    "No se puede eliminar el usuario porque tiene información relacionada en el sistema",
+                    "No se puede eliminar el socio comercial porque tiene operaciones relacionadas en el sistema",
                     dependencies
             );
         }
+    }
+
+    private long countRelatedOperations(Long userId) {
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(DISTINCT po.id)
+                FROM payment_operations po
+                LEFT JOIN clientes c ON c.id = po.cliente_id
+                LEFT JOIN commercial_partners cp2 ON cp2.id = po.socio_comercial_id_nivel_2
+                LEFT JOIN commercial_partners cp3 ON cp3.id = po.socio_comercial_id_nivel_3
+                WHERE po.socio_comercial_id = ?
+                   OR c.user_id = ?
+                   OR cp2.user_id = ?
+                   OR cp3.user_id = ?
+                   OR EXISTS (
+                       SELECT 1
+                       FROM commercial_partner_commissions cpc
+                       JOIN commercial_partners cp ON cp.id = cpc.commercial_partner_id
+                       WHERE cpc.operation_id = po.id AND cp.user_id = ?
+                   )
+                   OR EXISTS (
+                       SELECT 1
+                       FROM operation_commissions oc
+                       JOIN commercial_partners cp ON cp.id = oc.socio_comercial_id
+                       WHERE oc.operacion_id = po.id AND cp.user_id = ?
+                   )
+                """, Long.class, userId, userId, userId, userId, userId, userId);
+        return count == null ? 0 : count;
     }
 
     private void putIfPositive(Map<String, Long> map, String key, long value) {
