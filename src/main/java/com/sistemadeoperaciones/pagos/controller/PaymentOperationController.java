@@ -116,6 +116,31 @@ public class PaymentOperationController {
         );
     }
 
+    @PatchMapping("/payments/{paymentId}/in-progress")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    public ResponseEntity<ApiResponse<OperationPaymentResponseDto>> markPaymentInProgress(
+            @PathVariable Long paymentId,
+            @Valid @RequestBody(required = false) UpdatePaymentStatusRequestDto request
+    ) {
+        OperationPaymentResponseDto response = paymentOperationService.markPaymentInProgress(paymentId, request);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Comprobante marcado en proceso exitosamente", response, null)
+        );
+    }
+
+    @PatchMapping("/payments/{paymentId}/release")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    public ResponseEntity<ApiResponse<OperationPaymentResponseDto>> releasePaymentInProgress(
+            @PathVariable Long paymentId
+    ) {
+        OperationPaymentResponseDto response = paymentOperationService.releasePaymentInProgress(paymentId);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Comprobante liberado exitosamente", response, null)
+        );
+    }
+
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<Page<PaymentOperationResponseDto>>> findAll(

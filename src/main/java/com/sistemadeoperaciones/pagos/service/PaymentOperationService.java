@@ -20,6 +20,18 @@ public interface PaymentOperationService {
 
     OperationPaymentResponseDto rejectPayment(Long paymentId, UpdatePaymentStatusRequestDto request);
 
+    /**
+     * Marca un comprobante TRANSFERENCIA/DEPOSITO como "en proceso" (a la espera
+     * de que el movimiento se refleje en las cuentas de la empresa). Solo desde
+     * PENDIENTE_VALIDACION.
+     */
+    OperationPaymentResponseDto markPaymentInProgress(Long paymentId, UpdatePaymentStatusRequestDto request);
+
+    /**
+     * Regresa un comprobante "en proceso" a PENDIENTE_VALIDACION.
+     */
+    OperationPaymentResponseDto releasePaymentInProgress(Long paymentId);
+
     OperationPaymentResponseDto updateValidationReceipt(Long paymentId, UpdatePaymentStatusRequestDto request);
 
     PaymentOperationResponseDto findById(Long id);

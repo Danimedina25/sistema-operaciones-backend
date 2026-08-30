@@ -795,9 +795,10 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         OperationPayment payment = operationPaymentRepository.findById(paymentId)
                 .orElseThrow(() -> new OperationPaymentNotFoundException(paymentId));
 
-        if (payment.getEstatus() != PaymentStatus.PENDIENTE_VALIDACION) {
+        if (payment.getEstatus() != PaymentStatus.PENDIENTE_VALIDACION
+                && payment.getEstatus() != PaymentStatus.EN_PROCESO) {
             throw new InvalidPaymentStatusException(
-                    "Solo se pueden validar comprobantes en estatus PENDIENTE_VALIDACION");
+                    "Solo se pueden validar comprobantes en estatus PENDIENTE_VALIDACION o EN_PROCESO");
         }
 
         if (payment.getComprobanteUrl() == null || payment.getComprobanteUrl().isBlank()) {
@@ -841,9 +842,10 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         OperationPayment payment = operationPaymentRepository.findById(paymentId)
                 .orElseThrow(() -> new OperationPaymentNotFoundException(paymentId));
 
-        if (payment.getEstatus() != PaymentStatus.PENDIENTE_VALIDACION) {
+        if (payment.getEstatus() != PaymentStatus.PENDIENTE_VALIDACION
+                && payment.getEstatus() != PaymentStatus.EN_PROCESO) {
             throw new InvalidPaymentStatusException(
-                    "Solo se pueden rechazar comprobantes en estatus PENDIENTE_VALIDACION");
+                    "Solo se pueden rechazar comprobantes en estatus PENDIENTE_VALIDACION o EN_PROCESO");
         }
 
         if (request.getObservaciones() == null || request.getObservaciones().isBlank()) {
@@ -861,6 +863,63 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         OperationPayment updated = operationPaymentRepository.save(payment);
         recalculateOperation(payment.getOperacion());
         notifyPaymentRejected(updated);
+
+        return mapToPaymentResponse(updated);
+    }
+
+    @Override
+    @Transactional
+    public OperationPaymentResponseDto markPaymentInProgress(Long paymentId, UpdatePaymentStatusRequestDto request) {
+        OperationPayment payment = operationPaymentRepository.findById(paymentId)
+                .orElseThrow(() -> new OperationPaymentNotFoundException(paymentId));
+
+        if (payment.getTipoPago() != PaymentType.TRANSFERENCIA
+                && payment.getTipoPago() != PaymentType.DEPOSITO) {
+            throw new BusinessException(
+                    "Solo los comprobantes por transferencia o depósito pueden marcarse en proceso");
+        }
+
+        if (payment.getEstatus() != PaymentStatus.PENDIENTE_VALIDACION) {
+            throw new InvalidPaymentStatusException(
+                    "Solo se pueden marcar en proceso comprobantes en estatus PENDIENTE_VALIDACION");
+        }
+
+        User currentUser = authenticatedUserService.getCurrentUser();
+        validateCurrentUserCanValidatePayments(payment.getTipoPago());
+
+        payment.setEstatus(PaymentStatus.EN_PROCESO);
+        payment.setEnProcesoPor(currentUser);
+        payment.setFechaEnProceso(LocalDateTime.now());
+
+        if (request != null && request.getObservaciones() != null && !request.getObservaciones().isBlank()) {
+            payment.setObservaciones(request.getObservaciones());
+        }
+
+        OperationPayment updated = operationPaymentRepository.save(payment);
+        recalculateOperation(payment.getOperacion());
+
+        return mapToPaymentResponse(updated);
+    }
+
+    @Override
+    @Transactional
+    public OperationPaymentResponseDto releasePaymentInProgress(Long paymentId) {
+        OperationPayment payment = operationPaymentRepository.findById(paymentId)
+                .orElseThrow(() -> new OperationPaymentNotFoundException(paymentId));
+
+        if (payment.getEstatus() != PaymentStatus.EN_PROCESO) {
+            throw new InvalidPaymentStatusException(
+                    "Solo se pueden liberar comprobantes en estatus EN_PROCESO");
+        }
+
+        validateCurrentUserCanValidatePayments(payment.getTipoPago());
+
+        payment.setEstatus(PaymentStatus.PENDIENTE_VALIDACION);
+        payment.setEnProcesoPor(null);
+        payment.setFechaEnProceso(null);
+
+        OperationPayment updated = operationPaymentRepository.save(payment);
+        recalculateOperation(payment.getOperacion());
 
         return mapToPaymentResponse(updated);
     }
@@ -1554,7 +1613,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         String cuentaDestinoBanco = payment.getCuentaDestino() != null ? payment.getCuentaDestino().getBanco() : null;
         String cuentaDestinoTitular = payment.getCuentaDestino() != null ? payment.getCuentaDestino().getTitular() : null;
 
-        return new OperationPaymentResponseDto(
+        OperationPaymentResponseDto dto = new OperationPaymentResponseDto(
                 payment.getId(),
                 payment.getMonto(),
                 payment.getTipoPago(),
@@ -1575,6 +1634,14 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 payment.getCreatedAt(),
                 payment.getUpdatedAt()
         );
+
+        if (payment.getEnProcesoPor() != null) {
+            dto.setEnProcesoPorId(payment.getEnProcesoPor().getId());
+            dto.setEnProcesoPorNombre(payment.getEnProcesoPor().getNombre());
+        }
+        dto.setFechaEnProceso(payment.getFechaEnProceso());
+
+        return dto;
     }
 
     private BigDecimal safe(BigDecimal value) {

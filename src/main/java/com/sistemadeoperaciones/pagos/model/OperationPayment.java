@@ -53,6 +53,17 @@ public class OperationPayment {
     @JoinColumn(name = "validado_por")
     private User validadoPor;
 
+    /**
+     * Usuario que marcó el comprobante como "en proceso" (a la espera de que
+     * la transferencia/depósito caiga a las cuentas). Se limpia al liberar.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "en_proceso_por")
+    private User enProcesoPor;
+
+    @Column(name = "fecha_en_proceso")
+    private LocalDateTime fechaEnProceso;
+
     @Column(name = "fecha_pago", nullable = false)
     private LocalDateTime fechaPago;
 
@@ -192,6 +203,22 @@ public class OperationPayment {
 
     public void setValidadoPor(User validadoPor) {
         this.validadoPor = validadoPor;
+    }
+
+    public User getEnProcesoPor() {
+        return enProcesoPor;
+    }
+
+    public void setEnProcesoPor(User enProcesoPor) {
+        this.enProcesoPor = enProcesoPor;
+    }
+
+    public LocalDateTime getFechaEnProceso() {
+        return fechaEnProceso;
+    }
+
+    public void setFechaEnProceso(LocalDateTime fechaEnProceso) {
+        this.fechaEnProceso = fechaEnProceso;
     }
 
     public void setFechaPago(LocalDateTime fechaPago) {

@@ -22,6 +22,9 @@ public class OperationPaymentResponseDto {
     private String registradoPorNombre;
     private Long validadoPorId;
     private String validadoPorNombre;
+    private Long enProcesoPorId;
+    private String enProcesoPorNombre;
+    private LocalDateTime fechaEnProceso;
     private LocalDateTime fechaPago;
     private LocalDateTime fechaValidacion;
     private LocalDateTime fechaComprobante;
@@ -199,6 +202,30 @@ public class OperationPaymentResponseDto {
 
     public void setValidadoPorNombre(String validadoPorNombre) {
         this.validadoPorNombre = validadoPorNombre;
+    }
+
+    public Long getEnProcesoPorId() {
+        return enProcesoPorId;
+    }
+
+    public void setEnProcesoPorId(Long enProcesoPorId) {
+        this.enProcesoPorId = enProcesoPorId;
+    }
+
+    public String getEnProcesoPorNombre() {
+        return enProcesoPorNombre;
+    }
+
+    public void setEnProcesoPorNombre(String enProcesoPorNombre) {
+        this.enProcesoPorNombre = enProcesoPorNombre;
+    }
+
+    public LocalDateTime getFechaEnProceso() {
+        return fechaEnProceso;
+    }
+
+    public void setFechaEnProceso(LocalDateTime fechaEnProceso) {
+        this.fechaEnProceso = fechaEnProceso;
     }
 
     public void setFechaPago(LocalDateTime fechaPago) {
