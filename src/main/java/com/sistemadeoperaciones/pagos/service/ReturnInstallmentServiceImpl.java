@@ -63,7 +63,7 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
     private final AuthenticatedUserService authenticatedUserService;
     private final NotificationService notificationService;
     private final ReturnAmountCalculator returnAmountCalculator;
-    private final ReturnRequestTotalsCalculator totalsCalculator;
+    private final ReturnPaymentDtoMapper returnPaymentDtoMapper;
 
     public ReturnInstallmentServiceImpl(
             PaymentOperationRepository paymentOperationRepository,
@@ -73,7 +73,7 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
             AuthenticatedUserService authenticatedUserService,
             NotificationService notificationService,
             ReturnAmountCalculator returnAmountCalculator,
-            ReturnRequestTotalsCalculator totalsCalculator
+            ReturnPaymentDtoMapper returnPaymentDtoMapper
     ) {
         this.paymentOperationRepository = paymentOperationRepository;
         this.returnPaymentRepository = returnPaymentRepository;
@@ -82,7 +82,7 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         this.authenticatedUserService = authenticatedUserService;
         this.notificationService = notificationService;
         this.returnAmountCalculator = returnAmountCalculator;
-        this.totalsCalculator = totalsCalculator;
+        this.returnPaymentDtoMapper = returnPaymentDtoMapper;
     }
 
     // ==================================================================
@@ -315,13 +315,9 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         OperationReturnPayment solicitud = returnPaymentRepository.findById(returnRequestId)
                 .orElseThrow(ReturnPaymentNotFoundException::new);
 
-        ReturnPaymentResponseDto solicitudDto = new ReturnPaymentResponseDto();
-        solicitudDto.setId(solicitud.getId());
-        solicitudDto.setOperationId(solicitud.getOperacion().getId());
-        solicitudDto.setMonto(solicitud.getMonto());
-        solicitudDto.setTipoPago(solicitud.getTipoPago());
-        solicitudDto.setEstatus(solicitud.getEstatus());
-        applyComputedTotals(solicitudDto, solicitud);
+        // Mapeo canónico: mismos campos que el listado (datos bancarios del
+        // cliente, autorizados, nómina, etc.), no un subconjunto.
+        ReturnPaymentResponseDto solicitudDto = returnPaymentDtoMapper.toDto(solicitud);
 
         List<ReturnInstallmentResponseDto> parcialidades = findInstallmentsByRequest(returnRequestId);
         solicitudDto.setParcialidades(parcialidades);
@@ -721,10 +717,6 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         }
         String combined = observaciones + " | " + cancelNote;
         return combined.length() > 500 ? combined.substring(0, 500) : combined;
-    }
-
-    private void applyComputedTotals(ReturnPaymentResponseDto dto, OperationReturnPayment solicitud) {
-        totalsCalculator.apply(dto, solicitud);
     }
 
     ReturnInstallmentResponseDto mapToResponse(OperationReturnInstallment i) {

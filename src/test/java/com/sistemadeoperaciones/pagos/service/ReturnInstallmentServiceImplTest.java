@@ -63,7 +63,7 @@ class ReturnInstallmentServiceImplTest {
     @Mock BankAccountRepository bankAccountRepository;
     @Mock AuthenticatedUserService authenticatedUserService;
     @Mock NotificationService notificationService;
-    @Mock ReturnRequestTotalsCalculator totalsCalculator;
+    @Mock ReturnPaymentDtoMapper returnPaymentDtoMapper;
 
     ReturnAmountCalculator returnAmountCalculator = new ReturnAmountCalculator();
 
@@ -87,7 +87,7 @@ class ReturnInstallmentServiceImplTest {
                 authenticatedUserService,
                 notificationService,
                 returnAmountCalculator,
-                totalsCalculator
+                returnPaymentDtoMapper
         );
 
         jefa = user(10L, "Jefa Cuentas");

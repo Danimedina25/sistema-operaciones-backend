@@ -48,7 +48,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
     private final BankAccountRepository bankAccountRepository;
     private final NotificationService notificationService;
     private final ReturnInstallmentService returnInstallmentService;
-    private final ReturnRequestTotalsCalculator returnRequestTotalsCalculator;
+    private final ReturnPaymentDtoMapper returnPaymentDtoMapper;
 
     public ReturnsOperationServiceImpl(
             PaymentOperationRepository paymentOperationRepository,
@@ -58,7 +58,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             BankAccountRepository bankAccountRepository,
             NotificationService notificationService,
             ReturnInstallmentService returnInstallmentService,
-            ReturnRequestTotalsCalculator returnRequestTotalsCalculator
+            ReturnPaymentDtoMapper returnPaymentDtoMapper
     ) {
         this.paymentOperationRepository = paymentOperationRepository;
         this.operationReturnPaymentRepository = operationReturnPaymentRepository;
@@ -67,7 +67,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         this.bankAccountRepository = bankAccountRepository;
         this.notificationService = notificationService;
         this.returnInstallmentService = returnInstallmentService;
-        this.returnRequestTotalsCalculator = returnRequestTotalsCalculator;
+        this.returnPaymentDtoMapper = returnPaymentDtoMapper;
     }
 
     @Override
@@ -726,65 +726,10 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
     }
 
     private ReturnPaymentResponseDto mapReturnToResponse(OperationReturnPayment returnPayment) {
-        ReturnPaymentResponseDto dto = new ReturnPaymentResponseDto();
-
-        dto.setId(returnPayment.getId());
-        dto.setOperationId(returnPayment.getOperacion().getId());
-        dto.setClientId(returnPayment.getOperacion().getCliente().getId());
-        dto.setClienteNombre(returnPayment.getOperacion().getCliente().getNombre());
-
-        if (returnPayment.getOperacion().getSocioComercial() != null) {
-            dto.setSocioComercialNombre(returnPayment.getOperacion().getSocioComercial().getNombre());
-            dto.setSocioComercialTelefono(returnPayment.getOperacion().getSocioComercial().getTelefono());
-        }
-        dto.setMonto(returnPayment.getMonto());
-        dto.setTipoPago(returnPayment.getTipoPago());
-        dto.setCuentaDestinoCliente(returnPayment.getCuentaDestinoCliente());
-        dto.setCuentaClabeCliente(returnPayment.getCuentaClabeCliente());
-        dto.setComprobanteUrl(returnPayment.getComprobanteUrl());
-        dto.setComprobanteEntregaEfectivoUrl(returnPayment.getComprobanteEntregaEfectivoUrl());
-        dto.setArchivoNominaUrl(returnPayment.getArchivoNominaUrl());
-        dto.setObservaciones(returnPayment.getObservaciones());
-        dto.setEstatus(returnPayment.getEstatus());
-        dto.setFechaSolicitud(returnPayment.getFechaSolicitud());
-        dto.setFechaPago(returnPayment.getFechaPago());
-        dto.setFechaEntrega(returnPayment.getFechaEntrega());
-        dto.setFechaConfirmacionRecoleccion(returnPayment.getFechaConfirmacionRecoleccion());
-        dto.setCreatedAt(returnPayment.getCreatedAt());
-        dto.setCuentaDestinoTitular(returnPayment.getCuentaDestinoTitular());
-        dto.setCuentaDestinoBanco(returnPayment.getCuentaDestinoBanco());
-        dto.setAutorizadoParaRecibirEfectivo1(returnPayment.getAutorizadoParaRecibirEfectivo1());
-        dto.setAutorizadoParaRecibirEfectivo2(returnPayment.getAutorizadoParaRecibirEfectivo2());
-        dto.setAutorizadoParaRecibirEfectivo3(returnPayment.getAutorizadoParaRecibirEfectivo3());
-        dto.setFechaHoraRecoleccionEfectivo(returnPayment.getFechaHoraRecoleccionEfectivo());
-        dto.setCodigoRetiroSinTarjeta(returnPayment.getCodigoRetiroSinTarjeta());
-
-        if (returnPayment.getCuentaOrigen() != null) {
-            dto.setCuentaOrigenId(returnPayment.getCuentaOrigen().getId());
-            dto.setCuentaOrigenNombre(returnPayment.getCuentaOrigen().getBanco());
-        }
-
-        if (returnPayment.getSolicitadoPor() != null) {
-            dto.setSolicitadoPorId(returnPayment.getSolicitadoPor().getId());
-            dto.setSolicitadoPorNombre(returnPayment.getSolicitadoPor().getNombre());
-        }
-
-        if (returnPayment.getPagadoPor() != null) {
-            dto.setPagadoPorId(returnPayment.getPagadoPor().getId());
-            dto.setPagadoPorNombre(returnPayment.getPagadoPor().getNombre());
-        }
-
-        if (returnPayment.getEntregadoPor() != null) {
-            dto.setEntregadoPorId(returnPayment.getEntregadoPor().getId());
-            dto.setEntregadoPorNombre(returnPayment.getEntregadoPor().getNombre());
-        }
-
-        // Totales calculados a partir de las parcialidades (backend = fuente de verdad).
-        returnRequestTotalsCalculator.apply(dto, returnPayment);
+        ReturnPaymentResponseDto dto = returnPaymentDtoMapper.toDto(returnPayment);
         dto.setParcialidades(
                 returnInstallmentService.findInstallmentsByRequest(returnPayment.getId())
         );
-
         return dto;
     }
 

@@ -44,7 +44,8 @@ import static org.mockito.Mockito.when;
 @Import({
         ReturnInstallmentServiceImpl.class,
         ReturnAmountCalculator.class,
-        ReturnRequestTotalsCalculator.class
+        ReturnRequestTotalsCalculator.class,
+        ReturnPaymentDtoMapper.class
 })
 class ReturnInstallmentConcurrencyTest {
 
