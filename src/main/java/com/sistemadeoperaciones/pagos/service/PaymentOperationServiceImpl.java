@@ -901,6 +901,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         OperationPayment updated = operationPaymentRepository.save(payment);
         recalculateOperation(payment.getOperacion());
+        notifyPaymentInProgress(updated);
 
         return mapToPaymentResponse(updated);
     }
@@ -1358,6 +1359,28 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 "Tu comprobante de la operación #" + operation.getId()
                         + " fue validado correctamente.",
                 NotificationType.PAYMENT_VALIDATED,
+                NotificationModule.PAGOS,
+                NotificationReferenceType.OPERATION_PAYMENT,
+                payment.getId(),
+                "/operaciones/" + operation.getId() + "?scrollToPayments=true",
+                NotificationPriority.MEDIUM
+        );
+    }
+
+    private void notifyPaymentInProgress(OperationPayment payment) {
+        PaymentOperation operation = payment.getOperacion();
+
+        if (operation.getSocioComercial() == null) {
+            return;
+        }
+
+        notificationService.createForUser(
+                operation.getSocioComercial().getId(),
+                "Comprobante en proceso de validación",
+                "Tu comprobante de la operación #" + operation.getId()
+                        + " quedó en proceso de validación: el equipo de cuentas ya lo revisó,"
+                        + " pero la transferencia o depósito todavía no se refleja en las cuentas.",
+                NotificationType.SYSTEM_ALERT,
                 NotificationModule.PAGOS,
                 NotificationReferenceType.OPERATION_PAYMENT,
                 payment.getId(),
