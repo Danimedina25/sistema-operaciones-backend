@@ -2,16 +2,45 @@ package com.sistemadeoperaciones.pagos.dto.retornos;
 
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
-import jakarta.persistence.Column;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class ReturnPaymentResponseDto {
 
     private Long id;
 
     private Long operationId;
+
+    // ------------------------------------------------------------------
+    // Totales por solicitud, calculados en el servidor a partir de las
+    // parcialidades. El frontend solo los usa para presentación.
+    // ------------------------------------------------------------------
+
+    /** Monto solicitado por el socio (== monto de la solicitud). */
+    private BigDecimal montoSolicitado;
+
+    /** Suma de parcialidades COMPLETADA. */
+    private BigDecimal montoRetornado;
+
+    /** Suma de parcialidades PROGRAMADA + ENTREGADA (no cuentan como retornado). */
+    private BigDecimal montoEnProceso;
+
+    /** montoSolicitado - montoRetornado. */
+    private BigDecimal montoPendiente;
+
+    /** montoSolicitado - montoRetornado - montoEnProceso. Tope de una nueva parcialidad. */
+    private BigDecimal montoDisponible;
+
+    /** montoRetornado / montoSolicitado * 100. */
+    private BigDecimal porcentajeAvance;
+
+    /** Número de parcialidades no canceladas. */
+    private long numeroParcialidades;
+
+    /** Historial de parcialidades (solo se llena en respuestas de detalle). */
+    private List<ReturnInstallmentResponseDto> parcialidades;
 
     private Long clientId;
 
@@ -133,6 +162,70 @@ public class ReturnPaymentResponseDto {
 
     public Long getOperationId() {
         return operationId;
+    }
+
+    public BigDecimal getMontoSolicitado() {
+        return montoSolicitado;
+    }
+
+    public void setMontoSolicitado(BigDecimal montoSolicitado) {
+        this.montoSolicitado = montoSolicitado;
+    }
+
+    public BigDecimal getMontoRetornado() {
+        return montoRetornado;
+    }
+
+    public void setMontoRetornado(BigDecimal montoRetornado) {
+        this.montoRetornado = montoRetornado;
+    }
+
+    public BigDecimal getMontoEnProceso() {
+        return montoEnProceso;
+    }
+
+    public void setMontoEnProceso(BigDecimal montoEnProceso) {
+        this.montoEnProceso = montoEnProceso;
+    }
+
+    public BigDecimal getMontoPendiente() {
+        return montoPendiente;
+    }
+
+    public void setMontoPendiente(BigDecimal montoPendiente) {
+        this.montoPendiente = montoPendiente;
+    }
+
+    public BigDecimal getMontoDisponible() {
+        return montoDisponible;
+    }
+
+    public void setMontoDisponible(BigDecimal montoDisponible) {
+        this.montoDisponible = montoDisponible;
+    }
+
+    public BigDecimal getPorcentajeAvance() {
+        return porcentajeAvance;
+    }
+
+    public void setPorcentajeAvance(BigDecimal porcentajeAvance) {
+        this.porcentajeAvance = porcentajeAvance;
+    }
+
+    public long getNumeroParcialidades() {
+        return numeroParcialidades;
+    }
+
+    public void setNumeroParcialidades(long numeroParcialidades) {
+        this.numeroParcialidades = numeroParcialidades;
+    }
+
+    public List<ReturnInstallmentResponseDto> getParcialidades() {
+        return parcialidades;
+    }
+
+    public void setParcialidades(List<ReturnInstallmentResponseDto> parcialidades) {
+        this.parcialidades = parcialidades;
     }
 
     public Long getClientId() {

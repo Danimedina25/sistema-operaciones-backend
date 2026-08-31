@@ -5,5 +5,6 @@ public enum NotificationReferenceType {
     OPERATION_PAYMENT,
     COMMISSION,
     RETURN_PAYMENT,
+    RETURN_INSTALLMENT,
     NONE
 }

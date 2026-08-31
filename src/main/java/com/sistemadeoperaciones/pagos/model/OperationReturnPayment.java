@@ -8,6 +8,8 @@ import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "operation_return_payments")
@@ -113,6 +115,15 @@ public class OperationReturnPayment {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private ReturnPaymentStatus estatus;
+
+    /**
+     * Parcialidades con las que se cubre esta solicitud. Solo lectura desde la
+     * solicitud — las parcialidades se crean/administran vía
+     * {@code ReturnInstallmentService}. Sin cascade destructivo a propósito
+     * (borrar una solicitud no debe borrar el historial de parcialidades).
+     */
+    @OneToMany(mappedBy = "solicitud", fetch = FetchType.LAZY)
+    private List<OperationReturnInstallment> parcialidades = new ArrayList<>();
 
     @Column(length = 500)
     private String observaciones;
@@ -228,6 +239,14 @@ public class OperationReturnPayment {
 
     public ReturnPaymentStatus getEstatus() {
         return estatus;
+    }
+
+    public List<OperationReturnInstallment> getParcialidades() {
+        return parcialidades;
+    }
+
+    public void setParcialidades(List<OperationReturnInstallment> parcialidades) {
+        this.parcialidades = parcialidades;
     }
 
     public String getObservaciones() {

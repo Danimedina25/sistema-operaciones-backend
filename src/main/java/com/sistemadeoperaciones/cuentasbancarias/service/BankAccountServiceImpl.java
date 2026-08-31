@@ -7,6 +7,7 @@ import com.sistemadeoperaciones.cuentasbancarias.dto.BankAccountResponseDto;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
 import com.sistemadeoperaciones.pagos.repository.OperationPaymentRepository;
+import com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
 import com.sistemadeoperaciones.shared.audit.service.DeletionAuditService;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
@@ -33,6 +34,7 @@ public class BankAccountServiceImpl implements BankAccountService {
     private final CryptoService cryptoService;
     private final OperationPaymentRepository operationPaymentRepository;
     private final OperationReturnPaymentRepository operationReturnPaymentRepository;
+    private final OperationReturnInstallmentRepository operationReturnInstallmentRepository;
     private final BankAccountDailyCutRepository bankAccountDailyCutRepository;
     private final AuthenticatedUserService authenticatedUserService;
     private final DeletionAuditService deletionAuditService;
@@ -41,6 +43,7 @@ public class BankAccountServiceImpl implements BankAccountService {
                                   CryptoService cryptoService,
                                   OperationPaymentRepository operationPaymentRepository,
                                   OperationReturnPaymentRepository operationReturnPaymentRepository,
+                                  OperationReturnInstallmentRepository operationReturnInstallmentRepository,
                                   BankAccountDailyCutRepository bankAccountDailyCutRepository,
                                   AuthenticatedUserService authenticatedUserService,
                                   DeletionAuditService deletionAuditService) {
@@ -48,6 +51,7 @@ public class BankAccountServiceImpl implements BankAccountService {
         this.cryptoService = cryptoService;
         this.operationPaymentRepository = operationPaymentRepository;
         this.operationReturnPaymentRepository = operationReturnPaymentRepository;
+        this.operationReturnInstallmentRepository = operationReturnInstallmentRepository;
         this.bankAccountDailyCutRepository = bankAccountDailyCutRepository;
         this.authenticatedUserService = authenticatedUserService;
         this.deletionAuditService = deletionAuditService;
@@ -148,7 +152,8 @@ public class BankAccountServiceImpl implements BankAccountService {
         long pagosDestino = operationPaymentRepository.countByCuentaDestinoId(id);
         if (pagosDestino > 0) dependencies.put("pagosComoDestino", pagosDestino);
 
-        long retornosOrigen = operationReturnPaymentRepository.countByCuentaOrigenId(id);
+        long retornosOrigen = operationReturnPaymentRepository.countByCuentaOrigenId(id)
+                + (operationReturnInstallmentRepository.existsByCuentaOrigenId(id) ? 1 : 0);
         if (retornosOrigen > 0) dependencies.put("retornosComoOrigen", retornosOrigen);
 
         long cortes = bankAccountDailyCutRepository.countByBankAccountId(id);

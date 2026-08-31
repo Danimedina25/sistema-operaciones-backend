@@ -15,7 +15,7 @@ import com.sistemadeoperaciones.pagos.enums.CommissionStatus;
 import com.sistemadeoperaciones.pagos.enums.PaymentStatus;
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import com.sistemadeoperaciones.pagos.repository.OperationPaymentRepository;
-import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
+import com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,18 +31,18 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
 
     private final DailyCashCutRepository dailyCashCutRepository;
     private final OperationPaymentRepository operationPaymentRepository;
-    private final OperationReturnPaymentRepository operationReturnPaymentRepository;
+    private final OperationReturnInstallmentRepository operationReturnInstallmentRepository;
     private final CommercialPartnerCommissionRepository commercialPartnerCommissionRepository;
 
     public DailyCashCutServiceImpl(
             DailyCashCutRepository dailyCashCutRepository,
             OperationPaymentRepository operationPaymentRepository,
-            OperationReturnPaymentRepository operationReturnPaymentRepository,
+            OperationReturnInstallmentRepository operationReturnInstallmentRepository,
             CommercialPartnerCommissionRepository commercialPartnerCommissionRepository
     ) {
         this.dailyCashCutRepository = dailyCashCutRepository;
         this.operationPaymentRepository = operationPaymentRepository;
-        this.operationReturnPaymentRepository = operationReturnPaymentRepository;
+        this.operationReturnInstallmentRepository = operationReturnInstallmentRepository;
         this.commercialPartnerCommissionRepository = commercialPartnerCommissionRepository;
     }
 
@@ -600,8 +600,12 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
             LocalDateTime inicio,
             LocalDateTime fin
     ) {
+        // Suma de parcialidades de retorno COMPLETADA por su fecha de
+        // realización. Con el backfill (una parcialidad por retorno histórico)
+        // reproduce exactamente los totales previos basados en
+        // OperationReturnPayment(RETORNADO, fechaPago).
         return nvl(
-                operationReturnPaymentRepository.sumPaidReturnsByTypeBetween(
+                operationReturnInstallmentRepository.sumCompletedByTypeBetween(
                         tipoPago,
                         inicio,
                         fin

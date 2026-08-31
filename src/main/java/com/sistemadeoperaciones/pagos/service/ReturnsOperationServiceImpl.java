@@ -14,6 +14,7 @@ import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
 import com.sistemadeoperaciones.pagos.exceptions.*;
 import com.sistemadeoperaciones.pagos.model.OperationReturnPayment;
 import com.sistemadeoperaciones.pagos.model.PaymentOperation;
+import com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
 import com.sistemadeoperaciones.pagos.repository.PaymentOperationRepository;
 import com.sistemadeoperaciones.pagos.repository.specification.OperationReturnPaymentSpecification;
@@ -42,22 +43,31 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
     private final PaymentOperationRepository paymentOperationRepository;
     private final OperationReturnPaymentRepository operationReturnPaymentRepository;
+    private final OperationReturnInstallmentRepository operationReturnInstallmentRepository;
     private final AuthenticatedUserService authenticatedUserService;
     private final BankAccountRepository bankAccountRepository;
     private final NotificationService notificationService;
+    private final ReturnInstallmentService returnInstallmentService;
+    private final ReturnRequestTotalsCalculator returnRequestTotalsCalculator;
 
     public ReturnsOperationServiceImpl(
             PaymentOperationRepository paymentOperationRepository,
             OperationReturnPaymentRepository operationReturnPaymentRepository,
+            OperationReturnInstallmentRepository operationReturnInstallmentRepository,
             AuthenticatedUserService authenticatedUserService,
             BankAccountRepository bankAccountRepository,
-            NotificationService notificationService
+            NotificationService notificationService,
+            ReturnInstallmentService returnInstallmentService,
+            ReturnRequestTotalsCalculator returnRequestTotalsCalculator
     ) {
         this.paymentOperationRepository = paymentOperationRepository;
         this.operationReturnPaymentRepository = operationReturnPaymentRepository;
+        this.operationReturnInstallmentRepository = operationReturnInstallmentRepository;
         this.authenticatedUserService = authenticatedUserService;
         this.bankAccountRepository = bankAccountRepository;
         this.notificationService = notificationService;
+        this.returnInstallmentService = returnInstallmentService;
+        this.returnRequestTotalsCalculator = returnRequestTotalsCalculator;
     }
 
     @Override
@@ -278,90 +288,38 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
     }
 
 
+    /**
+     * @deprecated Endpoint legacy a nivel solicitud. Ahora un retorno se realiza
+     * registrando parcialidades ({@code ReturnInstallmentService}). Se conserva
+     * para compatibilidad: crea una parcialidad COMPLETADA por el saldo pendiente
+     * completo de la solicitud.
+     */
     @Override
+    @Deprecated
     @Transactional
     public ReturnPaymentResponseDto realizeReturnPayment(
             Long returnPaymentId,
             RealizeReturnPaymentRequestDto request
     ) {
         OperationReturnPayment returnPayment = operationReturnPaymentRepository.findById(returnPaymentId)
-                .orElseThrow(() -> new IllegalArgumentException("Retorno no encontrado"));
+                .orElseThrow(ReturnPaymentNotFoundException::new);
 
-        if (returnPayment.getTipoPago() == PaymentType.EFECTIVO || returnPayment.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA) {
+        if (returnPayment.getTipoPago() == PaymentType.EFECTIVO
+                || returnPayment.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA) {
             throw new CashReturnMustBeScheduledException();
         }
 
-        if (returnPayment.getEstatus() != ReturnPaymentStatus.SOLICITADO) {
-            throw new InvalidReturnPaymentStatusException();
-        }
+        returnInstallmentService.legacyRealize(
+                returnPaymentId,
+                request.getCuentaOrigenId(),
+                request.getComprobanteUrl(),
+                request.getObservaciones()
+        );
 
-        validateRealizeReturnRequest(returnPayment, request);
-
-        User currentUser = authenticatedUserService.getCurrentUser();
-
-        if (returnPayment.getTipoPago() == PaymentType.TRANSFERENCIA) {
-            BankAccount cuentaOrigen = bankAccountRepository.findById(request.getCuentaOrigenId())
-                    .orElseThrow(() -> new IllegalArgumentException("Cuenta origen no encontrada"));
-
-            returnPayment.setCuentaOrigen(cuentaOrigen);
-        } else {
-            returnPayment.setCuentaOrigen(null);
-        }
-
-        returnPayment.setComprobanteUrl(request.getComprobanteUrl());
-        returnPayment.setPagadoPor(currentUser);
-        returnPayment.setFechaPago(LocalDateTime.now());
-        returnPayment.setEstatus(ReturnPaymentStatus.RETORNADO);
-        returnPayment.setFechaHoraRecoleccionEfectivo(request.getFechaHoraRecoleccionEfectivo());
-
-        if (request.getObservaciones() != null && !request.getObservaciones().isBlank()) {
-            returnPayment.setObservaciones(request.getObservaciones());
-        }
-
-        OperationReturnPayment savedReturn = operationReturnPaymentRepository.save(returnPayment);
-
-        updateOperationStatusAfterReturnRealized(returnPayment.getOperacion());
-
-        notifyReturnRealized(savedReturn);
-
-        return mapReturnToResponse(savedReturn);
-    }
-
-    private void validateRealizeReturnRequest(
-            OperationReturnPayment returnPayment,
-            RealizeReturnPaymentRequestDto request
-    ) {
-        if ((returnPayment.getTipoPago() == PaymentType.EFECTIVO || returnPayment.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA)
-                && request.getFechaHoraRecoleccionEfectivo() == null) {
-            throw new IllegalArgumentException(
-                    "La fecha y hora de recolección del efectivo es obligatoria"
-            );
-        }
-        if (returnPayment.getTipoPago() != PaymentType.EFECTIVO || returnPayment.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA) {
-            request.setFechaHoraRecoleccionEfectivo(null);
-        }
-        if (returnPayment.getTipoPago() == PaymentType.TRANSFERENCIA && request.getCuentaOrigenId() == null) {
-            throw new IllegalArgumentException("La cuenta origen es obligatoria");
-        }
-
-        if (request.getComprobanteUrl() == null || request.getComprobanteUrl().isBlank()) {
-            throw new IllegalArgumentException("El comprobante es obligatorio");
-        }
-    }
-
-    private void updateOperationStatusAfterReturnRealized(PaymentOperation operation) {
-        BigDecimal amountToReturn = calculateAmountToReturn(operation);
-
-        BigDecimal totalRealized =
-                operationReturnPaymentRepository.sumRealizedAmountByOperationId(operation.getId());
-
-        if (totalRealized.compareTo(amountToReturn) >= 0) {
-            operation.setEstatus(OperationStatus.RETORNADA);
-        } else {
-            operation.setEstatus(OperationStatus.RETORNO_PARCIAL_ENTREGADO);
-        }
-
-        paymentOperationRepository.save(operation);
+        return mapReturnToResponse(
+                operationReturnPaymentRepository.findById(returnPaymentId)
+                        .orElseThrow(ReturnPaymentNotFoundException::new)
+        );
     }
 
     @Override
@@ -456,7 +414,12 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         List<ReturnPaymentStatus> returnStatuses =
                 filter.getReturnStatuses() != null && !filter.getReturnStatuses().isEmpty()
                         ? filter.getReturnStatuses()
-                        : List.of(ReturnPaymentStatus.SOLICITADO, ReturnPaymentStatus.EN_RECOLECCION);
+                        : List.of(
+                                ReturnPaymentStatus.SOLICITADO,
+                                ReturnPaymentStatus.EN_RECOLECCION,
+                                ReturnPaymentStatus.ENTREGADO,
+                                ReturnPaymentStatus.PARCIALMENTE_RETORNADO
+                        );
 
         Specification<PaymentOperation> specification = buildReturnOperationSpecification(
                 filter,
@@ -816,6 +779,12 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             dto.setEntregadoPorNombre(returnPayment.getEntregadoPor().getNombre());
         }
 
+        // Totales calculados a partir de las parcialidades (backend = fuente de verdad).
+        returnRequestTotalsCalculator.apply(dto, returnPayment);
+        dto.setParcialidades(
+                returnInstallmentService.findInstallmentsByRequest(returnPayment.getId())
+        );
+
         return dto;
     }
 
@@ -895,9 +864,12 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         dto.setPorcentajeComisionOficinaTotal(porcentajeComisionOficinaTotal);
         dto.setMontoComisionOficinaTotal(montoComisionOficinaTotal);
         dto.setMontoTotalDevolverCliente(montoTotalDevolverCliente);
+        // Monto efectivamente retornado = suma de parcialidades COMPLETADA de
+        // todas las solicitudes de la operación (parcialidades programadas /
+        // entregadas no cuentan).
         BigDecimal montoRetornado = safe(
-                operationReturnPaymentRepository
-                        .sumRealizedAmountByOperationId(operation.getId())
+                operationReturnInstallmentRepository
+                        .sumCompletedByOperation(operation.getId())
         );
 
         BigDecimal saldoPendienteRetornar = montoTotalDevolverCliente
@@ -986,7 +958,13 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         return date != null ? date.plusDays(1).atStartOfDay().minusNanos(1) : null;
     }
 
+    /**
+     * @deprecated Endpoint legacy. Ahora se registra una parcialidad
+     * ({@code POST /requests/{id}/installments}). Delega creando/actualizando
+     * una parcialidad PROGRAMADA por el saldo pendiente completo.
+     */
     @Override
+    @Deprecated
     @Transactional
     public ReturnPaymentResponseDto scheduleCashReturnPickup(
             Long returnPaymentId,
@@ -996,223 +974,65 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 operationReturnPaymentRepository.findById(returnPaymentId)
                         .orElseThrow(ReturnPaymentNotFoundException::new);
 
-        if (returnPayment.getEstatus() != ReturnPaymentStatus.SOLICITADO
-                && returnPayment.getEstatus() != ReturnPaymentStatus.EN_RECOLECCION) {
-            throw new InvalidReturnPaymentStatusException();
-        }
-
         if (returnPayment.getTipoPago() != PaymentType.EFECTIVO
                 && returnPayment.getTipoPago() != PaymentType.RETIRO_SIN_TARJETA) {
             throw new InvalidCashReturnPaymentTypeException();
         }
 
-        if (request.getFechaHoraRecoleccionEfectivo() == null) {
-            throw new CashReturnPickupDateRequiredException();
-        }
-
-        if (returnPayment.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA) {
-            if (request.getCuentaOrigenId() == null) {
-                throw new CashReturnOriginAccountRequiredException();
-            }
-
-            BankAccount cuentaOrigen = bankAccountRepository.findById(request.getCuentaOrigenId())
-                    .orElseThrow(() -> new IllegalArgumentException("Cuenta origen no encontrada"));
-
-            returnPayment.setCuentaOrigen(cuentaOrigen);
-
-            if (request.getCodigoRetiroSinTarjeta() == null
-                    || request.getCodigoRetiroSinTarjeta().isBlank()) {
-                throw new CashReturnWithdrawalCodeRequiredException();
-            }
-
-            returnPayment.setCodigoRetiroSinTarjeta(
-                    request.getCodigoRetiroSinTarjeta().trim()
-            );
-        }
-
-        returnPayment.setFechaHoraRecoleccionEfectivo(
-                request.getFechaHoraRecoleccionEfectivo()
+        returnInstallmentService.legacySchedulePickup(
+                returnPaymentId,
+                request.getFechaHoraRecoleccionEfectivo(),
+                request.getCuentaOrigenId(),
+                request.getCodigoRetiroSinTarjeta(),
+                request.getObservaciones()
         );
 
-        returnPayment.setEstatus(ReturnPaymentStatus.EN_RECOLECCION);
-
-        if (request.getObservaciones() != null && !request.getObservaciones().isBlank()) {
-            returnPayment.setObservaciones(request.getObservaciones());
-        }
-
-        OperationReturnPayment saved =
-                operationReturnPaymentRepository.save(returnPayment);
-
-        notifyCashReturnPickupScheduled(saved);
-
-        return mapReturnToResponse(saved);
-    }
-
-    private void notifyCashReturnPickupScheduled(OperationReturnPayment returnPayment) {
-        PaymentOperation operation = returnPayment.getOperacion();
-
-        if (operation.getSocioComercial() == null) {
-            return;
-        }
-
-        notificationService.createForUser(
-                operation.getSocioComercial().getId(),
-                "Recolección de retorno programada",
-                "Se programó la recolección de tu retorno en efectivo por $"
-                        + returnPayment.getMonto()
-                        + " de la operación #"
-                        + operation.getId()
-                        + " para el "
-                        + returnPayment.getFechaHoraRecoleccionEfectivo()
-                        + ".",
-                NotificationType.SYSTEM_ALERT,
-                NotificationModule.PAGOS,
-                NotificationReferenceType.PAYMENT_OPERATION,
-                operation.getId(),
-                "/operaciones/" + operation.getId() + "?scrollToReturns=true",
-                NotificationPriority.HIGH
+        return mapReturnToResponse(
+                operationReturnPaymentRepository.findById(returnPaymentId)
+                        .orElseThrow(ReturnPaymentNotFoundException::new)
         );
     }
 
     /**
-     * Paso final del flujo de efectivo: JEFA_CAJAS cierra el retorno después
-     * de que el socio comercial ya confirmó haberlo recogido
-     * (confirmCashReturnPickup). Antes era al revés — se invirtió el orden
-     * de estos dos pasos a propósito, sin cambiar de método ni de rol.
+     * @deprecated Endpoint legacy. Delega cerrando la parcialidad ENTREGADA de
+     * la solicitud ({@code PATCH /installments/{id}/deliver}).
      */
     @Override
+    @Deprecated
     @Transactional
     public ReturnPaymentResponseDto markCashReturnAsDelivered(
             Long returnPaymentId,
             MarkCashReturnDeliveredRequestDto request
     ) {
-        OperationReturnPayment returnPayment =
-                operationReturnPaymentRepository.findById(returnPaymentId)
-                        .orElseThrow(ReturnPaymentNotFoundException::new);
-
-        if (returnPayment.getTipoPago() != PaymentType.EFECTIVO
-                && returnPayment.getTipoPago() != PaymentType.RETIRO_SIN_TARJETA) {
-            throw new InvalidCashReturnPaymentTypeException();
-        }
-
-        if (returnPayment.getEstatus() != ReturnPaymentStatus.ENTREGADO) {
-            throw new InvalidReturnPaymentStatusException();
-        }
-
-        User currentUser = authenticatedUserService.getCurrentUser();
-        PaymentOperation operation = returnPayment.getOperacion();
-
-        returnPayment.setEstatus(ReturnPaymentStatus.RETORNADO);
-        returnPayment.setEntregadoPor(currentUser);
-        returnPayment.setFechaEntrega(LocalDateTime.now());
-        returnPayment.setComprobanteEntregaEfectivoUrl(
-                request.getComprobanteEntregaEfectivoUrl().trim()
+        returnInstallmentService.legacyMarkDelivered(
+                returnPaymentId,
+                request.getComprobanteEntregaEfectivoUrl()
         );
 
-        OperationReturnPayment saved =
-                operationReturnPaymentRepository.save(returnPayment);
-
-        updateOperationStatusAfterReturnRealized(operation);
-
-        notifyCashReturnDelivered(saved);
-
-        return mapReturnToResponse(saved);
-    }
-
-    private void notifyCashReturnDelivered(OperationReturnPayment returnPayment) {
-        PaymentOperation operation = returnPayment.getOperacion();
-
-        if (operation.getSocioComercial() == null) {
-            return;
-        }
-
-        notificationService.createForUser(
-                operation.getSocioComercial().getId(),
-                "Retorno en efectivo confirmado",
-                "Tu retorno en efectivo por $"
-                        + returnPayment.getMonto()
-                        + " de la operación #"
-                        + operation.getId()
-                        + " fue confirmado y cerrado.",
-                NotificationType.SYSTEM_ALERT,
-                NotificationModule.PAGOS,
-                NotificationReferenceType.PAYMENT_OPERATION,
-                operation.getId(),
-                "/operaciones/" + operation.getId() + "?scrollToReturns=true",
-                NotificationPriority.HIGH
+        return mapReturnToResponse(
+                operationReturnPaymentRepository.findById(returnPaymentId)
+                        .orElseThrow(ReturnPaymentNotFoundException::new)
         );
     }
 
     /**
-     * Primer paso del socio tras la recolección programada: confirma que
-     * recogió/recibió el efectivo. Ya no es el paso final — ahora deja el
-     * retorno en ENTREGADO, pendiente de que JEFA_CAJAS lo cierre con
-     * markCashReturnAsDelivered.
+     * @deprecated Endpoint legacy. Delega confirmando la parcialidad PROGRAMADA
+     * de la solicitud ({@code PATCH /installments/{id}/confirm}).
      */
     @Override
+    @Deprecated
     @Transactional
     public ReturnPaymentResponseDto confirmCashReturnPickup(Long returnPaymentId) {
-        OperationReturnPayment returnPayment =
+        returnInstallmentService.legacyConfirmPickup(returnPaymentId);
+
+        return mapReturnToResponse(
                 operationReturnPaymentRepository.findById(returnPaymentId)
-                        .orElseThrow(ReturnPaymentNotFoundException::new);
-
-        if (returnPayment.getTipoPago() != PaymentType.EFECTIVO
-                && returnPayment.getTipoPago() != PaymentType.RETIRO_SIN_TARJETA) {
-            throw new InvalidCashReturnPaymentTypeException();
-        }
-
-        if (returnPayment.getEstatus() != ReturnPaymentStatus.EN_RECOLECCION) {
-            throw new InvalidReturnPaymentStatusException();
-        }
-
-        User currentUser = authenticatedUserService.getCurrentUser();
-        PaymentOperation operation = returnPayment.getOperacion();
-
-        boolean isOwner = operation.getSocioComercial() != null
-                && operation.getSocioComercial().getId().equals(currentUser.getId());
-
-        if (!isOwner) {
-            throw new org.springframework.security.access.AccessDeniedException(
-                    "No tienes permisos para confirmar este retorno"
-            );
-        }
-
-        LocalDateTime confirmedAt = LocalDateTime.now();
-
-        returnPayment.setEstatus(ReturnPaymentStatus.ENTREGADO);
-        returnPayment.setFechaPago(confirmedAt);
-        returnPayment.setFechaConfirmacionRecoleccion(confirmedAt);
-        returnPayment.setPagadoPor(currentUser);
-
-        OperationReturnPayment saved =
-                operationReturnPaymentRepository.save(returnPayment);
-
-        notifyCashReturnPickupConfirmed(saved);
-
-        return mapReturnToResponse(saved);
-    }
-
-    private void notifyCashReturnPickupConfirmed(OperationReturnPayment returnPayment) {
-        PaymentOperation operation = returnPayment.getOperacion();
-
-        notificationService.createForRoles(
-                List.of(RoleName.JEFA_CAJAS, RoleName.ADMIN),
-                "Socio confirmó recolección de efectivo",
-                "El socio comercial confirmó haber recibido el retorno en efectivo por $"
-                        + returnPayment.getMonto()
-                        + " de la operación #"
-                        + operation.getId()
-                        + ". Puedes cerrarlo desde Entregas de hoy.",
-                NotificationType.SYSTEM_ALERT,
-                NotificationModule.PAGOS,
-                NotificationReferenceType.PAYMENT_OPERATION,
-                operation.getId(),
-                "/entregas-de-hoy",
-                NotificationPriority.HIGH
+                        .orElseThrow(ReturnPaymentNotFoundException::new)
         );
     }
 
     @Override
+    @Deprecated
     @Transactional(readOnly = true)
     public Page<ReturnPaymentResponseDto> findTodayCashDeliveries(
             LocalDate fecha,

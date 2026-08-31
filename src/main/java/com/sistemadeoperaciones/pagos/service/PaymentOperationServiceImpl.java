@@ -30,6 +30,7 @@ import com.sistemadeoperaciones.pagos.exceptions.PaymentOperationNotFoundExcepti
 import com.sistemadeoperaciones.pagos.model.OperationPayment;
 import com.sistemadeoperaciones.pagos.model.PaymentOperation;
 import com.sistemadeoperaciones.pagos.repository.OperationPaymentRepository;
+import com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
 import com.sistemadeoperaciones.pagos.repository.PaymentOperationRepository;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
@@ -70,6 +71,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     private final CommercialPartnerCommissionService commercialPartnerCommissionService;
     private final CommercialPartnerSettingsRepository commercialPartnerSettingsRepository;
     private final OperationReturnPaymentRepository operationReturnPaymentRepository;
+    private final OperationReturnInstallmentRepository operationReturnInstallmentRepository;
     private final NotificationService notificationService;
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
     private static final int MONEY_SCALE = 2;
@@ -80,6 +82,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             PaymentOperationRepository paymentOperationRepository,
             OperationPaymentRepository operationPaymentRepository,
             OperationReturnPaymentRepository operationReturnPaymentRepository,
+            OperationReturnInstallmentRepository operationReturnInstallmentRepository,
             BankAccountRepository bankAccountRepository,
             UserRepository userRepository,
             AuthenticatedUserService authenticatedUserService,
@@ -93,6 +96,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         this.paymentOperationRepository = paymentOperationRepository;
         this.operationPaymentRepository = operationPaymentRepository;
         this.operationReturnPaymentRepository = operationReturnPaymentRepository;
+        this.operationReturnInstallmentRepository = operationReturnInstallmentRepository;
         this.bankAccountRepository = bankAccountRepository;
         this.userRepository = userRepository;
         this.authenticatedUserService = authenticatedUserService;
@@ -1513,9 +1517,11 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         dto.setMontoComisionTotal(montoComisionTotal);
         dto.setMontoTotalDevolverCliente(montoTotalDevolverCliente);
 
+        // Monto efectivamente retornado = parcialidades COMPLETADA de todas las
+        // solicitudes de la operación (ver ReturnInstallmentService).
         BigDecimal montoRetornado = safe(
-                operationReturnPaymentRepository
-                        .sumRealizedAmountByOperationId(operation.getId())
+                operationReturnInstallmentRepository
+                        .sumCompletedByOperation(operation.getId())
         );
 
         BigDecimal montoSolicitadoRetorno = safe(

@@ -9,7 +9,7 @@ import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
 import com.sistemadeoperaciones.pagos.enums.PaymentStatus;
 import com.sistemadeoperaciones.pagos.repository.OperationPaymentRepository;
-import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
+import com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,18 +28,18 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
 
     private final OperationPaymentRepository operationPaymentRepository;
 
-    private final OperationReturnPaymentRepository operationReturnPaymentRepository;
+    private final OperationReturnInstallmentRepository operationReturnInstallmentRepository;
 
     public BankAccountDailyCutServiceImpl(
             BankAccountRepository bankAccountRepository,
             BankAccountDailyCutRepository bankAccountDailyCutRepository,
             OperationPaymentRepository operationPaymentRepository,
-            OperationReturnPaymentRepository operationReturnPaymentRepository
+            OperationReturnInstallmentRepository operationReturnInstallmentRepository
     ) {
         this.bankAccountRepository = bankAccountRepository;
         this.bankAccountDailyCutRepository = bankAccountDailyCutRepository;
         this.operationPaymentRepository = operationPaymentRepository;
-        this.operationReturnPaymentRepository =  operationReturnPaymentRepository;
+        this.operationReturnInstallmentRepository = operationReturnInstallmentRepository;
     }
 
     @Override
@@ -146,8 +146,8 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
 
         BigDecimal salidasRetornos =
                 nvl(
-                        operationReturnPaymentRepository
-                                .sumRetornosCuenta(
+                        operationReturnInstallmentRepository
+                                .sumCompletedByCuentaOrigenBetween(
                                         bankAccountId,
                                         inicio,
                                         fin
@@ -629,8 +629,8 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
 
         BigDecimal salidasRetornos =
                 nvl(
-                        operationReturnPaymentRepository
-                                .sumRetornosCuenta(
+                        operationReturnInstallmentRepository
+                                .sumCompletedByCuentaOrigenBetween(
                                         account.getId(),
                                         inicio,
                                         fin

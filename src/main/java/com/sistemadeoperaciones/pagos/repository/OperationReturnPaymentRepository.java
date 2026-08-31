@@ -4,15 +4,18 @@ import com.sistemadeoperaciones.pagos.dto.retornos.ReturnDestinationAccountSugge
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
 import com.sistemadeoperaciones.pagos.model.OperationReturnPayment;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface OperationReturnPaymentRepository
         extends JpaRepository<OperationReturnPayment, Long>,
@@ -25,6 +28,14 @@ public interface OperationReturnPaymentRepository
     BigDecimal sumReturnedAmountByOperationId(Long operacionId);
 
     boolean existsByOperacionId(Long operacionId);
+
+    /**
+     * Bloqueo pesimista de la fila de la solicitud. Se toma como segundo lock
+     * (después del de la operación) al crear/transicionar parcialidades.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM OperationReturnPayment r WHERE r.id = :id")
+    Optional<OperationReturnPayment> findByIdForUpdate(@Param("id") Long id);
 
     long countByOperacionId(Long operacionId);
 
@@ -47,17 +58,33 @@ public interface OperationReturnPaymentRepository
             @Param("statuses") List<ReturnPaymentStatus> statuses
     );
 
+    /**
+     * Monto total ya "comprometido" en solicitudes de retorno de la operación
+     * (para el tope al solicitar). Cuenta toda solicitud que no esté totalmente
+     * fuera de juego: incluye {@code ENTREGADO} y {@code PARCIALMENTE_RETORNADO},
+     * que antes se omitían (permitía pedir de más mientras una solicitud estaba
+     * en esos estados).
+     */
     default BigDecimal sumRequestedAmountByOperationId(Long operationId) {
         return sumAmountByOperationIdAndStatuses(
                 operationId,
                 List.of(
                         ReturnPaymentStatus.SOLICITADO,
                         ReturnPaymentStatus.EN_RECOLECCION,
+                        ReturnPaymentStatus.ENTREGADO,
+                        ReturnPaymentStatus.PARCIALMENTE_RETORNADO,
                         ReturnPaymentStatus.RETORNADO
                 )
         );
     }
 
+    /**
+     * @deprecated el monto efectivamente retornado de una operación ahora se
+     * calcula sumando parcialidades COMPLETADA
+     * ({@code OperationReturnInstallmentRepository.sumCompletedByOperation}).
+     * Se conserva solo por compatibilidad con llamadas históricas.
+     */
+    @Deprecated
     default BigDecimal sumRealizedAmountByOperationId(Long operationId) {
         return sumAmountByOperationIdAndStatuses(
                 operationId,
