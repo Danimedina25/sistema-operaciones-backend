@@ -81,6 +81,7 @@ public interface ReturnInstallmentService {
 
     ReturnInstallmentResponseDto legacyMarkDelivered(
             Long returnRequestId,
-            String comprobanteEntregaUrl
+            String comprobanteEntregaUrl,
+            String personaQueRecibioEfectivo
     );
 }

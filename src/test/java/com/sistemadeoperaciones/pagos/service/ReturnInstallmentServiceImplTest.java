@@ -14,8 +14,12 @@ import com.sistemadeoperaciones.pagos.enums.ReturnInstallmentStatus;
 import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
 import com.sistemadeoperaciones.pagos.exceptions.InvalidReturnAmountException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentAmountExceedsAvailableException;
+import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentInvalidStatusException;
+import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentNoAuthorizedRecipientsException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentPreparedAmountEvidenceRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentReceiptRequiredException;
+import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentReceiverNotAuthorizedException;
+import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentReceiverRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnRequestAlreadyFullyReturnedException;
 import com.sistemadeoperaciones.pagos.model.OperationReturnInstallment;
 import com.sistemadeoperaciones.pagos.model.OperationReturnPayment;
@@ -175,6 +179,9 @@ class ReturnInstallmentServiceImplTest {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    /** Nombre canónico de la persona autorizada por defecto en cada solicitud. */
+    private static final String AUTORIZADO_CANONICO = "María Gómez Díaz";
+
     private OperationReturnPayment request(long id, PaymentType tipo, String monto) {
         OperationReturnPayment r = new OperationReturnPayment();
         r.setId(id);
@@ -182,10 +189,18 @@ class ReturnInstallmentServiceImplTest {
         r.setMonto(new BigDecimal(monto));
         r.setTipoPago(tipo);
         r.setEstatus(ReturnPaymentStatus.SOLICITADO);
+        r.setAutorizadoParaRecibirEfectivo1(AUTORIZADO_CANONICO);
         requests.put(id, r);
         lenient().when(returnPaymentRepository.findById(id)).thenReturn(Optional.of(r));
         lenient().when(returnPaymentRepository.findByIdForUpdate(id)).thenReturn(Optional.of(r));
         return r;
+    }
+
+    private DeliverReturnInstallmentRequestDto deliver(String personaQueRecibioEfectivo) {
+        DeliverReturnInstallmentRequestDto dto = new DeliverReturnInstallmentRequestDto();
+        dto.setComprobanteEntregaUrl("https://files/evidencia-entrega.jpg");
+        dto.setPersonaQueRecibioEfectivo(personaQueRecibioEfectivo);
+        return dto;
     }
 
     private User user(long id, String nombre) {
@@ -339,9 +354,7 @@ class ReturnInstallmentServiceImplTest {
 
         // jefa cierra
         when(authenticatedUserService.getCurrentUser()).thenReturn(jefa);
-        DeliverReturnInstallmentRequestDto deliver = new DeliverReturnInstallmentRequestDto();
-        deliver.setComprobanteEntregaUrl("https://files/evidencia.jpg");
-        service.deliverInstallment(created.getId(), deliver);
+        service.deliverInstallment(created.getId(), deliver(AUTORIZADO_CANONICO));
 
         assertThat(requests.get(1L).getEstatus()).isEqualTo(ReturnPaymentStatus.PARCIALMENTE_RETORNADO);
         assertThat(installmentRepository.sumCompletedBySolicitud(1L)).isEqualByComparingTo("10000");
@@ -399,9 +412,7 @@ class ReturnInstallmentServiceImplTest {
         when(authenticatedUserService.getCurrentUser()).thenReturn(operation.getSocioComercial());
         service.confirmInstallment(s2.getId());
         when(authenticatedUserService.getCurrentUser()).thenReturn(jefa);
-        DeliverReturnInstallmentRequestDto d2 = new DeliverReturnInstallmentRequestDto();
-        d2.setComprobanteEntregaUrl("https://files/e.jpg");
-        service.deliverInstallment(s2.getId(), d2);
+        service.deliverInstallment(s2.getId(), deliver(AUTORIZADO_CANONICO));
 
         // SOL-004: 1 parcialidad única de 10k → RETORNADO
         service.createInstallment(4L, transfer("10000"));
@@ -442,5 +453,200 @@ class ReturnInstallmentServiceImplTest {
                 eq(NotificationType.RETURN_INSTALLMENT_COMPLETED),
                 any(), any(), any(), any(), any()
         );
+    }
+
+    // ================================================================
+    // Cierre de entrega: persona autorizada que recibió + evidencia
+    // ================================================================
+
+    private CreateReturnInstallmentRequestDto cashRst(String monto) {
+        CreateReturnInstallmentRequestDto dto = cash(monto);
+        dto.setCuentaOrigenId(5L);
+        dto.setCodigoRetiroSinTarjeta("RST-0001");
+        return dto;
+    }
+
+    /** Crea una parcialidad de efectivo/RST y la deja en ENTREGADA (socio confirmó). */
+    private Long installmentReadyToDeliver(long reqId, PaymentType tipo, String monto) {
+        CreateReturnInstallmentRequestDto create =
+                tipo == PaymentType.RETIRO_SIN_TARJETA ? cashRst(monto) : cash(monto);
+        ReturnInstallmentResponseDto created = service.createInstallment(reqId, create);
+
+        when(authenticatedUserService.getCurrentUser()).thenReturn(operation.getSocioComercial());
+        service.confirmInstallment(created.getId());
+        // El cierre valida receptor/evidencia antes de leer el usuario; para los
+        // casos de rechazo este stub no llega a usarse.
+        lenient().when(authenticatedUserService.getCurrentUser()).thenReturn(jefa);
+        return created.getId();
+    }
+
+    private OperationReturnInstallment storedInstallment(Long id) {
+        return installmentsByRequest.values().stream()
+                .flatMap(List::stream)
+                .filter(i -> id.equals(i.getId()))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    @Test
+    void closesCashInstallmentWithAuthorizedReceiver() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = installmentReadyToDeliver(1L, PaymentType.EFECTIVO, "10000");
+
+        ReturnInstallmentResponseDto dto = service.deliverInstallment(id, deliver(AUTORIZADO_CANONICO));
+
+        assertThat(dto.getEstatus()).isEqualTo(ReturnInstallmentStatus.COMPLETADA);
+        assertThat(dto.getPersonaQueRecibioEfectivo()).isEqualTo(AUTORIZADO_CANONICO);
+        assertThat(installmentRepository.sumCompletedBySolicitud(1L)).isEqualByComparingTo("10000");
+    }
+
+    @Test
+    void closesWithdrawalWithoutCardWithAuthorizedReceiver() {
+        request(1L, PaymentType.RETIRO_SIN_TARJETA, "25000");
+        Long id = installmentReadyToDeliver(1L, PaymentType.RETIRO_SIN_TARJETA, "10000");
+
+        ReturnInstallmentResponseDto dto = service.deliverInstallment(id, deliver(AUTORIZADO_CANONICO));
+
+        assertThat(dto.getEstatus()).isEqualTo(ReturnInstallmentStatus.COMPLETADA);
+        assertThat(dto.getPersonaQueRecibioEfectivo()).isEqualTo(AUTORIZADO_CANONICO);
+    }
+
+    @Test
+    void storesCanonicalAuthorizedNameIgnoringCaseSpacesAndAccents() {
+        OperationReturnPayment r = request(1L, PaymentType.EFECTIVO, "25000");
+        r.setAutorizadoParaRecibirEfectivo1("María Gómez Díaz");
+        Long id = installmentReadyToDeliver(1L, PaymentType.EFECTIVO, "10000");
+
+        ReturnInstallmentResponseDto dto =
+                service.deliverInstallment(id, deliver("  MARIA   gomez  diaz "));
+
+        assertThat(dto.getPersonaQueRecibioEfectivo()).isEqualTo("María Gómez Díaz");
+    }
+
+    @Test
+    void rejectsBlankReceiver() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = installmentReadyToDeliver(1L, PaymentType.EFECTIVO, "10000");
+
+        assertThatThrownBy(() -> service.deliverInstallment(id, deliver("   ")))
+                .isInstanceOf(ReturnInstallmentReceiverRequiredException.class);
+
+        assertThat(storedInstallment(id).getEstatus()).isEqualTo(ReturnInstallmentStatus.ENTREGADA);
+        assertThat(installmentRepository.sumCompletedBySolicitud(1L)).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void rejectsReceiverNotAmongAuthorized() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = installmentReadyToDeliver(1L, PaymentType.EFECTIVO, "10000");
+
+        assertThatThrownBy(() -> service.deliverInstallment(id, deliver("Pedro Pérez")))
+                .isInstanceOf(ReturnInstallmentReceiverNotAuthorizedException.class);
+
+        assertThat(storedInstallment(id).getEstatus()).isEqualTo(ReturnInstallmentStatus.ENTREGADA);
+    }
+
+    @Test
+    void rejectsCloseWhenRequestHasNoAuthorizedPeople() {
+        OperationReturnPayment r = request(1L, PaymentType.EFECTIVO, "25000");
+        r.setAutorizadoParaRecibirEfectivo1("   ");
+        r.setAutorizadoParaRecibirEfectivo2(null);
+        r.setAutorizadoParaRecibirEfectivo3(null);
+        Long id = installmentReadyToDeliver(1L, PaymentType.EFECTIVO, "10000");
+
+        assertThatThrownBy(() -> service.deliverInstallment(id, deliver("María Gómez Díaz")))
+                .isInstanceOf(ReturnInstallmentNoAuthorizedRecipientsException.class);
+
+        assertThat(storedInstallment(id).getEstatus()).isEqualTo(ReturnInstallmentStatus.ENTREGADA);
+    }
+
+    @Test
+    void rejectsBlankDeliveryProof() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = installmentReadyToDeliver(1L, PaymentType.EFECTIVO, "10000");
+
+        DeliverReturnInstallmentRequestDto req = deliver(AUTORIZADO_CANONICO);
+        req.setComprobanteEntregaUrl("   ");
+
+        assertThatThrownBy(() -> service.deliverInstallment(id, req))
+                .isInstanceOf(ReturnInstallmentReceiptRequiredException.class);
+
+        assertThat(storedInstallment(id).getEstatus()).isEqualTo(ReturnInstallmentStatus.ENTREGADA);
+    }
+
+    @Test
+    void rejectsCloseWhenNotInEntregadaStatus() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        ReturnInstallmentResponseDto created = service.createInstallment(1L, cash("10000"));
+        // Sigue PROGRAMADA (el socio no ha confirmado).
+
+        assertThatThrownBy(() -> service.deliverInstallment(created.getId(), deliver(AUTORIZADO_CANONICO)))
+                .isInstanceOf(ReturnInstallmentInvalidStatusException.class);
+    }
+
+    @Test
+    void rejectsCloseForNonCashMethod() {
+        request(1L, PaymentType.TRANSFERENCIA, "40000");
+        ReturnInstallmentResponseDto created = service.createInstallment(1L, transfer("10000"));
+
+        assertThatThrownBy(() -> service.deliverInstallment(created.getId(), deliver(AUTORIZADO_CANONICO)))
+                .isInstanceOf(ReturnInstallmentInvalidStatusException.class);
+    }
+
+    @Test
+    void failedValidationDoesNotChangeStatusOrTotals() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = installmentReadyToDeliver(1L, PaymentType.EFECTIVO, "10000");
+
+        assertThatThrownBy(() -> service.deliverInstallment(id, deliver("No autorizada")))
+                .isInstanceOf(ReturnInstallmentReceiverNotAuthorizedException.class);
+
+        assertThat(storedInstallment(id).getEstatus()).isEqualTo(ReturnInstallmentStatus.ENTREGADA);
+        assertThat(storedInstallment(id).getPersonaQueRecibioEfectivo()).isNull();
+        assertThat(requests.get(1L).getEstatus()).isEqualTo(ReturnPaymentStatus.ENTREGADO);
+        assertThat(installmentRepository.sumCompletedBySolicitud(1L)).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void exposesReceiverInHistory() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = installmentReadyToDeliver(1L, PaymentType.EFECTIVO, "10000");
+        service.deliverInstallment(id, deliver(AUTORIZADO_CANONICO));
+
+        ReturnInstallmentResponseDto fromHistory = service.findInstallmentsByRequest(1L).stream()
+                .filter(i -> id.equals(i.getId()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(fromHistory.getPersonaQueRecibioEfectivo()).isEqualTo(AUTORIZADO_CANONICO);
+        assertThat(fromHistory.getEntregadoPorNombre()).isEqualTo(jefa.getNombre());
+    }
+
+    @Test
+    void historicalInstallmentWithNullReceiverStillReadable() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = installmentReadyToDeliver(1L, PaymentType.EFECTIVO, "10000");
+        // Parcialidad histórica: nunca se registró la persona receptora.
+
+        ReturnInstallmentResponseDto fromHistory = service.findInstallmentsByRequest(1L).stream()
+                .filter(i -> id.equals(i.getId()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(fromHistory.getPersonaQueRecibioEfectivo()).isNull();
+    }
+
+    @Test
+    void deliverTransitionIsIdempotent() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = installmentReadyToDeliver(1L, PaymentType.EFECTIVO, "10000");
+
+        service.deliverInstallment(id, deliver(AUTORIZADO_CANONICO));
+
+        assertThatThrownBy(() -> service.deliverInstallment(id, deliver("Pedro Pérez")))
+                .isInstanceOf(ReturnInstallmentInvalidStatusException.class);
+
+        assertThat(storedInstallment(id).getPersonaQueRecibioEfectivo()).isEqualTo(AUTORIZADO_CANONICO);
+        assertThat(installmentRepository.sumCompletedBySolicitud(1L)).isEqualByComparingTo("10000");
     }
 }

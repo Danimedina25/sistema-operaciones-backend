@@ -21,11 +21,14 @@ import com.sistemadeoperaciones.pagos.exceptions.InvalidReturnAmountException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentAmountExceedsAvailableException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentInvalidStatusException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentNotCancellableException;
+import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentNoAuthorizedRecipientsException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentNotFoundException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentOriginAccountRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentPickupDateRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentPreparedAmountEvidenceRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentReceiptRequiredException;
+import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentReceiverNotAuthorizedException;
+import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentReceiverRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentWithdrawalCodeRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnPaymentNotFoundException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnRequestAlreadyFullyReturnedException;
@@ -47,9 +50,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 @Service
 public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
@@ -242,6 +249,19 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
             );
         }
 
+        // Validación completa ANTES de mutar: si algo falla, la parcialidad no
+        // cambia de estatus ni se recalculan totales.
+        if (request == null || isBlank(request.getComprobanteEntregaUrl())) {
+            throw new ReturnInstallmentReceiptRequiredException();
+        }
+        if (isBlank(request.getPersonaQueRecibioEfectivo())) {
+            throw new ReturnInstallmentReceiverRequiredException();
+        }
+        // Se guarda el nombre canónico registrado en la solicitud, nunca el
+        // texto que envió el cliente.
+        String personaCanonica = resolveCanonicalAuthorizedRecipient(
+                solicitud, request.getPersonaQueRecibioEfectivo());
+
         User currentUser = authenticatedUserService.getCurrentUser();
         LocalDateTime now = LocalDateTime.now();
 
@@ -250,6 +270,7 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         installment.setFechaEntrega(now);
         installment.setFechaRealizacion(now);
         installment.setComprobanteEntregaUrl(request.getComprobanteEntregaUrl().trim());
+        installment.setPersonaQueRecibioEfectivo(personaCanonica);
 
         OperationReturnInstallment saved = installmentRepository.save(installment);
         recomputeRequestStatus(solicitud);
@@ -455,7 +476,8 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
     @Transactional
     public ReturnInstallmentResponseDto legacyMarkDelivered(
             Long returnRequestId,
-            String comprobanteEntregaUrl
+            String comprobanteEntregaUrl,
+            String personaQueRecibioEfectivo
     ) {
         OperationReturnInstallment installment = singleActiveInstallment(
                 returnRequestId,
@@ -463,6 +485,9 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         );
         DeliverReturnInstallmentRequestDto req = new DeliverReturnInstallmentRequestDto();
         req.setComprobanteEntregaUrl(comprobanteEntregaUrl);
+        req.setPersonaQueRecibioEfectivo(personaQueRecibioEfectivo);
+        // El cierre pasa por la misma ruta transaccional que el endpoint por
+        // parcialidad: valida receptor autorizado y evidencia igual que ahí.
         return deliverInstallment(installment.getId(), req);
     }
 
@@ -696,6 +721,57 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         }
     }
 
+    /**
+     * Busca, entre los autorizados de la solicitud, el que coincide con el texto
+     * recibido comparando sin distinguir mayúsculas, espacios repetidos ni
+     * acentos, y devuelve el nombre canónico tal cual está registrado en la
+     * solicitud. Lanza si la solicitud no tiene autorizados o si ninguno
+     * coincide.
+     */
+    private String resolveCanonicalAuthorizedRecipient(
+            OperationReturnPayment solicitud,
+            String rawInput
+    ) {
+        Map<String, String> canonicalByNormalized = new LinkedHashMap<>();
+        List<String> autorizados = List.of(
+                nullToEmpty(solicitud.getAutorizadoParaRecibirEfectivo1()),
+                nullToEmpty(solicitud.getAutorizadoParaRecibirEfectivo2()),
+                nullToEmpty(solicitud.getAutorizadoParaRecibirEfectivo3())
+        );
+        for (String autorizado : autorizados) {
+            String canonical = collapseSpaces(autorizado);
+            if (!canonical.isEmpty()) {
+                canonicalByNormalized.putIfAbsent(normalizeForCompare(canonical), canonical);
+            }
+        }
+
+        if (canonicalByNormalized.isEmpty()) {
+            throw new ReturnInstallmentNoAuthorizedRecipientsException();
+        }
+
+        String match = canonicalByNormalized.get(normalizeForCompare(rawInput));
+        if (match == null) {
+            throw new ReturnInstallmentReceiverNotAuthorizedException();
+        }
+        return match;
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String collapseSpaces(String value) {
+        return value == null ? "" : value.trim().replaceAll("\\s+", " ");
+    }
+
+    /** minúsculas + sin acentos + espacios colapsados, solo para comparar nombres. */
+    private String normalizeForCompare(String value) {
+        String collapsed = collapseSpaces(value);
+        String withoutAccents = Normalizer.normalize(collapsed, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+        return withoutAccents.toLowerCase(Locale.ROOT);
+    }
+
     private boolean isCash(PaymentType tipo) {
         return tipo == PaymentType.EFECTIVO || tipo == PaymentType.RETIRO_SIN_TARJETA;
     }
@@ -739,6 +815,7 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         dto.setComprobanteUrl(i.getComprobanteUrl());
         dto.setEvidenciaImportePreparadoUrl(i.getEvidenciaImportePreparadoUrl());
         dto.setComprobanteEntregaUrl(i.getComprobanteEntregaUrl());
+        dto.setPersonaQueRecibioEfectivo(i.getPersonaQueRecibioEfectivo());
         dto.setCodigoRetiroSinTarjeta(i.getCodigoRetiroSinTarjeta());
         dto.setFechaHoraRecoleccion(i.getFechaHoraRecoleccion());
         dto.setFechaRealizacion(i.getFechaRealizacion());

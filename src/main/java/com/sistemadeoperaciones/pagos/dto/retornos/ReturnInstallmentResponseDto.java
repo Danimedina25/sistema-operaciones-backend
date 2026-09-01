@@ -52,6 +52,14 @@ public class ReturnInstallmentResponseDto {
 
     private String comprobanteEntregaUrl;
 
+    /**
+     * Persona autorizada que recibió físicamente el efectivo / realizó el retiro
+     * sin tarjeta. {@code null} en parcialidades históricas cerradas antes de
+     * esta funcionalidad → el frontend muestra "No registrado (entrega
+     * histórica)". Distinta de {@link #entregadoPorNombre} (usuario del sistema).
+     */
+    private String personaQueRecibioEfectivo;
+
     private String codigoRetiroSinTarjeta;
 
     private LocalDateTime fechaHoraRecoleccion;
@@ -236,6 +244,14 @@ public class ReturnInstallmentResponseDto {
 
     public void setComprobanteEntregaUrl(String comprobanteEntregaUrl) {
         this.comprobanteEntregaUrl = comprobanteEntregaUrl;
+    }
+
+    public String getPersonaQueRecibioEfectivo() {
+        return personaQueRecibioEfectivo;
+    }
+
+    public void setPersonaQueRecibioEfectivo(String personaQueRecibioEfectivo) {
+        this.personaQueRecibioEfectivo = personaQueRecibioEfectivo;
     }
 
     public String getCodigoRetiroSinTarjeta() {

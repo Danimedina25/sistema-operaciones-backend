@@ -84,6 +84,23 @@ public class OperationReturnInstallment {
     private String comprobanteEntregaUrl;
 
     /**
+     * Persona autorizada de la solicitud que recibió físicamente el efectivo
+     * (o realizó el retiro sin tarjeta). Se guarda el nombre canónico tal cual
+     * está registrado en la solicitud
+     * ({@code OperationReturnPayment.autorizadoParaRecibirEfectivo1..3}), no el
+     * texto que envió el cliente.
+     *
+     * No confundir con {@link #entregadoPor}: ese es el usuario interno del
+     * sistema (normalmente JEFA_CAJAS) que registró/cerró la entrega.
+     *
+     * Nullable: las parcialidades cerradas antes de esta funcionalidad lo tienen
+     * en {@code null} ("No registrado (entrega histórica)"). El servicio lo exige
+     * para todo cierre nuevo de efectivo / retiro sin tarjeta.
+     */
+    @Column(name = "persona_que_recibio_efectivo", length = 200)
+    private String personaQueRecibioEfectivo;
+
+    /**
      * Código generado por el banco para el retiro sin tarjeta. Propio de esta
      * parcialidad — no se reutiliza entre parcialidades.
      */
@@ -234,6 +251,14 @@ public class OperationReturnInstallment {
 
     public void setComprobanteEntregaUrl(String comprobanteEntregaUrl) {
         this.comprobanteEntregaUrl = comprobanteEntregaUrl;
+    }
+
+    public String getPersonaQueRecibioEfectivo() {
+        return personaQueRecibioEfectivo;
+    }
+
+    public void setPersonaQueRecibioEfectivo(String personaQueRecibioEfectivo) {
+        this.personaQueRecibioEfectivo = personaQueRecibioEfectivo;
     }
 
     public String getCodigoRetiroSinTarjeta() {
