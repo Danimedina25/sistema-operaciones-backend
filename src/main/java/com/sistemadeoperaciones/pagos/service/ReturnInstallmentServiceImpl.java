@@ -195,9 +195,18 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         PaymentOperation operation = solicitud.getOperacion();
 
         requireCashType(installment);
-        if (installment.getEstatus() != ReturnInstallmentStatus.PROGRAMADA) {
+        // Las dos confirmaciones (socio / jefa de cajas) son independientes: el
+        // socio puede confirmar mientras la parcialidad no esté completada ni
+        // cancelada, sin importar si la jefa ya cerró su parte.
+        if (installment.getEstatus() == ReturnInstallmentStatus.COMPLETADA
+                || installment.getEstatus() == ReturnInstallmentStatus.CANCELADA) {
             throw new ReturnInstallmentInvalidStatusException(
-                    "Solo puede confirmarse una parcialidad programada"
+                    "Esta recolección ya no admite la confirmación del socio"
+            );
+        }
+        if (installment.getFechaConfirmacion() != null) {
+            throw new ReturnInstallmentInvalidStatusException(
+                    "El socio ya confirmó la recepción de esta recolección"
             );
         }
 
@@ -208,26 +217,31 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
             throw new AccessDeniedException("No tienes permisos para confirmar esta parcialidad");
         }
 
-        installment.setEstatus(ReturnInstallmentStatus.ENTREGADA);
         installment.setFechaConfirmacion(LocalDateTime.now());
+        installment.setConfirmadoPor(currentUser);
+        recomputeInstallmentStatus(installment);
 
         OperationReturnInstallment saved = installmentRepository.save(installment);
         recomputeRequestStatus(solicitud);
         recomputeOperationStatus(operation);
 
-        notifyRoles(
-                java.util.List.of(
-                        com.sistemadeoperaciones.shared.enums.RoleName.JEFA_CAJAS,
-                        com.sistemadeoperaciones.shared.enums.RoleName.ADMIN
-                ),
-                "El socio confirmó la recolección de una parcialidad",
-                "El socio comercial confirmó haber recibido la parcialidad por $"
-                        + saved.getMonto() + " de la operación #" + operation.getId()
-                        + ". Puedes cerrarla desde Entregas de hoy.",
-                NotificationType.RETURN_INSTALLMENT_DELIVERED,
-                saved.getId(),
-                "/entregas-de-hoy"
-        );
+        if (saved.getEstatus() == ReturnInstallmentStatus.COMPLETADA) {
+            dispatchNotificationsAfterChange(saved, solicitud);
+        } else {
+            notifyRoles(
+                    java.util.List.of(
+                            com.sistemadeoperaciones.shared.enums.RoleName.JEFA_CAJAS,
+                            com.sistemadeoperaciones.shared.enums.RoleName.ADMIN
+                    ),
+                    "El socio confirmó la recolección de una parcialidad",
+                    "El socio comercial confirmó haber recibido la parcialidad por $"
+                            + saved.getMonto() + " de la operación #" + operation.getId()
+                            + ". Falta que cierres la entrega con foto y persona que recibió.",
+                    NotificationType.RETURN_INSTALLMENT_DELIVERED,
+                    saved.getId(),
+                    "/entregas-de-hoy"
+            );
+        }
 
         return mapToResponse(saved);
     }
@@ -243,9 +257,17 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         PaymentOperation operation = solicitud.getOperacion();
 
         requireCashType(installment);
-        if (installment.getEstatus() != ReturnInstallmentStatus.ENTREGADA) {
+        // Independiente de la confirmación del socio: la jefa puede cerrar
+        // mientras la parcialidad no esté completada ni cancelada.
+        if (installment.getEstatus() == ReturnInstallmentStatus.COMPLETADA
+                || installment.getEstatus() == ReturnInstallmentStatus.CANCELADA) {
             throw new ReturnInstallmentInvalidStatusException(
-                    "Solo puede cerrarse una parcialidad que el socio ya confirmó"
+                    "Esta recolección ya no admite el cierre de la jefa de cajas"
+            );
+        }
+        if (installment.getFechaEntrega() != null) {
+            throw new ReturnInstallmentInvalidStatusException(
+                    "La jefa de cajas ya cerró la entrega de esta recolección"
             );
         }
 
@@ -265,18 +287,31 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         User currentUser = authenticatedUserService.getCurrentUser();
         LocalDateTime now = LocalDateTime.now();
 
-        installment.setEstatus(ReturnInstallmentStatus.COMPLETADA);
         installment.setEntregadoPor(currentUser);
         installment.setFechaEntrega(now);
-        installment.setFechaRealizacion(now);
         installment.setComprobanteEntregaUrl(request.getComprobanteEntregaUrl().trim());
         installment.setPersonaQueRecibioEfectivo(personaCanonica);
+        // fechaRealizacion la fija recomputeInstallmentStatus al llegar a COMPLETADA.
+        recomputeInstallmentStatus(installment);
 
         OperationReturnInstallment saved = installmentRepository.save(installment);
         recomputeRequestStatus(solicitud);
         recomputeOperationStatus(operation);
 
-        dispatchNotificationsAfterChange(saved, solicitud);
+        if (saved.getEstatus() == ReturnInstallmentStatus.COMPLETADA) {
+            dispatchNotificationsAfterChange(saved, solicitud);
+        } else if (operation.getSocioComercial() != null) {
+            notifyUser(
+                    operation.getSocioComercial().getId(),
+                    "Confirma la recepción de tu recolección",
+                    "La jefa de cajas registró la entrega de la recolección por $"
+                            + saved.getMonto() + " de la operación #" + operation.getId()
+                            + ". Confírmala para cerrar el retorno.",
+                    NotificationType.RETURN_INSTALLMENT_DELIVERED,
+                    operation.getId(),
+                    "/operaciones/" + operation.getId() + "?scrollToReturns=true"
+            );
+        }
 
         return mapToResponse(saved);
     }
@@ -291,8 +326,9 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         OperationReturnPayment solicitud = installment.getSolicitud();
         PaymentOperation operation = solicitud.getOperacion();
 
-        if (installment.getEstatus() != ReturnInstallmentStatus.PROGRAMADA
-                && installment.getEstatus() != ReturnInstallmentStatus.ENTREGADA) {
+        // Solo se puede cancelar mientras ninguna de las dos partes haya
+        // confirmado (estatus PROGRAMADA). En cuanto hay una marca, ya no.
+        if (installment.getEstatus() != ReturnInstallmentStatus.PROGRAMADA) {
             throw new ReturnInstallmentNotCancellableException();
         }
 
@@ -467,7 +503,7 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
     public ReturnInstallmentResponseDto legacyConfirmPickup(Long returnRequestId) {
         OperationReturnInstallment installment = singleActiveInstallment(
                 returnRequestId,
-                ReturnInstallmentStatus.PROGRAMADA
+                List.of(ReturnInstallmentStatus.PROGRAMADA, ReturnInstallmentStatus.ENTREGADA)
         );
         return confirmInstallment(installment.getId());
     }
@@ -481,7 +517,7 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
     ) {
         OperationReturnInstallment installment = singleActiveInstallment(
                 returnRequestId,
-                ReturnInstallmentStatus.ENTREGADA
+                List.of(ReturnInstallmentStatus.PROGRAMADA, ReturnInstallmentStatus.ENTREGADA)
         );
         DeliverReturnInstallmentRequestDto req = new DeliverReturnInstallmentRequestDto();
         req.setComprobanteEntregaUrl(comprobanteEntregaUrl);
@@ -689,11 +725,11 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
 
     private OperationReturnInstallment singleActiveInstallment(
             Long returnRequestId,
-            ReturnInstallmentStatus estatus
+            List<ReturnInstallmentStatus> estatuses
     ) {
         return installmentRepository.findBySolicitudIdOrderByCreatedAtAsc(returnRequestId)
                 .stream()
-                .filter(i -> i.getEstatus() == estatus)
+                .filter(i -> estatuses.contains(i.getEstatus()))
                 .findFirst()
                 .orElseThrow(() -> new ReturnInstallmentInvalidStatusException(
                         "No hay una parcialidad en el estatus requerido para esta acción"));
@@ -718,6 +754,33 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         if (!isCash(installment.getTipoPago())) {
             throw new ReturnInstallmentInvalidStatusException(
                     "Esta acción solo aplica a parcialidades en efectivo o retiro sin tarjeta");
+        }
+    }
+
+    /**
+     * Recalcula el estatus de una parcialidad de efectivo/RST a partir de sus dos
+     * marcas independientes: confirmación del socio ({@code fechaConfirmacion}) y
+     * cierre de la jefa de cajas ({@code fechaEntrega}). {@code COMPLETADA} solo
+     * cuando están ambas — y ahí se fija {@code fechaRealizacion} (la fecha que
+     * cuenta para el corte de caja). {@code ENTREGADA} = exactamente una marca.
+     * No toca parcialidades canceladas ni de otros métodos.
+     */
+    private void recomputeInstallmentStatus(OperationReturnInstallment i) {
+        if (i.getEstatus() == ReturnInstallmentStatus.CANCELADA || !isCash(i.getTipoPago())) {
+            return;
+        }
+        boolean socioConfirmo = i.getFechaConfirmacion() != null;
+        boolean jefaCerro = i.getFechaEntrega() != null;
+
+        if (socioConfirmo && jefaCerro) {
+            i.setEstatus(ReturnInstallmentStatus.COMPLETADA);
+            if (i.getFechaRealizacion() == null) {
+                i.setFechaRealizacion(LocalDateTime.now());
+            }
+        } else if (socioConfirmo || jefaCerro) {
+            i.setEstatus(ReturnInstallmentStatus.ENTREGADA);
+        } else {
+            i.setEstatus(ReturnInstallmentStatus.PROGRAMADA);
         }
     }
 
@@ -855,6 +918,12 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
             dto.setEntregadoPorId(i.getEntregadoPor().getId());
             dto.setEntregadoPorNombre(i.getEntregadoPor().getNombre());
         }
+        if (i.getConfirmadoPor() != null) {
+            dto.setConfirmadoPorId(i.getConfirmadoPor().getId());
+            dto.setConfirmadoPorNombre(i.getConfirmadoPor().getNombre());
+        }
+        dto.setConfirmadoPorSocio(i.getFechaConfirmacion() != null);
+        dto.setCerradoPorJefa(i.getFechaEntrega() != null);
         if (i.getCanceladoPor() != null) {
             dto.setCanceladoPorId(i.getCanceladoPor().getId());
             dto.setCanceladoPorNombre(i.getCanceladoPor().getNombre());

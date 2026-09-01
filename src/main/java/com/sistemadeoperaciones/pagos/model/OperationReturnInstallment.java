@@ -144,6 +144,16 @@ public class OperationReturnInstallment {
     @JoinColumn(name = "entregado_por")
     private User entregadoPor;
 
+    /**
+     * Socio comercial que confirmó la recepción de la recolección. Contraparte
+     * de {@link #entregadoPor}: las dos marcas son independientes y la
+     * parcialidad queda {@code COMPLETADA} solo cuando están ambas
+     * ({@link #fechaConfirmacion} y {@link #fechaEntrega} no nulas).
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "confirmado_por")
+    private User confirmadoPor;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cancelado_por")
     private User canceladoPor;
@@ -339,6 +349,14 @@ public class OperationReturnInstallment {
 
     public void setEntregadoPor(User entregadoPor) {
         this.entregadoPor = entregadoPor;
+    }
+
+    public User getConfirmadoPor() {
+        return confirmadoPor;
+    }
+
+    public void setConfirmadoPor(User confirmadoPor) {
+        this.confirmadoPor = confirmadoPor;
     }
 
     public User getCanceladoPor() {

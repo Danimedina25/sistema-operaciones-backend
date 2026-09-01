@@ -16,6 +16,7 @@ import com.sistemadeoperaciones.pagos.exceptions.InvalidReturnAmountException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentAmountExceedsAvailableException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentInvalidStatusException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentNoAuthorizedRecipientsException;
+import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentNotCancellableException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentPreparedAmountEvidenceRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentReceiptRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentReceiverNotAuthorizedException;
@@ -575,13 +576,19 @@ class ReturnInstallmentServiceImplTest {
     }
 
     @Test
-    void rejectsCloseWhenNotInEntregadaStatus() {
+    void jefaCanCloseBeforeSocioConfirmation() {
         request(1L, PaymentType.EFECTIVO, "25000");
         ReturnInstallmentResponseDto created = service.createInstallment(1L, cash("10000"));
-        // Sigue PROGRAMADA (el socio no ha confirmado).
+        // PROGRAMADA — el socio no ha confirmado. La jefa cierra igual.
 
-        assertThatThrownBy(() -> service.deliverInstallment(created.getId(), deliver(AUTORIZADO_CANONICO)))
-                .isInstanceOf(ReturnInstallmentInvalidStatusException.class);
+        ReturnInstallmentResponseDto dto =
+                service.deliverInstallment(created.getId(), deliver(AUTORIZADO_CANONICO));
+
+        assertThat(dto.getEstatus()).isEqualTo(ReturnInstallmentStatus.ENTREGADA);
+        assertThat(dto.isCerradoPorJefa()).isTrue();
+        assertThat(dto.isConfirmadoPorSocio()).isFalse();
+        assertThat(dto.getPersonaQueRecibioEfectivo()).isEqualTo(AUTORIZADO_CANONICO);
+        assertThat(installmentRepository.sumCompletedBySolicitud(1L)).isEqualByComparingTo("0");
     }
 
     @Test
@@ -648,5 +655,142 @@ class ReturnInstallmentServiceImplTest {
 
         assertThat(storedInstallment(id).getPersonaQueRecibioEfectivo()).isEqualTo(AUTORIZADO_CANONICO);
         assertThat(installmentRepository.sumCompletedBySolicitud(1L)).isEqualByComparingTo("10000");
+    }
+
+    // ================================================================
+    // Doble confirmación independiente (socio / jefa de cajas)
+    // ================================================================
+
+    private void confirmAsSocio(Long installmentId) {
+        when(authenticatedUserService.getCurrentUser()).thenReturn(operation.getSocioComercial());
+        service.confirmInstallment(installmentId);
+        lenient().when(authenticatedUserService.getCurrentUser()).thenReturn(jefa);
+    }
+
+    private Long scheduledCashInstallment(String monto) {
+        return service.createInstallment(1L, cash(monto)).getId();
+    }
+
+    @Test
+    void socioConfirmationAloneLeavesItInEntregadaAndNotCounted() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = scheduledCashInstallment("10000");
+
+        confirmAsSocio(id);
+
+        assertThat(storedInstallment(id).getEstatus()).isEqualTo(ReturnInstallmentStatus.ENTREGADA);
+        assertThat(storedInstallment(id).getConfirmadoPor()).isEqualTo(operation.getSocioComercial());
+        assertThat(installmentRepository.sumCompletedBySolicitud(1L)).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void completesWhenJefaClosesAfterSocioConfirmed() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = scheduledCashInstallment("10000");
+
+        confirmAsSocio(id);
+        ReturnInstallmentResponseDto dto = service.deliverInstallment(id, deliver(AUTORIZADO_CANONICO));
+
+        assertThat(dto.getEstatus()).isEqualTo(ReturnInstallmentStatus.COMPLETADA);
+        assertThat(dto.isConfirmadoPorSocio()).isTrue();
+        assertThat(dto.isCerradoPorJefa()).isTrue();
+        assertThat(storedInstallment(id).getFechaRealizacion()).isNotNull();
+        assertThat(installmentRepository.sumCompletedBySolicitud(1L)).isEqualByComparingTo("10000");
+    }
+
+    @Test
+    void completesWhenSocioConfirmsAfterJefaClosed() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = scheduledCashInstallment("10000");
+
+        // jefa primero
+        service.deliverInstallment(id, deliver(AUTORIZADO_CANONICO));
+        assertThat(storedInstallment(id).getEstatus()).isEqualTo(ReturnInstallmentStatus.ENTREGADA);
+        assertThat(installmentRepository.sumCompletedBySolicitud(1L)).isEqualByComparingTo("0");
+
+        // socio después
+        confirmAsSocio(id);
+
+        assertThat(storedInstallment(id).getEstatus()).isEqualTo(ReturnInstallmentStatus.COMPLETADA);
+        assertThat(storedInstallment(id).getFechaRealizacion()).isNotNull();
+        assertThat(installmentRepository.sumCompletedBySolicitud(1L)).isEqualByComparingTo("10000");
+    }
+
+    @Test
+    void socioCannotConfirmTwice() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = scheduledCashInstallment("10000");
+        confirmAsSocio(id);
+
+        // Se rechaza en el chequeo de idempotencia, antes de leer el usuario.
+        assertThatThrownBy(() -> service.confirmInstallment(id))
+                .isInstanceOf(ReturnInstallmentInvalidStatusException.class);
+    }
+
+    @Test
+    void jefaCannotCloseTwice() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = scheduledCashInstallment("10000");
+        service.deliverInstallment(id, deliver(AUTORIZADO_CANONICO));
+
+        assertThatThrownBy(() -> service.deliverInstallment(id, deliver(AUTORIZADO_CANONICO)))
+                .isInstanceOf(ReturnInstallmentInvalidStatusException.class);
+        assertThat(storedInstallment(id).getEstatus()).isEqualTo(ReturnInstallmentStatus.ENTREGADA);
+    }
+
+    @Test
+    void neitherPartyCanActOnACompletedInstallment() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = scheduledCashInstallment("10000");
+        confirmAsSocio(id);
+        service.deliverInstallment(id, deliver(AUTORIZADO_CANONICO));
+
+        assertThatThrownBy(() -> service.deliverInstallment(id, deliver(AUTORIZADO_CANONICO)))
+                .isInstanceOf(ReturnInstallmentInvalidStatusException.class);
+        assertThatThrownBy(() -> service.confirmInstallment(id))
+                .isInstanceOf(ReturnInstallmentInvalidStatusException.class);
+    }
+
+    @Test
+    void jefaCloseFromProgramadaStillRequiresProofAndAuthorizedPerson() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = scheduledCashInstallment("10000");
+
+        DeliverReturnInstallmentRequestDto sinFoto = deliver(AUTORIZADO_CANONICO);
+        sinFoto.setComprobanteEntregaUrl("  ");
+        assertThatThrownBy(() -> service.deliverInstallment(id, sinFoto))
+                .isInstanceOf(ReturnInstallmentReceiptRequiredException.class);
+
+        assertThatThrownBy(() -> service.deliverInstallment(id, deliver("Persona No Autorizada")))
+                .isInstanceOf(ReturnInstallmentReceiverNotAuthorizedException.class);
+
+        assertThat(storedInstallment(id).getEstatus()).isEqualTo(ReturnInstallmentStatus.PROGRAMADA);
+    }
+
+    @Test
+    void cannotCancelOnceThereIsOneMark() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = scheduledCashInstallment("10000");
+        confirmAsSocio(id);
+
+        CancelReturnInstallmentRequestDto cancel = new CancelReturnInstallmentRequestDto();
+        cancel.setMotivo("El socio pidió reprogramar");
+        assertThatThrownBy(() -> service.cancelInstallment(id, cancel))
+                .isInstanceOf(ReturnInstallmentNotCancellableException.class);
+    }
+
+    @Test
+    void jefaClosingFirstNotifiesSocioToConfirm() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = scheduledCashInstallment("10000");
+
+        service.deliverInstallment(id, deliver(AUTORIZADO_CANONICO));
+
+        verify(notificationService).createForUser(
+                eq(operation.getSocioComercial().getId()),
+                any(), any(),
+                eq(NotificationType.RETURN_INSTALLMENT_DELIVERED),
+                any(), any(), any(), any(), any()
+        );
     }
 }

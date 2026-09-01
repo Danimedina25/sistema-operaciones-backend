@@ -86,6 +86,19 @@ public class ReturnInstallmentResponseDto {
 
     private String entregadoPorNombre;
 
+    private Long confirmadoPorId;
+
+    private String confirmadoPorNombre;
+
+    /**
+     * Marcas independientes del cierre de la recolección. La parcialidad queda
+     * {@code COMPLETADA} solo cuando ambas son {@code true}; con una sola, el
+     * estatus es {@code ENTREGADA} ("confirmación parcial").
+     */
+    private boolean confirmadoPorSocio;
+
+    private boolean cerradoPorJefa;
+
     private Long canceladoPorId;
 
     private String canceladoPorNombre;
@@ -356,6 +369,38 @@ public class ReturnInstallmentResponseDto {
 
     public void setEntregadoPorNombre(String entregadoPorNombre) {
         this.entregadoPorNombre = entregadoPorNombre;
+    }
+
+    public Long getConfirmadoPorId() {
+        return confirmadoPorId;
+    }
+
+    public void setConfirmadoPorId(Long confirmadoPorId) {
+        this.confirmadoPorId = confirmadoPorId;
+    }
+
+    public String getConfirmadoPorNombre() {
+        return confirmadoPorNombre;
+    }
+
+    public void setConfirmadoPorNombre(String confirmadoPorNombre) {
+        this.confirmadoPorNombre = confirmadoPorNombre;
+    }
+
+    public boolean isConfirmadoPorSocio() {
+        return confirmadoPorSocio;
+    }
+
+    public void setConfirmadoPorSocio(boolean confirmadoPorSocio) {
+        this.confirmadoPorSocio = confirmadoPorSocio;
+    }
+
+    public boolean isCerradoPorJefa() {
+        return cerradoPorJefa;
+    }
+
+    public void setCerradoPorJefa(boolean cerradoPorJefa) {
+        this.cerradoPorJefa = cerradoPorJefa;
     }
 
     public Long getCanceladoPorId() {
