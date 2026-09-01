@@ -71,6 +71,13 @@ public class OperationReturnInstallment {
     private String comprobanteUrl;
 
     /**
+     * Evidencia del efectivo ya contado y separado para la recolección
+     * (efectivo / retiro sin tarjeta). Se captura al programar la parcialidad.
+     */
+    @Column(name = "evidencia_importe_preparado_url", length = 500)
+    private String evidenciaImportePreparadoUrl;
+
+    /**
      * Evidencia fotográfica de la entrega del efectivo.
      */
     @Column(name = "comprobante_entrega_url", length = 500)
@@ -211,6 +218,14 @@ public class OperationReturnInstallment {
 
     public void setComprobanteUrl(String comprobanteUrl) {
         this.comprobanteUrl = comprobanteUrl;
+    }
+
+    public String getEvidenciaImportePreparadoUrl() {
+        return evidenciaImportePreparadoUrl;
+    }
+
+    public void setEvidenciaImportePreparadoUrl(String evidenciaImportePreparadoUrl) {
+        this.evidenciaImportePreparadoUrl = evidenciaImportePreparadoUrl;
     }
 
     public String getComprobanteEntregaUrl() {

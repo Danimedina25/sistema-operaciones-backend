@@ -14,6 +14,7 @@ import com.sistemadeoperaciones.pagos.enums.ReturnInstallmentStatus;
 import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
 import com.sistemadeoperaciones.pagos.exceptions.InvalidReturnAmountException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentAmountExceedsAvailableException;
+import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentPreparedAmountEvidenceRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentReceiptRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnRequestAlreadyFullyReturnedException;
 import com.sistemadeoperaciones.pagos.model.OperationReturnInstallment;
@@ -213,6 +214,7 @@ class ReturnInstallmentServiceImplTest {
         CreateReturnInstallmentRequestDto dto = new CreateReturnInstallmentRequestDto();
         dto.setMonto(new BigDecimal(monto));
         dto.setFechaHoraRecoleccion(LocalDateTime.now().plusDays(1));
+        dto.setEvidenciaImportePreparadoUrl("https://files/evidencia-importe.jpg");
         return dto;
     }
 
@@ -280,6 +282,26 @@ class ReturnInstallmentServiceImplTest {
 
         assertThatThrownBy(() -> service.createInstallment(1L, dto))
                 .isInstanceOf(ReturnInstallmentReceiptRequiredException.class);
+    }
+
+    @Test
+    void cashInstallmentRequiresPreparedAmountEvidence() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        CreateReturnInstallmentRequestDto dto = cash("10000");
+        dto.setEvidenciaImportePreparadoUrl("  ");
+
+        assertThatThrownBy(() -> service.createInstallment(1L, dto))
+                .isInstanceOf(ReturnInstallmentPreparedAmountEvidenceRequiredException.class);
+    }
+
+    @Test
+    void cashInstallmentStoresPreparedAmountEvidence() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+
+        ReturnInstallmentResponseDto created = service.createInstallment(1L, cash("10000"));
+
+        assertThat(created.getEvidenciaImportePreparadoUrl())
+                .isEqualTo("https://files/evidencia-importe.jpg");
     }
 
     @Test

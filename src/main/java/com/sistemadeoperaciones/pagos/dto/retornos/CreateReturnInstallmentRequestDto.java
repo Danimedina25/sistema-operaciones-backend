@@ -15,9 +15,10 @@ import java.time.LocalDateTime;
  * <ul>
  *   <li>TRANSFERENCIA / DEPOSITO / CHEQUE → {@code cuentaOrigenId} (solo transferencia)
  *       y {@code comprobanteUrl}. La parcialidad nace COMPLETADA.</li>
- *   <li>EFECTIVO → {@code fechaHoraRecoleccion}. Nace PROGRAMADA.</li>
- *   <li>RETIRO_SIN_TARJETA → {@code fechaHoraRecoleccion} + {@code cuentaOrigenId}
- *       + {@code codigoRetiroSinTarjeta}. Nace PROGRAMADA.</li>
+ *   <li>EFECTIVO → {@code fechaHoraRecoleccion} + {@code evidenciaImportePreparadoUrl}.
+ *       Nace PROGRAMADA.</li>
+ *   <li>RETIRO_SIN_TARJETA → {@code fechaHoraRecoleccion} + {@code evidenciaImportePreparadoUrl}
+ *       + {@code cuentaOrigenId} + {@code codigoRetiroSinTarjeta}. Nace PROGRAMADA.</li>
  * </ul>
  */
 public class CreateReturnInstallmentRequestDto {
@@ -30,6 +31,9 @@ public class CreateReturnInstallmentRequestDto {
 
     @Size(max = 500, message = "La URL del comprobante no puede exceder 500 caracteres")
     private String comprobanteUrl;
+
+    @Size(max = 500, message = "La URL de la evidencia del importe preparado no puede exceder 500 caracteres")
+    private String evidenciaImportePreparadoUrl;
 
     private LocalDateTime fechaHoraRecoleccion;
 
@@ -61,6 +65,14 @@ public class CreateReturnInstallmentRequestDto {
 
     public void setComprobanteUrl(String comprobanteUrl) {
         this.comprobanteUrl = comprobanteUrl;
+    }
+
+    public String getEvidenciaImportePreparadoUrl() {
+        return evidenciaImportePreparadoUrl;
+    }
+
+    public void setEvidenciaImportePreparadoUrl(String evidenciaImportePreparadoUrl) {
+        this.evidenciaImportePreparadoUrl = evidenciaImportePreparadoUrl;
     }
 
     public LocalDateTime getFechaHoraRecoleccion() {

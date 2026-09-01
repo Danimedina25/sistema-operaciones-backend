@@ -48,6 +48,8 @@ public class ReturnInstallmentResponseDto {
 
     private String comprobanteUrl;
 
+    private String evidenciaImportePreparadoUrl;
+
     private String comprobanteEntregaUrl;
 
     private String codigoRetiroSinTarjeta;
@@ -218,6 +220,14 @@ public class ReturnInstallmentResponseDto {
 
     public void setComprobanteUrl(String comprobanteUrl) {
         this.comprobanteUrl = comprobanteUrl;
+    }
+
+    public String getEvidenciaImportePreparadoUrl() {
+        return evidenciaImportePreparadoUrl;
+    }
+
+    public void setEvidenciaImportePreparadoUrl(String evidenciaImportePreparadoUrl) {
+        this.evidenciaImportePreparadoUrl = evidenciaImportePreparadoUrl;
     }
 
     public String getComprobanteEntregaUrl() {

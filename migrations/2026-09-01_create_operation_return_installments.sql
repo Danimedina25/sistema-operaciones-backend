@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS operation_return_installments (
     estatus                   VARCHAR(20)   NOT NULL,
     cuenta_origen_id          BIGINT        NULL,
     comprobante_url           VARCHAR(500)  NULL,
+    evidencia_importe_preparado_url VARCHAR(500) NULL,
     comprobante_entrega_url   VARCHAR(500)  NULL,
     codigo_retiro_sin_tarjeta VARCHAR(40)   NULL,
     fecha_hora_recoleccion    DATETIME      NULL,

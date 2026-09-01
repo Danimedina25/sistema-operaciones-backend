@@ -24,6 +24,7 @@ import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentNotCancellable
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentNotFoundException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentOriginAccountRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentPickupDateRequiredException;
+import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentPreparedAmountEvidenceRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentReceiptRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentWithdrawalCodeRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnPaymentNotFoundException;
@@ -133,7 +134,12 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
             if (request.getFechaHoraRecoleccion() == null) {
                 throw new ReturnInstallmentPickupDateRequiredException();
             }
+            if (isBlank(request.getEvidenciaImportePreparadoUrl())) {
+                throw new ReturnInstallmentPreparedAmountEvidenceRequiredException();
+            }
             installment.setFechaHoraRecoleccion(request.getFechaHoraRecoleccion());
+            installment.setEvidenciaImportePreparadoUrl(
+                    request.getEvidenciaImportePreparadoUrl().trim());
             installment.setEstatus(ReturnInstallmentStatus.PROGRAMADA);
 
             if (solicitud.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA) {
@@ -731,6 +737,7 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         dto.setTipoPago(i.getTipoPago());
         dto.setEstatus(i.getEstatus());
         dto.setComprobanteUrl(i.getComprobanteUrl());
+        dto.setEvidenciaImportePreparadoUrl(i.getEvidenciaImportePreparadoUrl());
         dto.setComprobanteEntregaUrl(i.getComprobanteEntregaUrl());
         dto.setCodigoRetiroSinTarjeta(i.getCodigoRetiroSinTarjeta());
         dto.setFechaHoraRecoleccion(i.getFechaHoraRecoleccion());
