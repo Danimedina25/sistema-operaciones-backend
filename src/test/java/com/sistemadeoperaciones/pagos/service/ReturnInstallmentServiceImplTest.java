@@ -15,11 +15,9 @@ import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
 import com.sistemadeoperaciones.pagos.exceptions.InvalidReturnAmountException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentAmountExceedsAvailableException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentInvalidStatusException;
-import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentNoAuthorizedRecipientsException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentNotCancellableException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentPreparedAmountEvidenceRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentReceiptRequiredException;
-import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentReceiverNotAuthorizedException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentReceiverRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnRequestAlreadyFullyReturnedException;
 import com.sistemadeoperaciones.pagos.model.OperationReturnInstallment;
@@ -537,28 +535,44 @@ class ReturnInstallmentServiceImplTest {
     }
 
     @Test
-    void rejectsReceiverNotAmongAuthorized() {
+    void acceptsReceiverNotAmongAuthorizedAndFlagsIt() {
         request(1L, PaymentType.EFECTIVO, "25000");
         Long id = installmentReadyToDeliver(1L, PaymentType.EFECTIVO, "10000");
 
-        assertThatThrownBy(() -> service.deliverInstallment(id, deliver("Pedro Pérez")))
-                .isInstanceOf(ReturnInstallmentReceiverNotAuthorizedException.class);
+        ReturnInstallmentResponseDto dto =
+                service.deliverInstallment(id, deliver("  Pedro   Pérez  "));
 
-        assertThat(storedInstallment(id).getEstatus()).isEqualTo(ReturnInstallmentStatus.ENTREGADA);
+        assertThat(dto.getEstatus()).isEqualTo(ReturnInstallmentStatus.COMPLETADA);
+        assertThat(dto.getPersonaQueRecibioEfectivo()).isEqualTo("Pedro Pérez");
+        assertThat(dto.getRecibioPersonaAutorizada()).isFalse();
     }
 
     @Test
-    void rejectsCloseWhenRequestHasNoAuthorizedPeople() {
+    void canCloseEvenWhenRequestHasNoAuthorizedPeople() {
         OperationReturnPayment r = request(1L, PaymentType.EFECTIVO, "25000");
         r.setAutorizadoParaRecibirEfectivo1("   ");
         r.setAutorizadoParaRecibirEfectivo2(null);
         r.setAutorizadoParaRecibirEfectivo3(null);
         Long id = installmentReadyToDeliver(1L, PaymentType.EFECTIVO, "10000");
 
-        assertThatThrownBy(() -> service.deliverInstallment(id, deliver("María Gómez Díaz")))
-                .isInstanceOf(ReturnInstallmentNoAuthorizedRecipientsException.class);
+        ReturnInstallmentResponseDto dto =
+                service.deliverInstallment(id, deliver("Alguien Externo"));
 
-        assertThat(storedInstallment(id).getEstatus()).isEqualTo(ReturnInstallmentStatus.ENTREGADA);
+        assertThat(dto.getEstatus()).isEqualTo(ReturnInstallmentStatus.COMPLETADA);
+        assertThat(dto.getPersonaQueRecibioEfectivo()).isEqualTo("Alguien Externo");
+        assertThat(dto.getRecibioPersonaAutorizada()).isFalse();
+    }
+
+    @Test
+    void flagsReceiverAsAuthorizedWhenItMatchesTheList() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        Long id = installmentReadyToDeliver(1L, PaymentType.EFECTIVO, "10000");
+
+        ReturnInstallmentResponseDto dto =
+                service.deliverInstallment(id, deliver("  maria   GOMEZ diaz "));
+
+        assertThat(dto.getPersonaQueRecibioEfectivo()).isEqualTo(AUTORIZADO_CANONICO);
+        assertThat(dto.getRecibioPersonaAutorizada()).isTrue();
     }
 
     @Test
@@ -605,8 +619,8 @@ class ReturnInstallmentServiceImplTest {
         request(1L, PaymentType.EFECTIVO, "25000");
         Long id = installmentReadyToDeliver(1L, PaymentType.EFECTIVO, "10000");
 
-        assertThatThrownBy(() -> service.deliverInstallment(id, deliver("No autorizada")))
-                .isInstanceOf(ReturnInstallmentReceiverNotAuthorizedException.class);
+        assertThatThrownBy(() -> service.deliverInstallment(id, deliver("   ")))
+                .isInstanceOf(ReturnInstallmentReceiverRequiredException.class);
 
         assertThat(storedInstallment(id).getEstatus()).isEqualTo(ReturnInstallmentStatus.ENTREGADA);
         assertThat(storedInstallment(id).getPersonaQueRecibioEfectivo()).isNull();
@@ -752,7 +766,7 @@ class ReturnInstallmentServiceImplTest {
     }
 
     @Test
-    void jefaCloseFromProgramadaStillRequiresProofAndAuthorizedPerson() {
+    void jefaCloseFromProgramadaStillRequiresProofAndReceiverName() {
         request(1L, PaymentType.EFECTIVO, "25000");
         Long id = scheduledCashInstallment("10000");
 
@@ -761,8 +775,8 @@ class ReturnInstallmentServiceImplTest {
         assertThatThrownBy(() -> service.deliverInstallment(id, sinFoto))
                 .isInstanceOf(ReturnInstallmentReceiptRequiredException.class);
 
-        assertThatThrownBy(() -> service.deliverInstallment(id, deliver("Persona No Autorizada")))
-                .isInstanceOf(ReturnInstallmentReceiverNotAuthorizedException.class);
+        assertThatThrownBy(() -> service.deliverInstallment(id, deliver("   ")))
+                .isInstanceOf(ReturnInstallmentReceiverRequiredException.class);
 
         assertThat(storedInstallment(id).getEstatus()).isEqualTo(ReturnInstallmentStatus.PROGRAMADA);
     }

@@ -21,13 +21,11 @@ import com.sistemadeoperaciones.pagos.exceptions.InvalidReturnAmountException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentAmountExceedsAvailableException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentInvalidStatusException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentNotCancellableException;
-import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentNoAuthorizedRecipientsException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentNotFoundException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentOriginAccountRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentPickupDateRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentPreparedAmountEvidenceRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentReceiptRequiredException;
-import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentReceiverNotAuthorizedException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentReceiverRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnInstallmentWithdrawalCodeRequiredException;
 import com.sistemadeoperaciones.pagos.exceptions.ReturnPaymentNotFoundException;
@@ -279,9 +277,10 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         if (isBlank(request.getPersonaQueRecibioEfectivo())) {
             throw new ReturnInstallmentReceiverRequiredException();
         }
-        // Se guarda el nombre canónico registrado en la solicitud, nunca el
-        // texto que envió el cliente.
-        String personaCanonica = resolveCanonicalAuthorizedRecipient(
+        // Si coincide con un autorizado se guarda el nombre canónico de la
+        // solicitud; si es alguien ajeno a la lista se guarda tal cual y se deja
+        // marcado (recibioPersonaAutorizada = false) para auditoría.
+        RecipientResolution receptor = resolveRecipient(
                 solicitud, request.getPersonaQueRecibioEfectivo());
 
         User currentUser = authenticatedUserService.getCurrentUser();
@@ -290,7 +289,8 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         installment.setEntregadoPor(currentUser);
         installment.setFechaEntrega(now);
         installment.setComprobanteEntregaUrl(request.getComprobanteEntregaUrl().trim());
-        installment.setPersonaQueRecibioEfectivo(personaCanonica);
+        installment.setPersonaQueRecibioEfectivo(receptor.nombre());
+        installment.setRecibioPersonaAutorizada(receptor.autorizada());
         // fechaRealizacion la fija recomputeInstallmentStatus al llegar a COMPLETADA.
         recomputeInstallmentStatus(installment);
 
@@ -784,14 +784,19 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         }
     }
 
+    /** Nombre a persistir + si corresponde a un autorizado de la solicitud. */
+    private record RecipientResolution(String nombre, boolean autorizada) {}
+
     /**
-     * Busca, entre los autorizados de la solicitud, el que coincide con el texto
-     * recibido comparando sin distinguir mayúsculas, espacios repetidos ni
-     * acentos, y devuelve el nombre canónico tal cual está registrado en la
-     * solicitud. Lanza si la solicitud no tiene autorizados o si ninguno
-     * coincide.
+     * Resuelve quién recibió el efectivo. Si el texto coincide con un autorizado
+     * de la solicitud (comparando sin distinguir mayúsculas, espacios repetidos
+     * ni acentos) devuelve el nombre canónico registrado ahí y
+     * {@code autorizada = true}. Si no coincide con ninguno (o la solicitud no
+     * tiene autorizados) se acepta igual: devuelve el texto normalizado y
+     * {@code autorizada = false} — es una excepción registrada a propósito.
+     * Nunca lanza.
      */
-    private String resolveCanonicalAuthorizedRecipient(
+    private RecipientResolution resolveRecipient(
             OperationReturnPayment solicitud,
             String rawInput
     ) {
@@ -808,15 +813,11 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
             }
         }
 
-        if (canonicalByNormalized.isEmpty()) {
-            throw new ReturnInstallmentNoAuthorizedRecipientsException();
-        }
-
         String match = canonicalByNormalized.get(normalizeForCompare(rawInput));
-        if (match == null) {
-            throw new ReturnInstallmentReceiverNotAuthorizedException();
+        if (match != null) {
+            return new RecipientResolution(match, true);
         }
-        return match;
+        return new RecipientResolution(collapseSpaces(rawInput), false);
     }
 
     private String nullToEmpty(String value) {
@@ -879,6 +880,7 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         dto.setEvidenciaImportePreparadoUrl(i.getEvidenciaImportePreparadoUrl());
         dto.setComprobanteEntregaUrl(i.getComprobanteEntregaUrl());
         dto.setPersonaQueRecibioEfectivo(i.getPersonaQueRecibioEfectivo());
+        dto.setRecibioPersonaAutorizada(i.getRecibioPersonaAutorizada());
         dto.setCodigoRetiroSinTarjeta(i.getCodigoRetiroSinTarjeta());
         dto.setFechaHoraRecoleccion(i.getFechaHoraRecoleccion());
         dto.setFechaRealizacion(i.getFechaRealizacion());

@@ -84,11 +84,11 @@ public class OperationReturnInstallment {
     private String comprobanteEntregaUrl;
 
     /**
-     * Persona autorizada de la solicitud que recibió físicamente el efectivo
-     * (o realizó el retiro sin tarjeta). Se guarda el nombre canónico tal cual
-     * está registrado en la solicitud
-     * ({@code OperationReturnPayment.autorizadoParaRecibirEfectivo1..3}), no el
-     * texto que envió el cliente.
+     * Persona que recibió físicamente el efectivo (o realizó el retiro sin
+     * tarjeta). Si coincide con un autorizado de la solicitud
+     * ({@code OperationReturnPayment.autorizadoParaRecibirEfectivo1..3}) se guarda
+     * el nombre canónico de ahí; si es alguien ajeno a la lista se guarda el
+     * nombre tal cual se capturó (ver {@link #recibioPersonaAutorizada}).
      *
      * No confundir con {@link #entregadoPor}: ese es el usuario interno del
      * sistema (normalmente JEFA_CAJAS) que registró/cerró la entrega.
@@ -99,6 +99,16 @@ public class OperationReturnInstallment {
      */
     @Column(name = "persona_que_recibio_efectivo", length = 200)
     private String personaQueRecibioEfectivo;
+
+    /**
+     * {@code true}  → {@link #personaQueRecibioEfectivo} coincide con un
+     *                 autorizado registrado en la solicitud.
+     * {@code false} → recibió alguien ajeno a la lista de autorizados (excepción
+     *                 registrada a propósito; deja rastro para auditoría).
+     * {@code null}  → parcialidad histórica / no aplica.
+     */
+    @Column(name = "recibio_persona_autorizada")
+    private Boolean recibioPersonaAutorizada;
 
     /**
      * Código generado por el banco para el retiro sin tarjeta. Propio de esta
@@ -269,6 +279,14 @@ public class OperationReturnInstallment {
 
     public void setPersonaQueRecibioEfectivo(String personaQueRecibioEfectivo) {
         this.personaQueRecibioEfectivo = personaQueRecibioEfectivo;
+    }
+
+    public Boolean getRecibioPersonaAutorizada() {
+        return recibioPersonaAutorizada;
+    }
+
+    public void setRecibioPersonaAutorizada(Boolean recibioPersonaAutorizada) {
+        this.recibioPersonaAutorizada = recibioPersonaAutorizada;
     }
 
     public String getCodigoRetiroSinTarjeta() {

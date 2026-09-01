@@ -53,12 +53,19 @@ public class ReturnInstallmentResponseDto {
     private String comprobanteEntregaUrl;
 
     /**
-     * Persona autorizada que recibió físicamente el efectivo / realizó el retiro
-     * sin tarjeta. {@code null} en parcialidades históricas cerradas antes de
-     * esta funcionalidad → el frontend muestra "No registrado (entrega
-     * histórica)". Distinta de {@link #entregadoPorNombre} (usuario del sistema).
+     * Persona que recibió físicamente el efectivo / realizó el retiro sin
+     * tarjeta. {@code null} en parcialidades históricas cerradas antes de esta
+     * funcionalidad → el frontend muestra "No registrado (entrega histórica)".
+     * Distinta de {@link #entregadoPorNombre} (usuario del sistema).
      */
     private String personaQueRecibioEfectivo;
+
+    /**
+     * {@code true} si {@link #personaQueRecibioEfectivo} es un autorizado de la
+     * solicitud; {@code false} si recibió alguien ajeno a la lista;
+     * {@code null} en parcialidades históricas.
+     */
+    private Boolean recibioPersonaAutorizada;
 
     private String codigoRetiroSinTarjeta;
 
@@ -265,6 +272,14 @@ public class ReturnInstallmentResponseDto {
 
     public void setPersonaQueRecibioEfectivo(String personaQueRecibioEfectivo) {
         this.personaQueRecibioEfectivo = personaQueRecibioEfectivo;
+    }
+
+    public Boolean getRecibioPersonaAutorizada() {
+        return recibioPersonaAutorizada;
+    }
+
+    public void setRecibioPersonaAutorizada(Boolean recibioPersonaAutorizada) {
+        this.recibioPersonaAutorizada = recibioPersonaAutorizada;
     }
 
     public String getCodigoRetiroSinTarjeta() {
