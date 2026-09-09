@@ -55,6 +55,8 @@ public interface ReturnInstallmentService {
             Pageable pageable
     );
 
+    Page<ReturnInstallmentResponseDto> findPendingPickups(String queue, List<PaymentType> tipos, Pageable pageable);
+
     Page<ReturnInstallmentResponseDto> findLatePickups(Pageable pageable);
 
     // ------------------------------------------------------------------

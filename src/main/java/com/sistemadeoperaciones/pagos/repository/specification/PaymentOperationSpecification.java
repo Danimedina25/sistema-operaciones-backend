@@ -131,6 +131,39 @@ public final class PaymentOperationSpecification {
         };
     }
 
+    /** Type and status must match the SAME payment; distinct keeps operation totals exact. */
+    public static Specification<PaymentOperation> hasPaymentMatching(List<PaymentType> types, PaymentStatus status) {
+        return (root, query, cb) -> {
+            if ((types == null || types.isEmpty()) && status == null) return cb.conjunction();
+            query.distinct(true);
+            var payment = root.join("pagos");
+            return cb.and(types == null || types.isEmpty() ? cb.conjunction() : payment.get("tipoPago").in(types),
+                    status == null ? cb.conjunction() : cb.equal(payment.get("estatus"), status));
+        };
+    }
+
+    /** A request must still have amount available for a new installment (reserved cash is excluded). */
+    public static Specification<PaymentOperation> hasReturnToPrepare(List<PaymentType> types) {
+        return hasReturnToPrepare(types, null);
+    }
+    public static Specification<PaymentOperation> hasReturnToPrepare(List<PaymentType> types, List<ReturnPaymentStatus> statuses) {
+        return (root, query, cb) -> {
+            var requestQuery = query.subquery(Long.class);
+            var request = requestQuery.from(com.sistemadeoperaciones.pagos.model.OperationReturnPayment.class);
+            var used = requestQuery.subquery(java.math.BigDecimal.class);
+            var installment = used.from(com.sistemadeoperaciones.pagos.model.OperationReturnInstallment.class);
+            used.select(cb.coalesce(cb.sum(installment.<java.math.BigDecimal>get("monto")), java.math.BigDecimal.ZERO));
+            used.where(cb.equal(installment.get("solicitud"), request),
+                    cb.notEqual(installment.get("estatus"), com.sistemadeoperaciones.pagos.enums.ReturnInstallmentStatus.CANCELADA));
+            requestQuery.select(request.get("id")).where(
+                    cb.equal(request.get("operacion"), root), request.get("tipoPago").in(types),
+                    statuses == null || statuses.isEmpty() ? cb.conjunction() : request.get("estatus").in(statuses),
+                    cb.notEqual(request.get("estatus"), ReturnPaymentStatus.RETORNADO),
+                    cb.greaterThan(request.<java.math.BigDecimal>get("monto"), used));
+            return cb.exists(requestQuery);
+        };
+    }
+
     public static Specification<PaymentOperation> hasPaymentTypeIn(List<PaymentType> paymentTypes) {
         return (root, query, cb) -> {
             if (paymentTypes == null || paymentTypes.isEmpty()) {

@@ -414,6 +414,19 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
 
     @Override
     @Transactional(readOnly = true)
+    public Page<ReturnInstallmentResponseDto> findPendingPickups(String queue, List<PaymentType> tipos, Pageable pageable) {
+        if (!"TODAY".equals(queue) && !"CONFIRMATION".equals(queue))
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Cola inválida");
+        if (tipos != null && !CASH_TYPES.containsAll(tipos))
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Método inválido");
+        var spec = com.sistemadeoperaciones.pagos.repository.specification.PendingInstallmentSpecification.pending(
+                "CONFIRMATION".equals(queue), LocalDate.now(java.time.ZoneId.of("America/Cancun")),
+                tipos == null || tipos.isEmpty() ? CASH_TYPES : tipos);
+        return installmentRepository.findAll(spec, pageable).map(this::mapToResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<ReturnInstallmentResponseDto> findLatePickups(Pageable pageable) {
         List<OperationReturnInstallment> rows = installmentRepository.findPickupInstallments(
                 CASH_TYPES,

@@ -443,10 +443,15 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                                 role.getName() == RoleName.GERENTE
                 );
 
-        if (isSocioComercial && !isAdminOrGerente) {
+        if (isSocioComercial && !isAdminOrGerente && StaffPendingScope.returnTypes(currentUser, filter.getWorkQueue()) == null) {
             specification = specification.and(
                     PaymentOperationSpecification.hasSocioComercialId(currentUser.getId())
             );
+        }
+
+        var pendingTypes = StaffPendingScope.returnTypes(currentUser, filter.getWorkQueue());
+        if (pendingTypes != null) {
+            specification = specification.and(PaymentOperationSpecification.hasReturnToPrepare(pendingTypes, returnStatuses));
         }
 
         return paymentOperationRepository.findAll(specification, pageable)

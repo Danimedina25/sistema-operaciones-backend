@@ -12,6 +12,10 @@ import java.util.List;
 
 public class PaymentOperationFilterDto {
 
+    private String workQueue;
+    public String getWorkQueue() { return workQueue; }
+    public void setWorkQueue(String workQueue) { this.workQueue = workQueue; }
+
     private String search;
     private OperationStatus status;
     private Long socioComercialId;

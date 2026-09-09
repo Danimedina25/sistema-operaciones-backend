@@ -146,4 +146,13 @@ public class ReturnInstallmentController {
                 new ApiResponse<>(true, "Parcialidades atrasadas obtenidas exitosamente", response, null)
         );
     }
+    @GetMapping("/installments/pending")
+    @PreAuthorize("hasRole('JEFA_CAJAS')")
+    public ResponseEntity<ApiResponse<Page<ReturnInstallmentResponseDto>>> pending(
+            @RequestParam String queue,
+            @RequestParam(required = false) List<PaymentType> tipoPago,
+            @PageableDefault(size = 10, sort = "fechaHoraRecoleccion", direction = Sort.Direction.ASC) Pageable pageable) {
+        return ResponseEntity.ok(new ApiResponse<>(true, "Entregas pendientes", returnInstallmentService.findPendingPickups(queue, tipoPago, pageable), null));
+    }
+
 }

@@ -1001,6 +1001,12 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Override
     @Transactional(readOnly = true)
     public Page<PaymentOperationResponseDto> findAll(PaymentOperationFilterDto filter, Pageable pageable) {
+        var queueTypes = StaffPendingScope.types(authenticatedUserService.getCurrentUser(), filter.getWorkQueue(), true);
+        if (queueTypes != null) {
+            filter.setPaymentTypes(queueTypes);
+            filter.setPaymentStatus(PaymentStatus.PENDIENTE_VALIDACION);
+            filter.setActivo("ACTIVE");
+        }
         LocalDate startDate = resolveStartDate(filter);
         LocalDate endDate = resolveEndDate(filter);
 
@@ -1013,10 +1019,14 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                         toEndOfDay(endDate)
                 ))
                 .and(PaymentOperationSpecification.matchesActivoFilter(filter.getActivo()))
-                .and(PaymentOperationSpecification.hasPaymentTypeIn(filter.getPaymentTypes()))
-                .and(PaymentOperationSpecification.hasPaymentStatus(filter.getPaymentStatus()))
+                .and(PaymentOperationSpecification.hasPaymentMatching(filter.getPaymentTypes(), filter.getPaymentStatus()))
                 .and(PaymentOperationSpecification.hasPaymentCuentaDestinoId(filter.getCuentaDestinoId()))
                 .and(PaymentOperationSpecification.hasPaymentBanco(filter.getBanco()));
+
+        if (queueTypes != null) {
+            specification = specification.and(PaymentOperationSpecification.hasStatusNotIn(
+                    List.of(OperationStatus.RETORNADA, OperationStatus.COMPLETADA)));
+        }
 
         return paymentOperationRepository.findAll(specification, pageable)
                 .map(this::mapToOperationResponse);
@@ -1052,8 +1062,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                         toEndOfDay(endDate)
                 ))
                 .and(PaymentOperationSpecification.matchesActivoFilter(filter.getActivo()))
-                .and(PaymentOperationSpecification.hasPaymentTypeIn(filter.getPaymentTypes()))
-                .and(PaymentOperationSpecification.hasPaymentStatus(filter.getPaymentStatus()))
+                .and(PaymentOperationSpecification.hasPaymentMatching(filter.getPaymentTypes(), filter.getPaymentStatus()))
                 .and(PaymentOperationSpecification.hasPaymentCuentaDestinoId(filter.getCuentaDestinoId()))
                 .and(PaymentOperationSpecification.hasPaymentBanco(filter.getBanco()));
 
@@ -1087,8 +1096,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                         toEndOfDay(endDate)
                 ))
                 .and(PaymentOperationSpecification.matchesActivoFilter(filter.getActivo()))
-                .and(PaymentOperationSpecification.hasPaymentTypeIn(filter.getPaymentTypes()))
-                .and(PaymentOperationSpecification.hasPaymentStatus(filter.getPaymentStatus()))
+                .and(PaymentOperationSpecification.hasPaymentMatching(filter.getPaymentTypes(), filter.getPaymentStatus()))
                 .and(PaymentOperationSpecification.hasPaymentCuentaDestinoId(filter.getCuentaDestinoId()))
                 .and(PaymentOperationSpecification.hasPaymentBanco(filter.getBanco()));
 
