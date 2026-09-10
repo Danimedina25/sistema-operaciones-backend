@@ -1001,7 +1001,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Override
     @Transactional(readOnly = true)
     public Page<PaymentOperationResponseDto> findAll(PaymentOperationFilterDto filter, Pageable pageable) {
-        var queueTypes = StaffPendingScope.types(authenticatedUserService.getCurrentUser(), filter.getWorkQueue(), true);
+        var queueTypes = StaffPendingScope.types(authenticatedUserService.getCurrentUser(), filter.getWorkQueue(), true, filter.getSupervisedRole());
         if (queueTypes != null) {
             filter.setPaymentTypes(queueTypes);
             filter.setPaymentStatus(PaymentStatus.PENDIENTE_VALIDACION);

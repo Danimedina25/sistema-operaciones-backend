@@ -147,12 +147,13 @@ public class ReturnInstallmentController {
         );
     }
     @GetMapping("/installments/pending")
-    @PreAuthorize("hasRole('JEFA_CAJAS')")
+    @PreAuthorize("hasAnyRole('JEFA_CAJAS', 'GERENTE')")
     public ResponseEntity<ApiResponse<Page<ReturnInstallmentResponseDto>>> pending(
             @RequestParam String queue,
             @RequestParam(required = false) List<PaymentType> tipoPago,
+            @RequestParam(required = false) com.sistemadeoperaciones.shared.enums.RoleName supervisedRole,
             @PageableDefault(size = 10, sort = "fechaHoraRecoleccion", direction = Sort.Direction.ASC) Pageable pageable) {
-        return ResponseEntity.ok(new ApiResponse<>(true, "Entregas pendientes", returnInstallmentService.findPendingPickups(queue, tipoPago, pageable), null));
+        return ResponseEntity.ok(new ApiResponse<>(true, "Entregas pendientes", returnInstallmentService.findPendingPickups(queue, tipoPago, supervisedRole, pageable), null));
     }
 
 }

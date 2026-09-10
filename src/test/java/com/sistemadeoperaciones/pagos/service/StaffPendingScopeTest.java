@@ -18,4 +18,17 @@ class StaffPendingScopeTest {
         assertThat(StaffPendingScope.returnTypes(user(RoleName.JEFA_CAJAS,RoleName.JEFA_CUENTAS,RoleName.AUXILIAR_CUENTAS),null))
             .containsExactlyInAnyOrder(PaymentType.EFECTIVO,PaymentType.RETIRO_SIN_TARJETA,PaymentType.TRANSFERENCIA,PaymentType.DEPOSITO,PaymentType.CHEQUE);
     }
+    @Test void managerCanOnlySuperviseOperationalStaffRoles() {
+        var manager = user(RoleName.GERENTE);
+        assertThat(StaffPendingScope.types(manager, "CASH_INCOME", true, RoleName.JEFA_CAJAS)).containsExactly(PaymentType.EFECTIVO);
+        assertThat(StaffPendingScope.types(manager, "BANK_INCOME", true, RoleName.JEFA_CUENTAS))
+                .isEqualTo(StaffPendingScope.types(manager, "BANK_INCOME", true, RoleName.AUXILIAR_CUENTAS));
+        assertThatThrownBy(() -> StaffPendingScope.types(manager, "CASH_INCOME", true, RoleName.SOCIO_COMERCIAL))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        assertThatThrownBy(() -> StaffPendingScope.types(user(RoleName.ADMIN), "CASH_INCOME", true, RoleName.JEFA_CAJAS))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThatCode(() -> StaffPendingScope.requireCashDeliveryAccess(manager, RoleName.JEFA_CAJAS)).doesNotThrowAnyException();
+        assertThatThrownBy(() -> StaffPendingScope.requireCashDeliveryAccess(manager, RoleName.JEFA_CUENTAS))
+                .isInstanceOf(AccessDeniedException.class);
+    }
 }

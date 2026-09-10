@@ -449,7 +449,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             );
         }
 
-        var pendingTypes = StaffPendingScope.returnTypes(currentUser, filter.getWorkQueue());
+        var pendingTypes = StaffPendingScope.returnTypes(currentUser, filter.getWorkQueue(), filter.getSupervisedRole());
         if (pendingTypes != null) {
             specification = specification.and(PaymentOperationSpecification.hasReturnToPrepare(pendingTypes, returnStatuses));
         }

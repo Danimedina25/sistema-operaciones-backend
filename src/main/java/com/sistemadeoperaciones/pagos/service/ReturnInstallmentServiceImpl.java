@@ -414,7 +414,8 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ReturnInstallmentResponseDto> findPendingPickups(String queue, List<PaymentType> tipos, Pageable pageable) {
+    public Page<ReturnInstallmentResponseDto> findPendingPickups(String queue, List<PaymentType> tipos, com.sistemadeoperaciones.shared.enums.RoleName supervisedRole, Pageable pageable) {
+        StaffPendingScope.requireCashDeliveryAccess(authenticatedUserService.getCurrentUser(), supervisedRole);
         if (!"TODAY".equals(queue) && !"CONFIRMATION".equals(queue))
             throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "Cola inválida");
         if (tipos != null && !CASH_TYPES.containsAll(tipos))

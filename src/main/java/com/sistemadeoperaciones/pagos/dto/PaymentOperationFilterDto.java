@@ -5,6 +5,7 @@ import com.sistemadeoperaciones.pagos.enums.OperationStatus;
 import com.sistemadeoperaciones.pagos.enums.PaymentStatus;
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
+import com.sistemadeoperaciones.shared.enums.RoleName;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
@@ -13,8 +14,11 @@ import java.util.List;
 public class PaymentOperationFilterDto {
 
     private String workQueue;
+    private RoleName supervisedRole;
     public String getWorkQueue() { return workQueue; }
     public void setWorkQueue(String workQueue) { this.workQueue = workQueue; }
+    public RoleName getSupervisedRole() { return supervisedRole; }
+    public void setSupervisedRole(RoleName supervisedRole) { this.supervisedRole = supervisedRole; }
 
     private String search;
     private OperationStatus status;
