@@ -55,6 +55,15 @@ public interface PaymentOperationService {
     PaymentOperationResponseDto deactivate(Long id);
 
     /**
+     * Eliminación física de una operación capturada por error. Solo procede
+     * mientras la operación siga en PENDIENTE_VALIDACION y no tenga ningún
+     * movimiento financiero (pagos validados, montoValidado, retornos,
+     * parcialidades o comisiones). Arrastra los comprobantes no financieros
+     * y las notificaciones que apuntaban a ellos.
+     */
+    void delete(Long id);
+
+    /**
      * ADMIN/GERENTE/DIRECCION:
      * Operaciones activas, no finalizadas (excluye COMPLETADA, RETORNADA,
      * RECHAZADA), sin actualizarse desde hace más de `thresholdHours`

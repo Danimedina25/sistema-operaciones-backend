@@ -72,6 +72,11 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(ex.getMessage(), HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ApiResponse<Object>> handleConflict(ConflictException ex) {
+        return buildErrorResponse(ex.getMessage(), HttpStatus.CONFLICT);
+    }
+
     @ExceptionHandler(EntityHasDependenciesException.class)
     public ResponseEntity<ApiResponse<Object>> handleEntityHasDependencies(EntityHasDependenciesException ex) {
         ApiResponse<Object> response = new ApiResponse<>(false, ex.getMessage(), null, ex.getDependencies());

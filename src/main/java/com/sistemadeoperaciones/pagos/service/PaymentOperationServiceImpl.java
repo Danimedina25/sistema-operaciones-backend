@@ -4,6 +4,7 @@ import com.sistemadeoperaciones.clientes.exceptions.ClienteNotFoundException;
 import com.sistemadeoperaciones.clientes.model.Clientes;
 import com.sistemadeoperaciones.clientes.repository.ClientesRepository;
 import com.sistemadeoperaciones.configuraciones.service.ConfiguracionGeneralService;
+import com.sistemadeoperaciones.comisionessocioscomerciales.repository.CommercialPartnerCommissionRepository;
 import com.sistemadeoperaciones.comisionessocioscomerciales.service.CommercialPartnerCommissionService;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
@@ -11,6 +12,9 @@ import com.sistemadeoperaciones.notifications.enums.NotificationModule;
 import com.sistemadeoperaciones.notifications.enums.NotificationPriority;
 import com.sistemadeoperaciones.notifications.enums.NotificationReferenceType;
 import com.sistemadeoperaciones.notifications.enums.NotificationType;
+import com.sistemadeoperaciones.notifications.models.Notification;
+import com.sistemadeoperaciones.notifications.repository.NotificationRepository;
+import com.sistemadeoperaciones.notifications.repository.UserNotificationRepository;
 import com.sistemadeoperaciones.notifications.service.NotificationService;
 import com.sistemadeoperaciones.pagos.dto.*;
 import com.sistemadeoperaciones.pagos.enums.OperationStatus;
@@ -28,14 +32,19 @@ import com.sistemadeoperaciones.pagos.exceptions.PaymentOperationInactiveExcepti
 import com.sistemadeoperaciones.pagos.exceptions.PaymentOperationInactivePartnerException;
 import com.sistemadeoperaciones.pagos.exceptions.PaymentOperationNotFoundException;
 import com.sistemadeoperaciones.pagos.model.OperationPayment;
+import com.sistemadeoperaciones.pagos.model.OperationReturnPayment;
 import com.sistemadeoperaciones.pagos.model.PaymentOperation;
+import com.sistemadeoperaciones.pagos.repository.OperationCommissionRepository;
 import com.sistemadeoperaciones.pagos.repository.OperationPaymentRepository;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
 import com.sistemadeoperaciones.pagos.repository.PaymentOperationRepository;
+import com.sistemadeoperaciones.shared.audit.service.DeletionAuditService;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.shared.enums.RoleName;
 import com.sistemadeoperaciones.shared.exception.BusinessException;
+import com.sistemadeoperaciones.shared.exception.ConflictException;
+import com.sistemadeoperaciones.shared.exception.EntityHasDependenciesException;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
 import com.sistemadeoperaciones.socioscomerciales.models.CommercialPartner;
 import com.sistemadeoperaciones.socioscomerciales.repository.CommercialPartnerRepository;
@@ -43,6 +52,7 @@ import com.sistemadeoperaciones.usuarios.model.User;
 import com.sistemadeoperaciones.usuarios.model.CommercialPartnerSettings;
 import com.sistemadeoperaciones.usuarios.repository.CommercialPartnerSettingsRepository;
 import com.sistemadeoperaciones.usuarios.repository.UserRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -52,7 +62,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.sistemadeoperaciones.pagos.repository.specification.PaymentOperationSpecification;
 import org.springframework.data.jpa.domain.Specification;
@@ -78,6 +91,11 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     private final ClientesRepository clientesRepository;
     private final CommercialPartnerRepository commercialPartnerRepository;
     private final ConfiguracionGeneralService configuracionGeneralService;
+    private final CommercialPartnerCommissionRepository commercialPartnerCommissionRepository;
+    private final OperationCommissionRepository operationCommissionRepository;
+    private final NotificationRepository notificationRepository;
+    private final UserNotificationRepository userNotificationRepository;
+    private final DeletionAuditService deletionAuditService;
     public PaymentOperationServiceImpl(
             PaymentOperationRepository paymentOperationRepository,
             OperationPaymentRepository operationPaymentRepository,
@@ -91,7 +109,12 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             NotificationService notificationService,
             ClientesRepository clientesRepository,
             CommercialPartnerRepository commercialPartnerRepository,
-            ConfiguracionGeneralService configuracionGeneralService
+            ConfiguracionGeneralService configuracionGeneralService,
+            CommercialPartnerCommissionRepository commercialPartnerCommissionRepository,
+            OperationCommissionRepository operationCommissionRepository,
+            NotificationRepository notificationRepository,
+            UserNotificationRepository userNotificationRepository,
+            DeletionAuditService deletionAuditService
     ) {
         this.paymentOperationRepository = paymentOperationRepository;
         this.operationPaymentRepository = operationPaymentRepository;
@@ -106,6 +129,11 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         this.clientesRepository = clientesRepository;
         this.commercialPartnerRepository = commercialPartnerRepository;
         this.configuracionGeneralService = configuracionGeneralService;
+        this.commercialPartnerCommissionRepository = commercialPartnerCommissionRepository;
+        this.operationCommissionRepository = operationCommissionRepository;
+        this.notificationRepository = notificationRepository;
+        this.userNotificationRepository = userNotificationRepository;
+        this.deletionAuditService = deletionAuditService;
     }
 
     @Override
@@ -996,6 +1024,164 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         PaymentOperation updated = paymentOperationRepository.save(operation);
 
         return mapToOperationResponse(updated);
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long id) {
+        // El lock se toma primero sobre la operación (mismo orden que el resto del
+        // módulo) para serializar el borrado frente a la validación de un comprobante,
+        // el alta de un pago o una solicitud de retorno que corran en paralelo.
+        PaymentOperation operation = paymentOperationRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new PaymentOperationNotFoundException(id));
+
+        // Ya con el lock: el estatus pudo cambiar entre que el frontend pintó la
+        // acción y que llegó esta petición.
+        if (operation.getEstatus() != OperationStatus.PENDIENTE_VALIDACION) {
+            throw new ConflictException("Solo se pueden eliminar operaciones pendientes de validación");
+        }
+
+        assertOperationHasNoFinancialMovements(operation);
+
+        List<OperationPayment> comprobantes = operationPaymentRepository.findByOperacionId(id);
+
+        // La etiqueta se arma mientras la entidad sigue cargada.
+        String auditLabel = buildOperationDeletionLabel(operation, comprobantes.size());
+        User currentUser = authenticatedUserService.getCurrentUser();
+
+        deleteNotificationsPointingToOperation(id, comprobantes);
+
+        operationPaymentRepository.deleteAll(comprobantes);
+        operationPaymentRepository.flush();
+
+        // Sin esto las colecciones cargadas quedan desincronizadas y orphanRemoval
+        // reintentaría borrar comprobantes que ya no existen.
+        operation.getPagos().clear();
+        operation.getRetornos().clear();
+
+        try {
+            paymentOperationRepository.delete(operation);
+            // flush dentro de la transacción: detecta violaciones de integridad antes
+            // de auditar y de responder con éxito.
+            paymentOperationRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflictException(
+                    "La operación no puede eliminarse porque ya tiene movimientos financieros asociados"
+            );
+        }
+
+        // Se audita solo cuando el borrado completo pudo ejecutarse. Al compartir la
+        // transacción, si el commit fallara el registro se revierte junto con él y no
+        // queda una auditoría de éxito sin borrado.
+        deletionAuditService.record("PAYMENT_OPERATION", id, auditLabel, currentUser);
+    }
+
+    /**
+     * Una operación en PENDIENTE_VALIDACION no debería tener ningún movimiento
+     * financiero. Si aparece alguno se rechaza la eliminación indicando qué
+     * dependencia la impide, en lugar de borrar información en silencio.
+     */
+    private void assertOperationHasNoFinancialMovements(PaymentOperation operation) {
+        Long id = operation.getId();
+        Map<String, Long> dependencias = new LinkedHashMap<>();
+
+        long pagosValidados = operationPaymentRepository.countByOperacionIdAndEstatus(id, PaymentStatus.VALIDADA);
+        if (pagosValidados > 0) {
+            dependencias.put("pagosValidados", pagosValidados);
+        }
+
+        BigDecimal montoValidado = operation.getMontoValidado();
+        if (montoValidado != null && montoValidado.compareTo(BigDecimal.ZERO) > 0) {
+            dependencias.put("montoValidado", montoValidado.longValue());
+        }
+
+        List<OperationReturnPayment> retornos = operationReturnPaymentRepository.findByOperacionId(id);
+        if (!retornos.isEmpty()) {
+            dependencias.put("retornos", (long) retornos.size());
+
+            // Las parcialidades cuelgan de la solicitud, no de la operación.
+            long parcialidades = retornos.stream()
+                    .filter(retorno -> operationReturnInstallmentRepository.existsBySolicitudId(retorno.getId()))
+                    .count();
+            if (parcialidades > 0) {
+                dependencias.put("parcialidadesDeRetorno", parcialidades);
+            }
+        }
+
+        long comisiones = commercialPartnerCommissionRepository.findByOperationId(id).size();
+        if (comisiones > 0) {
+            dependencias.put("comisiones", comisiones);
+        }
+
+        // operation_commissions quedó superada por commercial_partner_commissions,
+        // pero la tabla sigue viva con una FK NOT NULL hacia la operación.
+        long comisionesHistoricas = operationCommissionRepository.countByOperacionId(id);
+        if (comisionesHistoricas > 0) {
+            dependencias.put("comisionesHistoricas", comisionesHistoricas);
+        }
+
+        if (!dependencias.isEmpty()) {
+            throw new EntityHasDependenciesException(
+                    "La operación no puede eliminarse porque ya tiene movimientos financieros asociados",
+                    dependencias
+            );
+        }
+    }
+
+    /**
+     * notifications apunta a la operación y a sus comprobantes con un referenceId
+     * suelto (sin FK), así que nada las borra en cascada: sin esta limpieza quedan
+     * notificaciones con enlaces rotos a /operaciones/{id}.
+     */
+    private void deleteNotificationsPointingToOperation(Long operationId, List<OperationPayment> comprobantes) {
+        List<Notification> notificaciones = new ArrayList<>(
+                notificationRepository.findByReferenceTypeAndReferenceIdIn(
+                        NotificationReferenceType.PAYMENT_OPERATION,
+                        List.of(operationId)
+                )
+        );
+
+        List<Long> comprobanteIds = comprobantes.stream()
+                .map(OperationPayment::getId)
+                .toList();
+
+        if (!comprobanteIds.isEmpty()) {
+            notificaciones.addAll(
+                    notificationRepository.findByReferenceTypeAndReferenceIdIn(
+                            NotificationReferenceType.OPERATION_PAYMENT,
+                            comprobanteIds
+                    )
+            );
+        }
+
+        if (notificaciones.isEmpty()) {
+            return;
+        }
+
+        List<Long> notificacionIds = notificaciones.stream()
+                .map(Notification::getId)
+                .toList();
+
+        // user_notifications primero: su FK a notifications es NOT NULL y sin cascada.
+        userNotificationRepository.deleteByNotificationIdIn(notificacionIds);
+        notificationRepository.deleteAll(notificaciones);
+        notificationRepository.flush();
+    }
+
+    /**
+     * DeletionAuditService solo admite una etiqueta, así que se concentra aquí todo
+     * lo que identifica a la operación borrada. El usuario y la fecha los registra
+     * el propio servicio. entity_label es varchar(255).
+     */
+    private String buildOperationDeletionLabel(PaymentOperation operation, int comprobantesEliminados) {
+        String label = "Op #" + operation.getId()
+                + " | Cliente: " + (operation.getCliente() != null ? operation.getCliente().getNombre() : "N/D")
+                + " | Monto: " + operation.getMontoTotal()
+                + " | Estatus: " + operation.getEstatus()
+                + " | Socio: " + (operation.getSocioComercial() != null ? operation.getSocioComercial().getNombre() : "N/D")
+                + " | Comprobantes eliminados: " + comprobantesEliminados;
+
+        return label.length() > 255 ? label.substring(0, 255) : label;
     }
 
     @Override

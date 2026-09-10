@@ -236,6 +236,20 @@ public class PaymentOperationController {
         );
     }
 
+    /**
+     * Eliminación física. A diferencia de activate/deactivate (que solo mueven el
+     * flag `activo`), aquí DIRECCION queda fuera a propósito.
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE')")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+        paymentOperationService.delete(id);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Operación eliminada permanentemente", null, null)
+        );
+    }
+
     @PatchMapping("/{operationId}/invoice")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<PaymentOperationResponseDto>> markAsInvoiced(

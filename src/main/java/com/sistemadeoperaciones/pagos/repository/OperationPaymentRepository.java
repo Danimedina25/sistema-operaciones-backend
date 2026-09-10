@@ -15,6 +15,8 @@ public interface OperationPaymentRepository extends JpaRepository<OperationPayme
 
     List<OperationPayment> findByOperacionId(Long operacionId);
 
+    long countByOperacionId(Long operacionId);
+
     List<OperationPayment> findByOperacionIdAndEstatus(Long operacionId, PaymentStatus estatus);
 
     boolean existsByOperacionIdAndEstatus(Long operacionId, PaymentStatus estatus);
