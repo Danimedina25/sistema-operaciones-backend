@@ -1,0 +1,196 @@
+package com.sistemadeoperaciones.cajageneral.service;
+
+import com.sistemadeoperaciones.cajageneral.dto.*;
+import com.sistemadeoperaciones.cajageneral.enums.*;
+import com.sistemadeoperaciones.cajageneral.exceptions.InvalidCashGeneralException;
+import com.sistemadeoperaciones.cajageneral.model.*;
+import com.sistemadeoperaciones.cajageneral.repository.*;
+import com.sistemadeoperaciones.pagos.enums.PaymentType;
+import com.sistemadeoperaciones.pagos.enums.ReturnInstallmentStatus;
+import com.sistemadeoperaciones.pagos.model.OperationReturnInstallment;
+import com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository;
+import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
+import com.sistemadeoperaciones.shared.exception.ConflictException;
+import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.math.BigDecimal;
+import java.time.*;
+import java.util.*;
+
+@Service
+@Transactional(readOnly = true)
+public class CashGeneralService {
+    private final CashGeneralRegisterRepository register;
+    private final CashGeneralDayRepository days;
+    private final CashGeneralMovementRepository movements;
+    private final OperationReturnInstallmentRepository installments;
+    private final AuthenticatedUserService auth;
+    // TODO: confirmar con negocio PDF descargable o impresión del navegador para los tres formatos (Fase 2).
+    // TODO: confirmar con negocio historial completo de asignaciones de tarjetas o sólo estado actual (Fase 2).
+    private static final Set<String> BANKS = Set.of("BBVA", "Banorte", "Kapital", "Inbursa", "Bajío",
+            "Scotiabank", "Scotiabank Nómina", "Scotiabank RST");
+
+    public CashGeneralService(CashGeneralRegisterRepository register, CashGeneralDayRepository days,
+            CashGeneralMovementRepository movements, OperationReturnInstallmentRepository installments,
+            AuthenticatedUserService auth) {
+        this.register = register; this.days = days; this.movements = movements;
+        this.installments = installments; this.auth = auth;
+    }
+
+    // Orden único para TODAS las escrituras: registro global -> día -> movimiento.
+    // El lock también protege la ausencia de un día en la primera apertura y entre fechas distintas.
+    private void lock() { register.ensureRegister(); register.lockRegister(); }
+
+    public CashDayResponse latest() { return days.findFirstByOrderByFechaDesc().map(this::dayDto).orElse(null); }
+
+    @Transactional
+    public CashDayResponse open(OpenCashDayRequest request) {
+        lock();
+        if (request.fecha() == null || request.fecha().isAfter(LocalDate.now()))
+            throw new InvalidCashGeneralException("La fecha de apertura no puede ser futura");
+        BigDecimal amount = CashGeneralAmounts.money(request.saldoInicial(), false);
+        CashGeneralAmounts.requireTotal(request.denominaciones(), amount);
+        days.findFirstByOrderByFechaDesc().ifPresent(previous -> {
+            if (previous.getClosedAt() == null) throw new ConflictException("Cierra la caja abierta antes de abrir otra");
+            if (!request.fecha().isAfter(previous.getFecha()))
+                throw new ConflictException("La apertura debe ser posterior al último corte");
+            if (amount.compareTo(previous.getSaldoContado()) != 0)
+                throw new InvalidCashGeneralException("El saldo inicial debe coincidir con el contado del último cierre");
+        });
+        // TODO: confirmar con negocio la migración histórica. No se importan los Excel automáticamente.
+        CashGeneralDay day = new CashGeneralDay();
+        day.setFecha(request.fecha()); day.setSaldoInicial(amount); day.setSaldoActual(amount);
+        day.setApertura(new EnumMap<>(request.denominaciones())); day.setCierre(new EnumMap<>(CashDenomination.class));
+        day.setAbiertoPor(auth.getCurrentUser());
+        return dayDto(days.saveAndFlush(day));
+    }
+
+    @Transactional
+    public CashMovementResponse createMovement(Long dayId, CreateCashMovementRequest request) {
+        lock();
+        if (request.requestId() == null) throw new InvalidCashGeneralException("Falta identificador de solicitud");
+        Optional<CashGeneralMovement> existing = movements.findByRequestId(request.requestId().toString());
+        if (existing.isPresent()) {
+            CashGeneralMovement movement = existing.get();
+            if (!Objects.equals(movement.getDia().getId(), dayId) || !sameRequest(movement, request))
+                throw new ConflictException("El identificador de solicitud ya se utilizó con otros datos");
+            return movementDto(movement);
+        }
+        CashGeneralDay day = openDay(dayId);
+        if (request.direccion() == null || request.tipo() == null)
+            throw new InvalidCashGeneralException("Indica dirección y tipo del movimiento");
+        String concept = requiredText(request.concepto(), 300, "concepto");
+        String bank = optionalText(request.banco(), 50);
+        if (request.tipo() != CashMovementConcept.EFECTIVO && !BANKS.contains(bank == null ? "" : bank))
+            throw new InvalidCashGeneralException("Selecciona un banco del catálogo");
+        String proof = optionalText(request.comprobanteUrl(), 500);
+        if (proof != null && !proof.startsWith("https://"))
+            throw new InvalidCashGeneralException("El comprobante debe ser una URL HTTPS");
+        OperationReturnInstallment installment = null;
+        BigDecimal amount;
+        if (request.parcialidadId() != null) {
+            if (request.direccion() != CashMovementDirection.SALIDA || request.tipo() != CashMovementConcept.EFECTIVO || request.monto() != null)
+                throw new InvalidCashGeneralException("La entrega vinculada exige salida en efectivo sin recapturar monto");
+            installment = installments.findById(request.parcialidadId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Parcialidad no encontrada"));
+            // Las COMPLETADA son terminales: cancelInstallment sólo admite PROGRAMADA.
+            if (installment.getTipoPago() != PaymentType.EFECTIVO || installment.getEstatus() != ReturnInstallmentStatus.COMPLETADA)
+                throw new InvalidCashGeneralException("Solo se vinculan entregas EFECTIVO completadas");
+            if (installment.getFechaRealizacion() == null || installment.getFechaRealizacion().toLocalDate().isAfter(day.getFecha()))
+                throw new InvalidCashGeneralException("La entrega no puede ser posterior al día de caja");
+            if (movements.existsByParcialidadId(installment.getId()))
+                throw new ConflictException("La entrega ya está vinculada a Caja General");
+            amount = CashGeneralAmounts.money(installment.getMonto(), true);
+        } else {
+            amount = CashGeneralAmounts.money(request.monto(), true);
+        }
+        // Los Excel desglosan cada movimiento. Se exige también cuando el concepto es cheque/TD:
+        // representa el efectivo recibido, nunca el cheque pendiente ni un saldo bancario.
+        // TODO: confirmar con negocio excepciones de captura por denominación para movimientos individuales.
+        CashGeneralAmounts.requireTotal(request.denominaciones(), amount);
+        boolean incoming = request.direccion() == CashMovementDirection.ENTRADA;
+        BigDecimal balance = CashGeneralAmounts.balance(day.getSaldoActual(), incoming ? amount : BigDecimal.ZERO,
+                incoming ? BigDecimal.ZERO : amount);
+        CashGeneralMovement movement = new CashGeneralMovement();
+        movement.setDia(day); movement.setRequestId(request.requestId().toString());
+        movement.setDireccion(request.direccion()); movement.setTipo(request.tipo()); movement.setConcepto(concept);
+        movement.setBanco(bank); movement.setMontoManual(installment == null ? amount : null);
+        movement.setParcialidad(installment); movement.setSaldoAcumulado(balance);
+        movement.setDenominaciones(new EnumMap<>(request.denominaciones())); movement.setComprobanteUrl(proof);
+        movement.setCreadoPor(auth.getCurrentUser()); day.setSaldoActual(balance);
+        days.saveAndFlush(day);
+        return movementDto(movements.saveAndFlush(movement));
+    }
+
+    @Transactional
+    public CashDayResponse close(Long dayId, CloseCashDayRequest request) {
+        lock();
+        CashGeneralDay day = openDay(dayId);
+        if (!Objects.equals(day.getVersion(), request.version()))
+            throw new ConflictException("La caja cambió durante el conteo. Actualiza y revisa el cierre");
+        BigDecimal counted = CashGeneralAmounts.money(request.saldoContado(), false);
+        CashGeneralAmounts.requireTotal(request.denominaciones(), counted);
+        BigDecimal difference = counted.subtract(day.getSaldoActual());
+        String note = optionalText(request.observaciones(), 500);
+        if (difference.signum() != 0 && note == null)
+            throw new InvalidCashGeneralException("Explica la diferencia antes de cerrar la caja");
+        day.setSaldoContado(counted); day.setDiferencia(difference);
+        day.setCierre(new EnumMap<>(request.denominaciones())); day.setObservacionesCierre(note);
+        day.setCerradoPor(auth.getCurrentUser()); day.setClosedAt(LocalDateTime.now());
+        return dayDto(days.saveAndFlush(day));
+    }
+
+    public CashLedgerResponse ledger(LocalDate start, LocalDate end) {
+        if (start == null || end == null || end.isBefore(start) || end.isAfter(start.plusYears(1)))
+            throw new InvalidCashGeneralException("Selecciona un rango ordenado de máximo un año");
+        return new CashLedgerResponse(days.findByFechaBetweenOrderByFechaAsc(start, end).stream().map(this::dayDto).toList(),
+                movements.findByDiaFechaBetweenOrderByIdAsc(start, end).stream().map(this::movementDto).toList());
+    }
+
+    public List<CashDeliveryResponse> deliveries(int page) {
+        if (page < 0) throw new InvalidCashGeneralException("Página inválida");
+        return movements.findUnlinkedDeliveries(PageRequest.of(page, 50)).stream()
+                .map(i -> new CashDeliveryResponse(i.getId(), i.getSolicitud().getOperacion().getId(), i.getMonto(),
+                        i.getFechaRealizacion(), i.getPersonaQueRecibioEfectivo())).toList();
+    }
+
+    private CashGeneralDay openDay(Long id) {
+        CashGeneralDay day = days.findById(id).orElseThrow(() -> new ResourceNotFoundException("Caja no encontrada"));
+        if (day.getClosedAt() != null) throw new ConflictException("La caja está cerrada");
+        return day;
+    }
+    private String requiredText(String value, int max, String label) {
+        String text = optionalText(value, max);
+        if (text == null) throw new InvalidCashGeneralException("Captura " + label);
+        return text;
+    }
+    private String optionalText(String value, int max) {
+        if (value == null || value.isBlank()) return null;
+        if (value.length() > max) throw new InvalidCashGeneralException("Texto demasiado largo");
+        return value.trim();
+    }
+    private boolean sameRequest(CashGeneralMovement m, CreateCashMovementRequest r) {
+        return m.getDireccion() == r.direccion() && m.getTipo() == r.tipo()
+                && Objects.equals(m.getConcepto(), optionalText(r.concepto(), 300))
+                && Objects.equals(m.getBanco(), optionalText(r.banco(), 50))
+                && Objects.equals(m.getComprobanteUrl(), optionalText(r.comprobanteUrl(), 500))
+                && Objects.equals(m.getDenominaciones(), r.denominaciones())
+                && Objects.equals(m.getParcialidad() == null ? null : m.getParcialidad().getId(), r.parcialidadId())
+                && (m.getMontoManual() == null ? r.monto() == null : r.monto() != null && m.getMontoManual().compareTo(r.monto()) == 0);
+    }
+    private CashDayResponse dayDto(CashGeneralDay d) {
+        return new CashDayResponse(d.getId(), d.getFecha(), d.getVersion(), d.getSaldoInicial(), d.getSaldoActual(),
+                d.getSaldoContado(), d.getDiferencia(), Map.copyOf(d.getApertura()), Map.copyOf(d.getCierre()),
+                d.getObservacionesCierre(), d.getClosedAt(), d.getAbiertoPor().getId(),
+                d.getCerradoPor() == null ? null : d.getCerradoPor().getId());
+    }
+    private CashMovementResponse movementDto(CashGeneralMovement m) {
+        OperationReturnInstallment i = m.getParcialidad();
+        return new CashMovementResponse(m.getId(), m.getDia().getId(), m.getDia().getFecha(), m.getCreatedAt(),
+                m.getDireccion(), m.getTipo(), m.getConcepto(), m.getBanco(), m.importe(), m.getSaldoAcumulado(),
+                i == null ? null : i.getId(), i == null ? null : i.getSolicitud().getOperacion().getId(),
+                Map.copyOf(m.getDenominaciones()), m.getComprobanteUrl(), m.getCreadoPor().getId());
+    }
+}
