@@ -76,6 +76,18 @@ class CashGeneralServiceTest {
                 .hasMessageContaining("exactamente");
         verify(movements,never()).saveAndFlush(any());
     }
+    @Test void rejectsNonCashConceptsAndBankData() {
+        var nonCash = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
+                CashMovementConcept.DEPOSITO, "Depósito", "BBVA", money("100"), null, counts(1,0), null);
+        assertThatThrownBy(() -> service.createMovement(1L, nonCash))
+                .hasMessageContaining("solo admite movimientos en efectivo");
+
+        var cashWithBank = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
+                CashMovementConcept.EFECTIVO, "Efectivo", "BBVA", money("100"), null, counts(1,0), null);
+        assertThatThrownBy(() -> service.createMovement(1L, cashWithBank))
+                .hasMessageContaining("no admiten banco");
+        verify(movements, never()).saveAndFlush(any());
+    }
     OperationReturnInstallment completed() {
         var op = new PaymentOperation(); op.setId(5L);
         var req = new OperationReturnPayment(); req.setOperacion(op);

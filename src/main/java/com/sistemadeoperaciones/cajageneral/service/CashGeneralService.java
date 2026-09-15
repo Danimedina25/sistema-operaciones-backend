@@ -30,9 +30,6 @@ public class CashGeneralService {
     private final AuthenticatedUserService auth;
     // TODO: confirmar con negocio PDF descargable o impresión del navegador para los tres formatos (Fase 2).
     // TODO: confirmar con negocio historial completo de asignaciones de tarjetas o sólo estado actual (Fase 2).
-    private static final Set<String> BANKS = Set.of("BBVA", "Banorte", "Kapital", "Inbursa", "Bajío",
-            "Scotiabank", "Scotiabank Nómina", "Scotiabank RST");
-
     public CashGeneralService(CashGeneralRegisterRepository register, CashGeneralDayRepository days,
             CashGeneralMovementRepository movements, OperationReturnInstallmentRepository installments,
             AuthenticatedUserService auth, CashGeneralDeletionAuditRepository deletionAudits) {
@@ -129,10 +126,12 @@ public class CashGeneralService {
         CashGeneralDay day = openDay(dayId);
         if (request.direccion() == null || request.tipo() == null)
             throw new InvalidCashGeneralException("Indica dirección y tipo del movimiento");
+        if (request.tipo() != CashMovementConcept.EFECTIVO)
+            throw new InvalidCashGeneralException("Caja General solo admite movimientos en efectivo");
         String concept = requiredText(request.concepto(), 300, "concepto");
         String bank = optionalText(request.banco(), 50);
-        if (request.tipo() != CashMovementConcept.EFECTIVO && !BANKS.contains(bank == null ? "" : bank))
-            throw new InvalidCashGeneralException("Selecciona un banco del catálogo");
+        if (bank != null)
+            throw new InvalidCashGeneralException("Los movimientos de Caja General no admiten banco");
         String proof = optionalText(request.comprobanteUrl(), 500);
         if (proof != null && !proof.startsWith("https://"))
             throw new InvalidCashGeneralException("El comprobante debe ser una URL HTTPS");
@@ -154,9 +153,7 @@ public class CashGeneralService {
         } else {
             amount = CashGeneralAmounts.money(request.monto(), true);
         }
-        // Los Excel desglosan cada movimiento. Se exige también cuando el concepto es cheque/TD:
-        // representa el efectivo recibido, nunca el cheque pendiente ni un saldo bancario.
-        // TODO: confirmar con negocio excepciones de captura por denominación para movimientos individuales.
+        // Cada movimiento representa efectivo físico y exige su desglose completo.
         CashGeneralAmounts.requireTotal(request.denominaciones(), amount);
         boolean incoming = request.direccion() == CashMovementDirection.ENTRADA;
         BigDecimal balance = CashGeneralAmounts.balance(day.getSaldoActual(), incoming ? amount : BigDecimal.ZERO,
