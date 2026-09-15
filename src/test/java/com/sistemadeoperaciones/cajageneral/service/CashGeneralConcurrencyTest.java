@@ -34,6 +34,7 @@ import static org.mockito.Mockito.when;
 class CashGeneralConcurrencyTest {
     @Autowired CashGeneralService service;
     @Autowired CashGeneralMovementRepository movements;
+    @Autowired CashGeneralDeletionAuditRepository deletionAudits;
     @Autowired PlatformTransactionManager manager;
     @Autowired EntityManager em;
     @MockBean AuthenticatedUserService auth;
@@ -99,6 +100,21 @@ class CashGeneralConcurrencyTest {
         assertThat(result.apertura().get(CashDenomination.D100)).isEqualTo(1);
         assertThat(result.cierre()).hasSize(11);
         assertThat(result.diferencia()).isEqualByComparingTo("0");
+    }
+    @Test void deletionRemovesFullCashDayButPreservesAudit() {
+        var day = service.open(opening());
+        service.createMovement(day.id(), expense(UUID.randomUUID()));
+        var current = service.latest();
+
+        service.deleteDay(day.id(), new DeleteCashDayRequest("ELIMINAR", "Prueba de eliminación", current.version()));
+
+        assertThat(service.latest()).isNull();
+        assertThat(movements.count()).isZero();
+        assertThat(deletionAudits.findAll()).singleElement().satisfies(audit -> {
+            assertThat(audit.getDeletedDayId()).isEqualTo(day.id());
+            assertThat(audit.getMovementCount()).isEqualTo(1);
+            assertThat(audit.getMotivo()).isEqualTo("Prueba de eliminación");
+        });
     }
     @Test void completedDeliveryIsLinkedOnceAndForeignKeyProtectsItsSource() {
         var day = service.open(opening());

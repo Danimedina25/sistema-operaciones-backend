@@ -1,7 +1,14 @@
 package com.sistemadeoperaciones.pagos.dto.retornos;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.sistemadeoperaciones.cajageneral.dto.CashQuantityDeserializer;
+import com.sistemadeoperaciones.cajageneral.enums.CashDenomination;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+
+import java.util.Map;
 
 /**
  * Cuerpo del endpoint legacy {@code PATCH /payments/{id}/mark-cash-delivered}.
@@ -19,6 +26,9 @@ public class MarkCashReturnDeliveredRequestDto {
     @Size(max = 200, message = "El nombre de la persona que recibió no puede exceder 200 caracteres")
     private String personaQueRecibioEfectivo;
 
+    @JsonDeserialize(contentUsing = CashQuantityDeserializer.class)
+    private Map<CashDenomination, @NotNull @Min(0) Integer> denominaciones;
+
     public String getComprobanteEntregaEfectivoUrl() {
         return comprobanteEntregaEfectivoUrl;
     }
@@ -33,5 +43,13 @@ public class MarkCashReturnDeliveredRequestDto {
 
     public void setPersonaQueRecibioEfectivo(String personaQueRecibioEfectivo) {
         this.personaQueRecibioEfectivo = personaQueRecibioEfectivo;
+    }
+
+    public Map<CashDenomination, Integer> getDenominaciones() {
+        return denominaciones;
+    }
+
+    public void setDenominaciones(Map<CashDenomination, Integer> denominaciones) {
+        this.denominaciones = denominaciones;
     }
 }

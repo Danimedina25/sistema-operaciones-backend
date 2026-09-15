@@ -1,7 +1,14 @@
 package com.sistemadeoperaciones.pagos.dto.retornos;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.sistemadeoperaciones.cajageneral.dto.CashQuantityDeserializer;
+import com.sistemadeoperaciones.cajageneral.enums.CashDenomination;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+
+import java.util.Map;
 
 /**
  * Cierre final de una parcialidad de retorno en efectivo / retiro sin tarjeta
@@ -24,6 +31,10 @@ public class DeliverReturnInstallmentRequestDto {
     @Size(max = 200, message = "El nombre de la persona que recibió no puede exceder 200 caracteres")
     private String personaQueRecibioEfectivo;
 
+    /** Requerido por negocio únicamente para entregas de efectivo físico. */
+    @JsonDeserialize(contentUsing = CashQuantityDeserializer.class)
+    private Map<CashDenomination, @NotNull @Min(0) Integer> denominaciones;
+
     public String getComprobanteEntregaUrl() {
         return comprobanteEntregaUrl;
     }
@@ -38,5 +49,13 @@ public class DeliverReturnInstallmentRequestDto {
 
     public void setPersonaQueRecibioEfectivo(String personaQueRecibioEfectivo) {
         this.personaQueRecibioEfectivo = personaQueRecibioEfectivo;
+    }
+
+    public Map<CashDenomination, Integer> getDenominaciones() {
+        return denominaciones;
+    }
+
+    public void setDenominaciones(Map<CashDenomination, Integer> denominaciones) {
+        this.denominaciones = denominaciones;
     }
 }

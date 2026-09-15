@@ -2,6 +2,7 @@ package com.sistemadeoperaciones.pagos.service;
 
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
+import com.sistemadeoperaciones.cajageneral.service.CashGeneralService;
 import com.sistemadeoperaciones.notifications.enums.NotificationType;
 import com.sistemadeoperaciones.notifications.service.NotificationService;
 import com.sistemadeoperaciones.pagos.dto.retornos.CancelReturnInstallmentRequestDto;
@@ -68,6 +69,7 @@ class ReturnInstallmentServiceImplTest {
     @Mock AuthenticatedUserService authenticatedUserService;
     @Mock NotificationService notificationService;
     @Mock ReturnPaymentDtoMapper returnPaymentDtoMapper;
+    @Mock CashGeneralService cashGeneralService;
 
     ReturnAmountCalculator returnAmountCalculator = new ReturnAmountCalculator();
 
@@ -91,7 +93,8 @@ class ReturnInstallmentServiceImplTest {
                 authenticatedUserService,
                 notificationService,
                 returnAmountCalculator,
-                returnPaymentDtoMapper
+                returnPaymentDtoMapper,
+                cashGeneralService
         );
 
         jefa = user(10L, "Jefa Cuentas");
@@ -497,6 +500,7 @@ class ReturnInstallmentServiceImplTest {
         assertThat(dto.getEstatus()).isEqualTo(ReturnInstallmentStatus.COMPLETADA);
         assertThat(dto.getPersonaQueRecibioEfectivo()).isEqualTo(AUTORIZADO_CANONICO);
         assertThat(installmentRepository.sumCompletedBySolicitud(1L)).isEqualByComparingTo("10000");
+        verify(cashGeneralService).recordCashDelivery(any(OperationReturnInstallment.class), eq(null));
     }
 
     @Test
@@ -508,6 +512,7 @@ class ReturnInstallmentServiceImplTest {
 
         assertThat(dto.getEstatus()).isEqualTo(ReturnInstallmentStatus.COMPLETADA);
         assertThat(dto.getPersonaQueRecibioEfectivo()).isEqualTo(AUTORIZADO_CANONICO);
+        verify(cashGeneralService, never()).recordCashDelivery(any(), any());
     }
 
     @Test

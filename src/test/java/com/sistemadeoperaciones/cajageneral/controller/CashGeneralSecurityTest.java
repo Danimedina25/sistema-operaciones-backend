@@ -34,6 +34,10 @@ class CashGeneralSecurityTest {
                     assertThatThrownBy(() -> controller.movement(1L,null)).isInstanceOf(AccessDeniedException.class);
                     assertThatThrownBy(() -> controller.close(1L,null)).isInstanceOf(AccessDeniedException.class);
                 }
+                if (role.equals("ADMIN"))
+                    assertThatCode(() -> controller.delete(1L, null)).doesNotThrowAnyException();
+                else
+                    assertThatThrownBy(() -> controller.delete(1L, null)).isInstanceOf(AccessDeniedException.class);
             }
         } finally { SecurityContextHolder.clearContext(); }
     }

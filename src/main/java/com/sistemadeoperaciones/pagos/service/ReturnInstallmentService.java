@@ -84,6 +84,7 @@ public interface ReturnInstallmentService {
     ReturnInstallmentResponseDto legacyMarkDelivered(
             Long returnRequestId,
             String comprobanteEntregaUrl,
-            String personaQueRecibioEfectivo
+            String personaQueRecibioEfectivo,
+            java.util.Map<com.sistemadeoperaciones.cajageneral.enums.CashDenomination, Integer> denominaciones
     );
 }

@@ -1,6 +1,7 @@
 package com.sistemadeoperaciones.pagos.service;
 
 import com.sistemadeoperaciones.clientes.model.Clientes;
+import com.sistemadeoperaciones.cajageneral.service.CashGeneralService;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.notifications.service.NotificationService;
 import com.sistemadeoperaciones.pagos.dto.retornos.CreateReturnInstallmentRequestDto;
@@ -56,6 +57,7 @@ class ReturnInstallmentConcurrencyTest {
 
     @MockBean NotificationService notificationService;
     @MockBean AuthenticatedUserService authenticatedUserService;
+    @MockBean CashGeneralService cashGeneralService;
 
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED) // sin transacción de test: los hilos usan las suyas

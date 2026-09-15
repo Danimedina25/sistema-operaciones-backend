@@ -1,5 +1,6 @@
 package com.sistemadeoperaciones.pagos.service;
 
+import com.sistemadeoperaciones.cajageneral.service.CashGeneralService;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
 import com.sistemadeoperaciones.notifications.enums.NotificationModule;
@@ -70,6 +71,7 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
     private final NotificationService notificationService;
     private final ReturnAmountCalculator returnAmountCalculator;
     private final ReturnPaymentDtoMapper returnPaymentDtoMapper;
+    private final CashGeneralService cashGeneralService;
 
     public ReturnInstallmentServiceImpl(
             PaymentOperationRepository paymentOperationRepository,
@@ -79,7 +81,8 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
             AuthenticatedUserService authenticatedUserService,
             NotificationService notificationService,
             ReturnAmountCalculator returnAmountCalculator,
-            ReturnPaymentDtoMapper returnPaymentDtoMapper
+            ReturnPaymentDtoMapper returnPaymentDtoMapper,
+            CashGeneralService cashGeneralService
     ) {
         this.paymentOperationRepository = paymentOperationRepository;
         this.returnPaymentRepository = returnPaymentRepository;
@@ -89,6 +92,7 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         this.notificationService = notificationService;
         this.returnAmountCalculator = returnAmountCalculator;
         this.returnPaymentDtoMapper = returnPaymentDtoMapper;
+        this.cashGeneralService = cashGeneralService;
     }
 
     // ==================================================================
@@ -291,6 +295,11 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         installment.setComprobanteEntregaUrl(request.getComprobanteEntregaUrl().trim());
         installment.setPersonaQueRecibioEfectivo(receptor.nombre());
         installment.setRecibioPersonaAutorizada(receptor.autorizada());
+        if (installment.getTipoPago() == PaymentType.EFECTIVO) {
+            // Si Caja General falla, toda la entrega revierte: nunca quedan
+            // efectivo entregado y saldo de caja sin sincronizar.
+            cashGeneralService.recordCashDelivery(installment, request.getDenominaciones());
+        }
         // fechaRealizacion la fija recomputeInstallmentStatus al llegar a COMPLETADA.
         recomputeInstallmentStatus(installment);
 
@@ -527,7 +536,8 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
     public ReturnInstallmentResponseDto legacyMarkDelivered(
             Long returnRequestId,
             String comprobanteEntregaUrl,
-            String personaQueRecibioEfectivo
+            String personaQueRecibioEfectivo,
+            Map<com.sistemadeoperaciones.cajageneral.enums.CashDenomination, Integer> denominaciones
     ) {
         OperationReturnInstallment installment = singleActiveInstallment(
                 returnRequestId,
@@ -536,6 +546,7 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         DeliverReturnInstallmentRequestDto req = new DeliverReturnInstallmentRequestDto();
         req.setComprobanteEntregaUrl(comprobanteEntregaUrl);
         req.setPersonaQueRecibioEfectivo(personaQueRecibioEfectivo);
+        req.setDenominaciones(denominaciones);
         // El cierre pasa por la misma ruta transaccional que el endpoint por
         // parcialidad: valida receptor autorizado y evidencia igual que ahí.
         return deliverInstallment(installment.getId(), req);

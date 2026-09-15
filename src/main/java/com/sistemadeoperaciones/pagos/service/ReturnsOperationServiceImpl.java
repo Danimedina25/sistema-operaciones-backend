@@ -957,7 +957,8 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         returnInstallmentService.legacyMarkDelivered(
                 returnPaymentId,
                 request.getComprobanteEntregaEfectivoUrl(),
-                request.getPersonaQueRecibioEfectivo()
+                request.getPersonaQueRecibioEfectivo(),
+                request.getDenominaciones()
         );
 
         return mapReturnToResponse(

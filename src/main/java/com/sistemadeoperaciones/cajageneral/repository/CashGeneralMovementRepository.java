@@ -8,6 +8,8 @@ import java.util.*;
 public interface CashGeneralMovementRepository extends JpaRepository<CashGeneralMovement, Long> {
     Optional<CashGeneralMovement> findByRequestId(String requestId);
     boolean existsByParcialidadId(Long id);
+    Optional<CashGeneralMovement> findByParcialidadId(Long id);
+    List<CashGeneralMovement> findByDiaIdOrderByIdAsc(Long dayId);
     @EntityGraph(attributePaths = {"parcialidad", "dia", "creadoPor"})
     List<CashGeneralMovement> findByDiaFechaBetweenOrderByIdAsc(LocalDate start, LocalDate end);
     @Query("""

@@ -27,6 +27,7 @@ class CashGeneralServiceTest {
     @Mock CashGeneralMovementRepository movements;
     @Mock OperationReturnInstallmentRepository installments;
     @Mock AuthenticatedUserService auth;
+    @Mock CashGeneralDeletionAuditRepository deletionAudits;
     @InjectMocks CashGeneralService service;
     CashGeneralDay day;
     User user;
@@ -81,7 +82,7 @@ class CashGeneralServiceTest {
         var i = new OperationReturnInstallment(); i.setId(9L); i.setSolicitud(req);
         i.setTipoPago(PaymentType.EFECTIVO); i.setEstatus(ReturnInstallmentStatus.COMPLETADA);
         i.setMonto(money("100")); i.setFechaRealizacion(LocalDateTime.now());
-        when(installments.findById(9L)).thenReturn(Optional.of(i)); return i;
+        lenient().when(installments.findById(9L)).thenReturn(Optional.of(i)); return i;
     }
     @Test void linkedDeliveryUsesForeignKeyWithoutDuplicatingAmount() {
         completed();
@@ -91,6 +92,44 @@ class CashGeneralServiceTest {
         verify(movements).saveAndFlush(capture.capture());
         assertThat(capture.getValue().getMontoManual()).isNull();
         assertThat(capture.getValue().getParcialidad().getId()).isEqualTo(9L);
+    }
+    @Test void automaticCashDeliveryCreatesLinkedExitAndDecreasesBalance() {
+        var installment = completed();
+        installment.setComprobanteEntregaUrl("https://example.com/entrega.jpg");
+        when(days.findFirstByOrderByFechaDesc()).thenReturn(Optional.of(day));
+
+        var result = service.recordCashDelivery(installment, counts(1,0));
+
+        assertThat(result.direccion()).isEqualTo(CashMovementDirection.SALIDA);
+        assertThat(result.monto()).isEqualByComparingTo("100");
+        assertThat(result.saldoAcumulado()).isEqualByComparingTo("0");
+        var capture = ArgumentCaptor.forClass(CashGeneralMovement.class);
+        verify(movements).saveAndFlush(capture.capture());
+        assertThat(capture.getValue().getMontoManual()).isNull();
+        assertThat(capture.getValue().getParcialidad()).isSameAs(installment);
+        assertThat(capture.getValue().getComprobanteUrl()).isEqualTo("https://example.com/entrega.jpg");
+        assertThat(day.getSaldoActual()).isEqualByComparingTo("0");
+    }
+    @Test void automaticCashDeliveryRequiresTodayOpenCashExactBreakdownAndBalance() {
+        var installment = completed();
+        when(days.findFirstByOrderByFechaDesc()).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.recordCashDelivery(installment, counts(1,0)))
+                .hasMessageContaining("Abre la Caja General");
+
+        when(days.findFirstByOrderByFechaDesc()).thenReturn(Optional.of(day));
+        assertThatThrownBy(() -> service.recordCashDelivery(installment, counts(0,0)))
+                .hasMessageContaining("exactamente");
+        installment.setMonto(money("200"));
+        assertThatThrownBy(() -> service.recordCashDelivery(installment, counts(2,0)))
+                .hasMessageContaining("Saldo insuficiente");
+        verify(movements, never()).saveAndFlush(any());
+    }
+    @Test void withdrawalWithoutCardNeverCreatesCashExit() {
+        var installment = completed();
+        installment.setTipoPago(PaymentType.RETIRO_SIN_TARJETA);
+        assertThatThrownBy(() -> service.recordCashDelivery(installment, counts(1,0)))
+                .hasMessageContaining("efectivo");
+        verify(movements, never()).saveAndFlush(any());
     }
     @Test void duplicateReferenceRejected() {
         completed(); when(movements.existsByParcialidadId(9L)).thenReturn(true);
@@ -146,5 +185,34 @@ class CashGeneralServiceTest {
         var today = LocalDate.now();
         assertThatThrownBy(() -> service.ledger(today,today.minusDays(1))).hasMessageContaining("rango");
         assertThatThrownBy(() -> service.ledger(today,today.plusYears(2))).hasMessageContaining("rango");
+    }
+    @Test void adminDeletionAuditsAndDeletesMovementsBeforeDay() {
+        CashGeneralMovement movement = new CashGeneralMovement();
+        movement.setId(30L);
+        when(movements.findByDiaIdOrderByIdAsc(1L)).thenReturn(List.of(movement));
+
+        service.deleteDay(1L, new DeleteCashDayRequest("ELIMINAR", "Captura duplicada", 0L));
+
+        var audit = ArgumentCaptor.forClass(CashGeneralDeletionAudit.class);
+        verify(deletionAudits).save(audit.capture());
+        assertThat(audit.getValue().getDeletedDayId()).isEqualTo(1L);
+        assertThat(audit.getValue().getFecha()).isEqualTo(day.getFecha());
+        assertThat(audit.getValue().getMovementCount()).isEqualTo(1);
+        assertThat(audit.getValue().getMotivo()).isEqualTo("Captura duplicada");
+        assertThat(audit.getValue().getDeletedBy()).isSameAs(user);
+        verify(movements).deleteAll(List.of(movement));
+        verify(movements).flush();
+        verify(days).delete(day);
+        verify(days).flush();
+    }
+    @Test void deletionRequiresExactConfirmationReasonAndCurrentVersion() {
+        assertThatThrownBy(() -> service.deleteDay(1L, new DeleteCashDayRequest("eliminar", "Error", 0L)))
+                .hasMessageContaining("ELIMINAR");
+        assertThatThrownBy(() -> service.deleteDay(1L, new DeleteCashDayRequest("ELIMINAR", "  ", 0L)))
+                .hasMessageContaining("motivo");
+        assertThatThrownBy(() -> service.deleteDay(1L, new DeleteCashDayRequest("ELIMINAR", "Error", 5L)))
+                .hasMessageContaining("cambió");
+        verify(deletionAudits, never()).save(any());
+        verify(days, never()).delete(any());
     }
 }

@@ -26,6 +26,7 @@ public class CashGeneralService {
     private final CashGeneralDayRepository days;
     private final CashGeneralMovementRepository movements;
     private final OperationReturnInstallmentRepository installments;
+    private final CashGeneralDeletionAuditRepository deletionAudits;
     private final AuthenticatedUserService auth;
     // TODO: confirmar con negocio PDF descargable o impresión del navegador para los tres formatos (Fase 2).
     // TODO: confirmar con negocio historial completo de asignaciones de tarjetas o sólo estado actual (Fase 2).
@@ -34,9 +35,10 @@ public class CashGeneralService {
 
     public CashGeneralService(CashGeneralRegisterRepository register, CashGeneralDayRepository days,
             CashGeneralMovementRepository movements, OperationReturnInstallmentRepository installments,
-            AuthenticatedUserService auth) {
+            AuthenticatedUserService auth, CashGeneralDeletionAuditRepository deletionAudits) {
         this.register = register; this.days = days; this.movements = movements;
         this.installments = installments; this.auth = auth;
+        this.deletionAudits = deletionAudits;
     }
 
     // Orden único para TODAS las escrituras: registro global -> día -> movimiento.
@@ -44,6 +46,52 @@ public class CashGeneralService {
     private void lock() { register.ensureRegister(); register.lockRegister(); }
 
     public CashDayResponse latest() { return days.findFirstByOrderByFechaDesc().map(this::dayDto).orElse(null); }
+
+    /**
+     * Registra la salida en la misma transacción que la entrega física. El ID
+     * determinista vuelve la operación idempotente ante reintentos HTTP.
+     */
+    @Transactional
+    public CashMovementResponse recordCashDelivery(
+            OperationReturnInstallment installment,
+            Map<CashDenomination, Integer> denominations
+    ) {
+        lock();
+        if (installment.getTipoPago() != PaymentType.EFECTIVO) {
+            throw new InvalidCashGeneralException("Solo los retornos en efectivo salen de Caja General");
+        }
+        if (movements.existsByParcialidadId(installment.getId())) {
+            return movements.findByParcialidadId(installment.getId())
+                    .map(this::movementDto)
+                    .orElseThrow(() -> new ConflictException("La entrega ya está vinculada a Caja General"));
+        }
+        CashGeneralDay day = days.findFirstByOrderByFechaDesc()
+                .orElseThrow(() -> new InvalidCashGeneralException("Abre la Caja General antes de entregar efectivo"));
+        if (day.getClosedAt() != null || !day.getFecha().equals(LocalDate.now())) {
+            throw new InvalidCashGeneralException("Debe existir una Caja General abierta para el día de hoy");
+        }
+        BigDecimal amount = CashGeneralAmounts.money(installment.getMonto(), true);
+        CashGeneralAmounts.requireTotal(denominations, amount);
+        BigDecimal balance = CashGeneralAmounts.balance(day.getSaldoActual(), BigDecimal.ZERO, amount);
+
+        CashGeneralMovement movement = new CashGeneralMovement();
+        movement.setDia(day);
+        movement.setRequestId(UUID.nameUUIDFromBytes(
+                ("cash-delivery:" + installment.getId()).getBytes(java.nio.charset.StandardCharsets.UTF_8)
+        ).toString());
+        movement.setDireccion(CashMovementDirection.SALIDA);
+        movement.setTipo(CashMovementConcept.EFECTIVO);
+        movement.setConcepto("Retorno en efectivo · Operación #" + installment.getSolicitud().getOperacion().getId());
+        movement.setMontoManual(null);
+        movement.setParcialidad(installment);
+        movement.setSaldoAcumulado(balance);
+        movement.setDenominaciones(new EnumMap<>(denominations));
+        movement.setComprobanteUrl(installment.getComprobanteEntregaUrl());
+        movement.setCreadoPor(auth.getCurrentUser());
+        day.setSaldoActual(balance);
+        days.saveAndFlush(day);
+        return movementDto(movements.saveAndFlush(movement));
+    }
 
     @Transactional
     public CashDayResponse open(OpenCashDayRequest request) {
@@ -154,6 +202,35 @@ public class CashGeneralService {
         return movements.findUnlinkedDeliveries(PageRequest.of(page, 50)).stream()
                 .map(i -> new CashDeliveryResponse(i.getId(), i.getSolicitud().getOperacion().getId(), i.getMonto(),
                         i.getFechaRealizacion(), i.getPersonaQueRecibioEfectivo())).toList();
+    }
+
+    @Transactional
+    public void deleteDay(Long dayId, DeleteCashDayRequest request) {
+        lock();
+        if (request == null || !"ELIMINAR".equals(request.confirmacion())) {
+            throw new InvalidCashGeneralException("Escribe ELIMINAR para confirmar");
+        }
+        String reason = requiredText(request.motivo(), 500, "el motivo de eliminación");
+        CashGeneralDay day = days.findById(dayId)
+                .orElseThrow(() -> new ResourceNotFoundException("Corte de Caja General no encontrado"));
+        if (!Objects.equals(day.getVersion(), request.version())) {
+            throw new ConflictException("El corte cambió. Actualiza la página antes de eliminarlo");
+        }
+        List<CashGeneralMovement> dayMovements = movements.findByDiaIdOrderByIdAsc(dayId);
+        CashGeneralDeletionAudit audit = new CashGeneralDeletionAudit();
+        audit.setDeletedDayId(day.getId());
+        audit.setFecha(day.getFecha());
+        audit.setSaldoInicial(day.getSaldoInicial());
+        audit.setSaldoEsperado(day.getSaldoActual());
+        audit.setSaldoContado(day.getSaldoContado());
+        audit.setMovementCount(dayMovements.size());
+        audit.setMotivo(reason);
+        audit.setDeletedBy(auth.getCurrentUser());
+        deletionAudits.save(audit);
+        movements.deleteAll(dayMovements);
+        movements.flush();
+        days.delete(day);
+        days.flush();
     }
 
     private CashGeneralDay openDay(Long id) {
