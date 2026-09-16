@@ -23,6 +23,8 @@ public interface OperationReturnInstallmentRepository
 
     boolean existsBySolicitudId(Long solicitudId);
 
+    long countByCuentaOrigenId(Long bankAccountId);
+
     boolean existsByCuentaOrigenId(Long cuentaOrigenId);
 
     // ------------------------------------------------------------------

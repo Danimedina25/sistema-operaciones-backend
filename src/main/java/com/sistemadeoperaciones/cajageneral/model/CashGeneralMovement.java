@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
 import com.sistemadeoperaciones.cajageneral.enums.*;
+import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.pagos.model.OperationReturnInstallment;
 import com.sistemadeoperaciones.usuarios.model.User;
 
@@ -29,8 +30,16 @@ public class CashGeneralMovement {
     @Column(nullable = false, length = 300)
     private String concepto;
 
+    // Snapshot histórico del nombre del banco. Sigue siendo la única referencia de los
+    // movimientos anteriores a la integración y del concepto RETIRO_CON_TARJETA.
     @Column(length = 50)
     private String banco;
+
+    // Cuenta bancaria real de la que salió el dinero. Sólo la llena CHEQUE (cheque cobrado):
+    // esa fila es a la vez la entrada de efectivo y la salida bancaria, así que es imposible
+    // que exista una sin la otra.
+    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "bank_account_id")
+    private BankAccount cuentaBancaria;
 
     @Column(precision = 15, scale = 2)
     private BigDecimal montoManual;
@@ -73,6 +82,8 @@ public class CashGeneralMovement {
     public void setConcepto(String value) { this.concepto = value; }
     public String getBanco() { return banco; }
     public void setBanco(String value) { this.banco = value; }
+    public BankAccount getCuentaBancaria() { return cuentaBancaria; }
+    public void setCuentaBancaria(BankAccount value) { this.cuentaBancaria = value; }
     public BigDecimal getMontoManual() { return montoManual; }
     public void setMontoManual(BigDecimal value) { this.montoManual = value; }
     public OperationReturnInstallment getParcialidad() { return parcialidad; }

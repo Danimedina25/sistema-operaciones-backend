@@ -9,8 +9,9 @@ public interface CashGeneralMovementRepository extends JpaRepository<CashGeneral
     Optional<CashGeneralMovement> findByRequestId(String requestId);
     boolean existsByParcialidadId(Long id);
     Optional<CashGeneralMovement> findByParcialidadId(Long id);
+    long countByCuentaBancariaId(Long bankAccountId);
     List<CashGeneralMovement> findByDiaIdOrderByIdAsc(Long dayId);
-    @EntityGraph(attributePaths = {"parcialidad", "dia", "creadoPor"})
+    @EntityGraph(attributePaths = {"parcialidad", "dia", "creadoPor", "cuentaBancaria"})
     List<CashGeneralMovement> findByDiaFechaBetweenOrderByIdAsc(LocalDate start, LocalDate end);
     @Query("""
         select i from OperationReturnInstallment i

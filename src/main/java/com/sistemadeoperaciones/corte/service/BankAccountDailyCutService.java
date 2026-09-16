@@ -25,4 +25,14 @@ public interface BankAccountDailyCutService {
     void registerDailyCut(
             LocalDate fecha
     );
+
+    /**
+     * Regenera los cortes ya registrados de una cuenta desde una fecha en adelante y
+     * devuelve cuántos se rehicieron. Lo usa la eliminación administrativa de un corte de
+     * Caja General que contenía cheques cobrados.
+     */
+    int recalculateFrom(
+            Long bankAccountId,
+            LocalDate fecha
+    );
 }

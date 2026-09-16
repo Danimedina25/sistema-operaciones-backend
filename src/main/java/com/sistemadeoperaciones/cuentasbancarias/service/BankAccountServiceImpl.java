@@ -5,6 +5,7 @@ import com.sistemadeoperaciones.corte.repository.BankAccountDailyCutRepository;
 import com.sistemadeoperaciones.cuentasbancarias.dto.BankAccountRequestDto;
 import com.sistemadeoperaciones.cuentasbancarias.dto.BankAccountResponseDto;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
+import com.sistemadeoperaciones.cajageneral.repository.CashGeneralMovementRepository;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
 import com.sistemadeoperaciones.pagos.repository.OperationPaymentRepository;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository;
@@ -38,6 +39,9 @@ public class BankAccountServiceImpl implements BankAccountService {
     private final BankAccountDailyCutRepository bankAccountDailyCutRepository;
     private final AuthenticatedUserService authenticatedUserService;
     private final DeletionAuditService deletionAuditService;
+    // Se inyecta el repositorio y no CashGeneralService: así no hay ciclo de beans
+    // (cajageneral ya depende de cuentasbancarias).
+    private final CashGeneralMovementRepository cashGeneralMovementRepository;
 
     public BankAccountServiceImpl(BankAccountRepository bankAccountRepository,
                                   CryptoService cryptoService,
@@ -46,7 +50,8 @@ public class BankAccountServiceImpl implements BankAccountService {
                                   OperationReturnInstallmentRepository operationReturnInstallmentRepository,
                                   BankAccountDailyCutRepository bankAccountDailyCutRepository,
                                   AuthenticatedUserService authenticatedUserService,
-                                  DeletionAuditService deletionAuditService) {
+                                  DeletionAuditService deletionAuditService,
+                                  CashGeneralMovementRepository cashGeneralMovementRepository) {
         this.bankAccountRepository = bankAccountRepository;
         this.cryptoService = cryptoService;
         this.operationPaymentRepository = operationPaymentRepository;
@@ -55,6 +60,7 @@ public class BankAccountServiceImpl implements BankAccountService {
         this.bankAccountDailyCutRepository = bankAccountDailyCutRepository;
         this.authenticatedUserService = authenticatedUserService;
         this.deletionAuditService = deletionAuditService;
+        this.cashGeneralMovementRepository = cashGeneralMovementRepository;
     }
 
     @Override
@@ -153,11 +159,14 @@ public class BankAccountServiceImpl implements BankAccountService {
         if (pagosDestino > 0) dependencies.put("pagosComoDestino", pagosDestino);
 
         long retornosOrigen = operationReturnPaymentRepository.countByCuentaOrigenId(id)
-                + (operationReturnInstallmentRepository.existsByCuentaOrigenId(id) ? 1 : 0);
+                + operationReturnInstallmentRepository.countByCuentaOrigenId(id);
         if (retornosOrigen > 0) dependencies.put("retornosComoOrigen", retornosOrigen);
 
         long cortes = bankAccountDailyCutRepository.countByBankAccountId(id);
         if (cortes > 0) dependencies.put("cortesDiarios", cortes);
+
+        long chequesCaja = cashGeneralMovementRepository.countByCuentaBancariaId(id);
+        if (chequesCaja > 0) dependencies.put("chequesCobradosCajaGeneral", chequesCaja);
 
         if (!dependencies.isEmpty()) {
             throw new EntityHasDependenciesException(

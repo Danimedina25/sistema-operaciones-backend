@@ -4,6 +4,11 @@ import com.sistemadeoperaciones.cajageneral.dto.*;
 import com.sistemadeoperaciones.cajageneral.enums.*;
 import com.sistemadeoperaciones.cajageneral.model.*;
 import com.sistemadeoperaciones.cajageneral.repository.*;
+import com.sistemadeoperaciones.corte.service.BankAccountDailyCutService;
+import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
+import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
+import com.sistemadeoperaciones.shared.exception.ConflictException;
+import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
 import com.sistemadeoperaciones.pagos.enums.*;
 import com.sistemadeoperaciones.pagos.model.*;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository;
@@ -28,6 +33,8 @@ class CashGeneralServiceTest {
     @Mock OperationReturnInstallmentRepository installments;
     @Mock AuthenticatedUserService auth;
     @Mock CashGeneralDeletionAuditRepository deletionAudits;
+    @Mock BankAccountRepository bankAccounts;
+    @Mock BankAccountDailyCutService bankCuts;
     @InjectMocks CashGeneralService service;
     CashGeneralDay day;
     User user;
@@ -50,7 +57,19 @@ class CashGeneralServiceTest {
     }
     CreateCashMovementRequest request(CashMovementDirection direction, BigDecimal amount, Long reference, int hundreds) {
         return new CreateCashMovementRequest(UUID.randomUUID(), direction, CashMovementConcept.EFECTIVO,
-                "Movimiento", null, amount, reference, counts(hundreds,0), null);
+                "Movimiento", null, null, amount, reference, counts(hundreds,0), null);
+    }
+    /** Cuenta bancaria activa disponible para los cheques cobrados. */
+    BankAccount activeAccount() {
+        BankAccount account = new BankAccount();
+        account.setId(4L); account.setBanco("BBVA"); account.setTitular("Operaciones SA");
+        account.setNumeroCuenta("00012345678"); account.setActivo(true);
+        lenient().when(bankAccounts.findById(4L)).thenReturn(Optional.of(account));
+        return account;
+    }
+    CreateCashMovementRequest cheque(CashMovementDirection direction, Long bankAccountId) {
+        return new CreateCashMovementRequest(UUID.randomUUID(), direction, CashMovementConcept.CHEQUE,
+                "Cheque cobrado", null, bankAccountId, money("100"), null, counts(1,0), null);
     }
     @Test void denominationsAreExactIncludingFiftyCents() {
         assertThat(CashGeneralAmounts.total(counts(2,3))).isEqualByComparingTo("201.50");
@@ -78,21 +97,22 @@ class CashGeneralServiceTest {
     }
     @Test void acceptsPhysicalConceptsAndRejectsBankOnlyMovements() {
         var nonCash = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
-                CashMovementConcept.DEPOSITO, "Depósito", "BBVA", money("100"), null, counts(1,0), null);
+                CashMovementConcept.DEPOSITO, "Depósito", "BBVA", null, money("100"), null, counts(1,0), null);
         assertThatThrownBy(() -> service.createMovement(1L, nonCash))
                 .hasMessageContaining("efectivo, cheque cobrado o retiro con tarjeta");
 
         var cashWithBank = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
-                CashMovementConcept.EFECTIVO, "Efectivo", "BBVA", money("100"), null, counts(1,0), null);
+                CashMovementConcept.EFECTIVO, "Efectivo", "BBVA", null, money("100"), null, counts(1,0), null);
         assertThatThrownBy(() -> service.createMovement(1L, cashWithBank))
                 .hasMessageContaining("no admiten banco");
 
-        var cheque = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
-                CashMovementConcept.CHEQUE, "Cheque cobrado", "BBVA", money("100"), null, counts(1,0), null);
-        assertThat(service.createMovement(1L, cheque).tipo()).isEqualTo(CashMovementConcept.CHEQUE);
+        activeAccount();
+        var chequeResponse = service.createMovement(1L, cheque(CashMovementDirection.ENTRADA, 4L));
+        assertThat(chequeResponse.tipo()).isEqualTo(CashMovementConcept.CHEQUE);
+        assertThat(chequeResponse.bankAccountId()).isEqualTo(4L);
 
         var cardWithoutBank = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
-                CashMovementConcept.RETIRO_CON_TARJETA, "Retiro con tarjeta", null, money("100"), null, counts(1,0), null);
+                CashMovementConcept.RETIRO_CON_TARJETA, "Retiro con tarjeta", null, null, money("100"), null, counts(1,0), null);
         assertThatThrownBy(() -> service.createMovement(1L, cardWithoutBank))
                 .hasMessageContaining("banco del catálogo");
         verify(movements, times(1)).saveAndFlush(any());
@@ -214,8 +234,76 @@ class CashGeneralServiceTest {
         day.setClosedAt(LocalDateTime.now());
         assertThat(service.createMovement(1L,r).saldoAcumulado()).isEqualByComparingTo("200");
         verify(movements,times(1)).saveAndFlush(any());
-        var changed = new CreateCashMovementRequest(r.requestId(),r.direccion(),r.tipo(),"Otro",null,r.monto(),null,r.denominaciones(),null);
+        var changed = new CreateCashMovementRequest(r.requestId(),r.direccion(),r.tipo(),"Otro",null,null,r.monto(),null,r.denominaciones(),null);
         assertThatThrownBy(() -> service.createMovement(1L,changed)).hasMessageContaining("otros datos");
+    }
+    @Test void chequeRequiresAnExistingActiveAccountAndOnlyAsIncome() {
+        assertThatThrownBy(() -> service.createMovement(1L, cheque(CashMovementDirection.SALIDA, 4L)))
+                .hasMessageContaining("sólo se registra como entrada");
+
+        assertThatThrownBy(() -> service.createMovement(1L, cheque(CashMovementDirection.ENTRADA, null)))
+                .hasMessageContaining("Selecciona la cuenta bancaria");
+
+        when(bankAccounts.findById(99L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.createMovement(1L, cheque(CashMovementDirection.ENTRADA, 99L)))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        BankAccount inactive = new BankAccount();
+        inactive.setId(5L); inactive.setBanco("Banorte"); inactive.setActivo(false);
+        when(bankAccounts.findById(5L)).thenReturn(Optional.of(inactive));
+        assertThatThrownBy(() -> service.createMovement(1L, cheque(CashMovementDirection.ENTRADA, 5L)))
+                .hasMessageContaining("inactiva");
+
+        var withFreeText = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
+                CashMovementConcept.CHEQUE, "Cheque cobrado", "BBVA", 4L, money("100"), null, counts(1,0), null);
+        assertThatThrownBy(() -> service.createMovement(1L, withFreeText))
+                .hasMessageContaining("no con el nombre del banco");
+
+        verify(movements, never()).saveAndFlush(any());
+        assertThat(day.getSaldoActual()).isEqualByComparingTo("100");
+    }
+    @Test void cashAndCardNeverCarryABankAccount() {
+        var cashWithAccount = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
+                CashMovementConcept.EFECTIVO, "Efectivo", null, 4L, money("100"), null, counts(1,0), null);
+        assertThatThrownBy(() -> service.createMovement(1L, cashWithAccount))
+                .hasMessageContaining("no admiten banco ni cuenta bancaria");
+
+        var cardWithAccount = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
+                CashMovementConcept.RETIRO_CON_TARJETA, "Retiro con tarjeta", "BBVA", 4L, money("100"), null, counts(1,0), null);
+        assertThatThrownBy(() -> service.createMovement(1L, cardWithAccount))
+                .hasMessageContaining("no admite cuenta bancaria");
+
+        verify(movements, never()).saveAndFlush(any());
+    }
+    @Test void chequeStoresTheAccountAndSnapshotsItsBankName() {
+        BankAccount account = activeAccount();
+        var response = service.createMovement(1L, cheque(CashMovementDirection.ENTRADA, 4L));
+
+        assertThat(response.saldoAcumulado()).isEqualByComparingTo("200");
+        assertThat(response.cuentaTitular()).isEqualTo("Operaciones SA");
+        assertThat(response.cuentaNumero()).isEqualTo("00012345678");
+
+        var capture = ArgumentCaptor.forClass(CashGeneralMovement.class);
+        verify(movements).saveAndFlush(capture.capture());
+        assertThat(capture.getValue().getCuentaBancaria()).isSameAs(account);
+        assertThat(capture.getValue().getBanco()).isEqualTo("BBVA");
+    }
+    @Test void retryingAChequeWithAnotherAccountIsRejected() {
+        activeAccount();
+        var original = cheque(CashMovementDirection.ENTRADA, 4L);
+        service.createMovement(1L, original);
+        var capture = ArgumentCaptor.forClass(CashGeneralMovement.class);
+        verify(movements).saveAndFlush(capture.capture());
+        when(movements.findByRequestId(original.requestId().toString())).thenReturn(Optional.of(capture.getValue()));
+
+        assertThat(service.createMovement(1L, original).bankAccountId()).isEqualTo(4L);
+        verify(movements, times(1)).saveAndFlush(any());
+
+        var otherAccount = new CreateCashMovementRequest(original.requestId(), original.direccion(), original.tipo(),
+                original.concepto(), null, 5L, original.monto(), null, original.denominaciones(), null);
+        assertThatThrownBy(() -> service.createMovement(1L, otherAccount))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("otros datos");
     }
     @Test void dateRangeRejectsReversalAndExcess() {
         var today = LocalDate.now();
@@ -241,6 +329,43 @@ class CashGeneralServiceTest {
         verify(movements).flush();
         verify(days).delete(day);
         verify(days).flush();
+    }
+    @Test void deletingADayWithChequesRebuildsTheAffectedBankCuts() {
+        BankAccount account = activeAccount();
+        BankAccount otra = new BankAccount(); otra.setId(5L); otra.setBanco("Banorte"); otra.setActivo(true);
+
+        CashGeneralMovement cheque = new CashGeneralMovement();
+        cheque.setId(30L); cheque.setCuentaBancaria(account);
+        CashGeneralMovement otroCheque = new CashGeneralMovement();
+        otroCheque.setId(31L); otroCheque.setCuentaBancaria(otra);
+        CashGeneralMovement efectivo = new CashGeneralMovement();
+        efectivo.setId(32L);
+        when(movements.findByDiaIdOrderByIdAsc(1L)).thenReturn(List.of(cheque, otroCheque, efectivo));
+        when(bankCuts.recalculateFrom(4L, day.getFecha())).thenReturn(2);
+        when(bankCuts.recalculateFrom(5L, day.getFecha())).thenReturn(1);
+
+        service.deleteDay(1L, new DeleteCashDayRequest("ELIMINAR", "Captura duplicada", 0L));
+
+        // Una vez por cuenta afectada, nunca por la salida en efectivo.
+        verify(bankCuts).recalculateFrom(4L, day.getFecha());
+        verify(bankCuts).recalculateFrom(5L, day.getFecha());
+        verifyNoMoreInteractions(bankCuts);
+
+        var audit = ArgumentCaptor.forClass(CashGeneralDeletionAudit.class);
+        verify(deletionAudits).save(audit.capture());
+        assertThat(audit.getValue().getCortesBancariosRecalculados()).isEqualTo(3);
+    }
+    @Test void deletingADayWithoutChequesTouchesNoBankCut() {
+        CashGeneralMovement efectivo = new CashGeneralMovement();
+        efectivo.setId(32L);
+        when(movements.findByDiaIdOrderByIdAsc(1L)).thenReturn(List.of(efectivo));
+
+        service.deleteDay(1L, new DeleteCashDayRequest("ELIMINAR", "Captura duplicada", 0L));
+
+        verifyNoInteractions(bankCuts);
+        var audit = ArgumentCaptor.forClass(CashGeneralDeletionAudit.class);
+        verify(deletionAudits).save(audit.capture());
+        assertThat(audit.getValue().getCortesBancariosRecalculados()).isZero();
     }
     @Test void deletionRequiresExactConfirmationReasonAndCurrentVersion() {
         assertThatThrownBy(() -> service.deleteDay(1L, new DeleteCashDayRequest("eliminar", "Error", 0L)))

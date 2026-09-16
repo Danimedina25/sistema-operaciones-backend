@@ -53,6 +53,11 @@ public interface BankAccountDailyCutRepository
             LocalDate fecha
     );
 
+    List<BankAccountDailyCut> findByBankAccountIdAndFechaGreaterThanEqualOrderByFechaAsc(
+            Long bankAccountId,
+            LocalDate fecha
+    );
+
     long countByBankAccountId(Long bankAccountId);
 
     /**

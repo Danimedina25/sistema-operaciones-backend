@@ -27,6 +27,8 @@ public class BankAccountBalanceDetailResponseDto {
 
     private BigDecimal salidasRetornos;
 
+    private BigDecimal salidasCheque;
+
     private BigDecimal salidasComisiones;
 
     private BigDecimal totalEntradas;
@@ -124,6 +126,14 @@ public class BankAccountBalanceDetailResponseDto {
 
     public void setSalidasRetornos(BigDecimal salidasRetornos) {
         this.salidasRetornos = salidasRetornos;
+    }
+
+    public BigDecimal getSalidasCheque() {
+        return salidasCheque;
+    }
+
+    public void setSalidasCheque(BigDecimal salidasCheque) {
+        this.salidasCheque = salidasCheque;
     }
 
     public BigDecimal getSalidasComisiones() {

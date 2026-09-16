@@ -18,6 +18,8 @@ public class CashGeneralDeletionAudit {
     @Column(name = "saldo_contado", precision = 15, scale = 2) private BigDecimal saldoContado;
     @Column(name = "movement_count", nullable = false) private int movementCount;
     @Column(nullable = false, length = 500) private String motivo;
+    // Cortes bancarios regenerados al borrar el día, por los cheques cobrados que contenía.
+    @Column(name = "cortes_bancarios_recalculados", nullable = false) private int cortesBancariosRecalculados;
     @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "deleted_by", nullable = false) private User deletedBy;
     @Column(name = "deleted_at", nullable = false, updatable = false) private LocalDateTime deletedAt;
     @PrePersist void prePersist() { deletedAt = LocalDateTime.now(); }
@@ -36,6 +38,8 @@ public class CashGeneralDeletionAudit {
     public void setMovementCount(int value) { movementCount = value; }
     public String getMotivo() { return motivo; }
     public void setMotivo(String value) { motivo = value; }
+    public int getCortesBancariosRecalculados() { return cortesBancariosRecalculados; }
+    public void setCortesBancariosRecalculados(int value) { cortesBancariosRecalculados = value; }
     public User getDeletedBy() { return deletedBy; }
     public void setDeletedBy(User value) { deletedBy = value; }
     public LocalDateTime getDeletedAt() { return deletedAt; }

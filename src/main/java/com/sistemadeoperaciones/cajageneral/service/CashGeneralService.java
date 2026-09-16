@@ -5,6 +5,9 @@ import com.sistemadeoperaciones.cajageneral.enums.*;
 import com.sistemadeoperaciones.cajageneral.exceptions.InvalidCashGeneralException;
 import com.sistemadeoperaciones.cajageneral.model.*;
 import com.sistemadeoperaciones.cajageneral.repository.*;
+import com.sistemadeoperaciones.corte.service.BankAccountDailyCutService;
+import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
+import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import com.sistemadeoperaciones.pagos.enums.ReturnInstallmentStatus;
 import com.sistemadeoperaciones.pagos.model.OperationReturnInstallment;
@@ -27,18 +30,24 @@ public class CashGeneralService {
     private final CashGeneralMovementRepository movements;
     private final OperationReturnInstallmentRepository installments;
     private final CashGeneralDeletionAuditRepository deletionAudits;
+    private final BankAccountRepository bankAccounts;
+    private final BankAccountDailyCutService bankCuts;
     private final AuthenticatedUserService auth;
     // TODO: confirmar con negocio PDF descargable o impresión del navegador para los tres formatos (Fase 2).
     // TODO: confirmar con negocio historial completo de asignaciones de tarjetas o sólo estado actual (Fase 2).
     private static final Set<CashMovementConcept> PHYSICAL_CONCEPTS = EnumSet.of(
             CashMovementConcept.EFECTIVO, CashMovementConcept.CHEQUE, CashMovementConcept.RETIRO_CON_TARJETA);
-    private static final Set<String> BANKS = Set.of("BBVA", "Banorte", "Scotiabank", "Inbursa", "Kapital", "Bajío");
+    // Catálogo fijo heredado. Sólo sigue vigente para RETIRO_CON_TARJETA: el cheque cobrado
+    // ya no usa nombres de banco sino la FK real hacia bank_accounts.
+    private static final Set<String> CARD_BANKS = Set.of("BBVA", "Banorte", "Scotiabank", "Inbursa", "Kapital", "Bajío");
     public CashGeneralService(CashGeneralRegisterRepository register, CashGeneralDayRepository days,
             CashGeneralMovementRepository movements, OperationReturnInstallmentRepository installments,
-            AuthenticatedUserService auth, CashGeneralDeletionAuditRepository deletionAudits) {
+            AuthenticatedUserService auth, CashGeneralDeletionAuditRepository deletionAudits,
+            BankAccountRepository bankAccounts, BankAccountDailyCutService bankCuts) {
         this.register = register; this.days = days; this.movements = movements;
         this.installments = installments; this.auth = auth;
         this.deletionAudits = deletionAudits;
+        this.bankAccounts = bankAccounts; this.bankCuts = bankCuts;
     }
 
     // Orden único para TODAS las escrituras: registro global -> día -> movimiento.
@@ -133,10 +142,8 @@ public class CashGeneralService {
             throw new InvalidCashGeneralException("Caja General solo admite efectivo, cheque cobrado o retiro con tarjeta");
         String concept = requiredText(request.concepto(), 300, "concepto");
         String bank = optionalText(request.banco(), 50);
-        if (request.tipo() == CashMovementConcept.EFECTIVO && bank != null)
-            throw new InvalidCashGeneralException("Los movimientos en efectivo no admiten banco");
-        if (request.tipo() != CashMovementConcept.EFECTIVO && !BANKS.contains(bank == null ? "" : bank))
-            throw new InvalidCashGeneralException("Selecciona un banco del catálogo");
+        BankAccount account = resolveBankAccount(request, bank);
+        if (account != null) bank = optionalText(account.getBanco(), 50);
         String proof = optionalText(request.comprobanteUrl(), 500);
         if (proof != null && !proof.startsWith("https://"))
             throw new InvalidCashGeneralException("El comprobante debe ser una URL HTTPS");
@@ -166,7 +173,8 @@ public class CashGeneralService {
         CashGeneralMovement movement = new CashGeneralMovement();
         movement.setDia(day); movement.setRequestId(request.requestId().toString());
         movement.setDireccion(request.direccion()); movement.setTipo(request.tipo()); movement.setConcepto(concept);
-        movement.setBanco(bank); movement.setMontoManual(installment == null ? amount : null);
+        movement.setBanco(bank); movement.setCuentaBancaria(account);
+        movement.setMontoManual(installment == null ? amount : null);
         movement.setParcialidad(installment); movement.setSaldoAcumulado(balance);
         movement.setDenominaciones(new EnumMap<>(request.denominaciones())); movement.setComprobanteUrl(proof);
         movement.setCreadoPor(auth.getCurrentUser()); day.setSaldoActual(balance);
@@ -220,6 +228,13 @@ public class CashGeneralService {
             throw new ConflictException("El corte cambió. Actualiza la página antes de eliminarlo");
         }
         List<CashGeneralMovement> dayMovements = movements.findByDiaIdOrderByIdAsc(dayId);
+        // Los cheques cobrados del día son salidas bancarias. Al borrarlos hay que rehacer los
+        // cortes bancarios ya persistidos de esas cuentas o quedarían con una salida sin origen.
+        Set<Long> affectedAccounts = dayMovements.stream()
+                .map(CashGeneralMovement::getCuentaBancaria)
+                .filter(Objects::nonNull)
+                .map(BankAccount::getId)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
         CashGeneralDeletionAudit audit = new CashGeneralDeletionAudit();
         audit.setDeletedDayId(day.getId());
         audit.setFecha(day.getFecha());
@@ -229,11 +244,16 @@ public class CashGeneralService {
         audit.setMovementCount(dayMovements.size());
         audit.setMotivo(reason);
         audit.setDeletedBy(auth.getCurrentUser());
-        deletionAudits.save(audit);
         movements.deleteAll(dayMovements);
         movements.flush();
         days.delete(day);
         days.flush();
+        int recalculated = 0;
+        for (Long accountId : affectedAccounts) {
+            recalculated += bankCuts.recalculateFrom(accountId, day.getFecha());
+        }
+        audit.setCortesBancariosRecalculados(recalculated);
+        deletionAudits.save(audit);
     }
 
     private CashGeneralDay openDay(Long id) {
@@ -256,7 +276,8 @@ public class CashGeneralService {
     private boolean sameRequest(CashGeneralMovement m, CreateCashMovementRequest r) {
         return m.getDireccion() == r.direccion() && m.getTipo() == r.tipo()
                 && Objects.equals(m.getConcepto(), optionalText(r.concepto(), 300))
-                && Objects.equals(m.getBanco(), optionalText(r.banco(), 50))
+                && Objects.equals(m.getCuentaBancaria() == null ? null : m.getCuentaBancaria().getId(), r.bankAccountId())
+                && (m.getCuentaBancaria() != null || Objects.equals(m.getBanco(), optionalText(r.banco(), 50)))
                 && Objects.equals(m.getComprobanteUrl(), optionalText(r.comprobanteUrl(), 500))
                 && Objects.equals(m.getDenominaciones(), r.denominaciones())
                 && Objects.equals(m.getParcialidad() == null ? null : m.getParcialidad().getId(), r.parcialidadId())
@@ -271,9 +292,49 @@ public class CashGeneralService {
     }
     private CashMovementResponse movementDto(CashGeneralMovement m) {
         OperationReturnInstallment i = m.getParcialidad();
+        BankAccount c = m.getCuentaBancaria();
         return new CashMovementResponse(m.getId(), m.getDia().getId(), m.getDia().getFecha(), m.getCreatedAt(),
-                m.getDireccion(), m.getTipo(), m.getConcepto(), m.getBanco(), m.importe(), m.getSaldoAcumulado(),
+                m.getDireccion(), m.getTipo(), m.getConcepto(), m.getBanco(),
+                c == null ? null : c.getId(), c == null ? null : c.getBanco(), c == null ? null : c.getTitular(),
+                c == null ? null : c.getNumeroCuenta(), c == null ? null : c.getActivo(),
+                m.importe(), m.getSaldoAcumulado(),
                 i == null ? null : i.getId(), i == null ? null : i.getSolicitud().getOperacion().getId(),
                 Map.copyOf(m.getDenominaciones()), m.getComprobanteUrl(), m.getCreadoPor().getId());
+    }
+
+    /**
+     * El cheque cobrado saca efectivo de una cuenta bancaria real: exige la FK, sólo existe
+     * como ENTRADA de efectivo y la cuenta debe estar activa al capturar. El retiro con tarjeta
+     * conserva el catálogo fijo de nombres y no afecta todavía ningún saldo bancario.
+     */
+    private BankAccount resolveBankAccount(CreateCashMovementRequest request, String bank) {
+        switch (request.tipo()) {
+            case EFECTIVO -> {
+                if (bank != null || request.bankAccountId() != null)
+                    throw new InvalidCashGeneralException("Los movimientos en efectivo no admiten banco ni cuenta bancaria");
+                return null;
+            }
+            case CHEQUE -> {
+                if (bank != null)
+                    throw new InvalidCashGeneralException("El cheque cobrado se captura con la cuenta bancaria, no con el nombre del banco");
+                if (request.direccion() != CashMovementDirection.ENTRADA)
+                    throw new InvalidCashGeneralException("El cheque cobrado sólo se registra como entrada de efectivo");
+                if (request.bankAccountId() == null)
+                    throw new InvalidCashGeneralException("Selecciona la cuenta bancaria de la que se cobró el cheque");
+                BankAccount account = bankAccounts.findById(request.bankAccountId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Cuenta bancaria no encontrada"));
+                if (!Boolean.TRUE.equals(account.getActivo()))
+                    throw new InvalidCashGeneralException("La cuenta bancaria está inactiva");
+                return account;
+            }
+            case RETIRO_CON_TARJETA -> {
+                if (request.bankAccountId() != null)
+                    throw new InvalidCashGeneralException("El retiro con tarjeta no admite cuenta bancaria");
+                if (!CARD_BANKS.contains(bank == null ? "" : bank))
+                    throw new InvalidCashGeneralException("Selecciona un banco del catálogo");
+                return null;
+            }
+            default -> throw new InvalidCashGeneralException("Concepto no admitido en Caja General");
+        }
     }
 }
