@@ -6,5 +6,5 @@ import jakarta.validation.constraints.*;
 import com.sistemadeoperaciones.cajageneral.enums.*;
 public record CashDayResponse(Long id, LocalDate fecha, Long version, BigDecimal saldoInicial, BigDecimal saldoActual,
     BigDecimal saldoContado, BigDecimal diferencia, Map<CashDenomination, Integer> apertura,
-    Map<CashDenomination, Integer> cierre, String observacionesCierre, LocalDateTime closedAt,
-    Long abiertoPor, Long cerradoPor) {}
+    Map<CashDenomination, Integer> cierre, String observacionesCierre, LocalDateTime createdAt,
+    LocalDateTime closedAt, Long abiertoPor, String abiertoPorNombre, Long cerradoPor) {}

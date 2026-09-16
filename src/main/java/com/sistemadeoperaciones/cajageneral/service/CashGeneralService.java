@@ -30,6 +30,9 @@ public class CashGeneralService {
     private final AuthenticatedUserService auth;
     // TODO: confirmar con negocio PDF descargable o impresión del navegador para los tres formatos (Fase 2).
     // TODO: confirmar con negocio historial completo de asignaciones de tarjetas o sólo estado actual (Fase 2).
+    private static final Set<CashMovementConcept> PHYSICAL_CONCEPTS = EnumSet.of(
+            CashMovementConcept.EFECTIVO, CashMovementConcept.CHEQUE, CashMovementConcept.RETIRO_CON_TARJETA);
+    private static final Set<String> BANKS = Set.of("BBVA", "Banorte", "Scotiabank", "Inbursa", "Kapital", "Bajío");
     public CashGeneralService(CashGeneralRegisterRepository register, CashGeneralDayRepository days,
             CashGeneralMovementRepository movements, OperationReturnInstallmentRepository installments,
             AuthenticatedUserService auth, CashGeneralDeletionAuditRepository deletionAudits) {
@@ -126,12 +129,14 @@ public class CashGeneralService {
         CashGeneralDay day = openDay(dayId);
         if (request.direccion() == null || request.tipo() == null)
             throw new InvalidCashGeneralException("Indica dirección y tipo del movimiento");
-        if (request.tipo() != CashMovementConcept.EFECTIVO)
-            throw new InvalidCashGeneralException("Caja General solo admite movimientos en efectivo");
+        if (!PHYSICAL_CONCEPTS.contains(request.tipo()))
+            throw new InvalidCashGeneralException("Caja General solo admite efectivo, cheque cobrado o retiro con tarjeta");
         String concept = requiredText(request.concepto(), 300, "concepto");
         String bank = optionalText(request.banco(), 50);
-        if (bank != null)
-            throw new InvalidCashGeneralException("Los movimientos de Caja General no admiten banco");
+        if (request.tipo() == CashMovementConcept.EFECTIVO && bank != null)
+            throw new InvalidCashGeneralException("Los movimientos en efectivo no admiten banco");
+        if (request.tipo() != CashMovementConcept.EFECTIVO && !BANKS.contains(bank == null ? "" : bank))
+            throw new InvalidCashGeneralException("Selecciona un banco del catálogo");
         String proof = optionalText(request.comprobanteUrl(), 500);
         if (proof != null && !proof.startsWith("https://"))
             throw new InvalidCashGeneralException("El comprobante debe ser una URL HTTPS");
@@ -257,7 +262,8 @@ public class CashGeneralService {
     private CashDayResponse dayDto(CashGeneralDay d) {
         return new CashDayResponse(d.getId(), d.getFecha(), d.getVersion(), d.getSaldoInicial(), d.getSaldoActual(),
                 d.getSaldoContado(), d.getDiferencia(), Map.copyOf(d.getApertura()), Map.copyOf(d.getCierre()),
-                d.getObservacionesCierre(), d.getClosedAt(), d.getAbiertoPor().getId(),
+                d.getObservacionesCierre(), d.getCreatedAt(), d.getClosedAt(), d.getAbiertoPor().getId(),
+                d.getAbiertoPor().getNombre(),
                 d.getCerradoPor() == null ? null : d.getCerradoPor().getId());
     }
     private CashMovementResponse movementDto(CashGeneralMovement m) {
