@@ -1,5 +1,6 @@
 package com.sistemadeoperaciones.corte.service;
 
+import com.sistemadeoperaciones.cajageneral.repository.CashGeneralMovementRepository;
 import com.sistemadeoperaciones.comisionessocioscomerciales.repository.CommercialPartnerCommissionRepository;
 import com.sistemadeoperaciones.corte.dto.CashCutRangeResponse;
 import com.sistemadeoperaciones.corte.dto.DailyCashCutRequest;
@@ -34,16 +35,21 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
     private final OperationReturnInstallmentRepository operationReturnInstallmentRepository;
     private final CommercialPartnerCommissionRepository commercialPartnerCommissionRepository;
 
+    /** Para restar los cheques cobrados: salen del banco y entran a Caja General. */
+    private final CashGeneralMovementRepository cashGeneralMovementRepository;
+
     public DailyCashCutServiceImpl(
             DailyCashCutRepository dailyCashCutRepository,
             OperationPaymentRepository operationPaymentRepository,
             OperationReturnInstallmentRepository operationReturnInstallmentRepository,
-            CommercialPartnerCommissionRepository commercialPartnerCommissionRepository
+            CommercialPartnerCommissionRepository commercialPartnerCommissionRepository,
+            CashGeneralMovementRepository cashGeneralMovementRepository
     ) {
         this.dailyCashCutRepository = dailyCashCutRepository;
         this.operationPaymentRepository = operationPaymentRepository;
         this.operationReturnInstallmentRepository = operationReturnInstallmentRepository;
         this.commercialPartnerCommissionRepository = commercialPartnerCommissionRepository;
+        this.cashGeneralMovementRepository = cashGeneralMovementRepository;
     }
 
     @Override
@@ -137,6 +143,10 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
                 corte.getTotalRetornos()
         );
 
+        response.setSalidasChequeCobrado(
+                corte.getSalidasChequeCobrado()
+        );
+
         response.setTotalComisionesSocios(
                 corte.getTotalComisionesSocios()
         );
@@ -216,6 +226,7 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         corte.setRetornosCheque(calculado.getRetornosCheque());
         corte.setTotalRetornos(calculado.getTotalRetornos());
 
+        corte.setSalidasChequeCobrado(calculado.getSalidasChequeCobrado());
         corte.setTotalComisionesSocios(calculado.getTotalComisionesSocios());
         corte.setTotalComisionesOficina(calculado.getTotalComisionesOficina());
 
@@ -311,6 +322,7 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         BigDecimal retornosCheque = BigDecimal.ZERO;
         BigDecimal totalRetornos = BigDecimal.ZERO;
 
+        BigDecimal salidasChequeCobrado = BigDecimal.ZERO;
         BigDecimal totalComisionesSocios = BigDecimal.ZERO;
         BigDecimal totalComisionesOficina = BigDecimal.ZERO;
         BigDecimal totalSalidas = BigDecimal.ZERO;
@@ -345,6 +357,9 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
 
             totalRetornos = totalRetornos
                     .add(corte.getTotalRetornos());
+
+            salidasChequeCobrado = salidasChequeCobrado
+                    .add(corte.getSalidasChequeCobrado());
 
             totalComisionesSocios = totalComisionesSocios
                     .add(corte.getTotalComisionesSocios());
@@ -411,6 +426,11 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
                             corteHoy.getTotalRetornos()
                     );
 
+            salidasChequeCobrado =
+                    salidasChequeCobrado.add(
+                            corteHoy.getSalidasChequeCobrado()
+                    );
+
             totalComisionesSocios =
                     totalComisionesSocios.add(
                             corteHoy.getTotalComisionesSocios()
@@ -451,6 +471,7 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         response.setRetornosCheque(retornosCheque);
         response.setTotalRetornos(totalRetornos);
 
+        response.setSalidasChequeCobrado(salidasChequeCobrado);
         response.setTotalComisionesSocios(totalComisionesSocios);
         response.setTotalComisionesOficina(totalComisionesOficina);
         response.setTotalSalidas(totalSalidas);
@@ -539,8 +560,19 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
                         )
         );
 
+        // Este corte es la posición de las CUENTAS BANCARIAS. El cheque cobrado saca dinero
+        // de un banco y lo convierte en efectivo físico, así que aquí es salida; su entrada
+        // correspondiente vive en el libro de Caja General.
+        BigDecimal salidasChequeCobrado = nvl(
+                cashGeneralMovementRepository.sumChequeCobradoBetween(
+                        inicio,
+                        fin
+                )
+        );
+
         BigDecimal totalSalidas = totalRetornos
-                .add(totalComisionesSocios);
+                .add(totalComisionesSocios)
+                .add(salidasChequeCobrado);
 
         BigDecimal saldoFinal = saldoInicial
                 .add(totalEntradas)
@@ -564,6 +596,7 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         response.setRetornosCheque(retornosCheque);
         response.setTotalRetornos(totalRetornos);
 
+        response.setSalidasChequeCobrado(salidasChequeCobrado);
         response.setTotalComisionesSocios(totalComisionesSocios);
         response.setTotalComisionesOficina(totalComisionesOficina);
         response.setTotalSalidas(totalSalidas);

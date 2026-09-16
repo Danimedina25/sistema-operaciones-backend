@@ -23,6 +23,8 @@ public class CashCutRangeResponse {
     private BigDecimal retornosCheque;
     private BigDecimal totalRetornos;
 
+    private BigDecimal salidasChequeCobrado;
+
     private BigDecimal totalComisionesSocios;
     private BigDecimal totalComisionesOficina;
 
@@ -143,6 +145,14 @@ public class CashCutRangeResponse {
 
     public void setTotalRetornos(BigDecimal totalRetornos) {
         this.totalRetornos = totalRetornos;
+    }
+
+    public BigDecimal getSalidasChequeCobrado() {
+        return salidasChequeCobrado;
+    }
+
+    public void setSalidasChequeCobrado(BigDecimal salidasChequeCobrado) {
+        this.salidasChequeCobrado = salidasChequeCobrado;
     }
 
     public BigDecimal getTotalComisionesSocios() {
