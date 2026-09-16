@@ -96,8 +96,8 @@ public class CashGeneralService {
     @Transactional
     public CashDayResponse open(OpenCashDayRequest request) {
         lock();
-        if (request.fecha() == null || request.fecha().isAfter(LocalDate.now()))
-            throw new InvalidCashGeneralException("La fecha de apertura no puede ser futura");
+        if (request.fecha() == null || !request.fecha().equals(LocalDate.now()))
+            throw new InvalidCashGeneralException("La caja solo puede abrirse en la fecha actual");
         BigDecimal amount = CashGeneralAmounts.money(request.saldoInicial(), false);
         CashGeneralAmounts.requireTotal(request.denominaciones(), amount);
         days.findFirstByOrderByFechaDesc().ifPresent(previous -> {
@@ -193,8 +193,9 @@ public class CashGeneralService {
     }
 
     public CashLedgerResponse ledger(LocalDate start, LocalDate end) {
-        if (start == null || end == null || end.isBefore(start) || end.isAfter(start.plusYears(1)))
-            throw new InvalidCashGeneralException("Selecciona un rango ordenado de máximo un año");
+        if (start == null || end == null || end.isBefore(start) || end.isAfter(start.plusYears(1))
+                || end.isAfter(LocalDate.now()))
+            throw new InvalidCashGeneralException("Selecciona un rango ordenado, no futuro y de máximo un año");
         return new CashLedgerResponse(days.findByFechaBetweenOrderByFechaAsc(start, end).stream().map(this::dayDto).toList(),
                 movements.findByDiaFechaBetweenOrderByIdAsc(start, end).stream().map(this::movementDto).toList());
     }
@@ -238,6 +239,8 @@ public class CashGeneralService {
     private CashGeneralDay openDay(Long id) {
         CashGeneralDay day = days.findById(id).orElseThrow(() -> new ResourceNotFoundException("Caja no encontrada"));
         if (day.getClosedAt() != null) throw new ConflictException("La caja está cerrada");
+        if (!day.getFecha().equals(LocalDate.now()))
+            throw new InvalidCashGeneralException("Solo se puede operar y cerrar la caja del día actual");
         return day;
     }
     private String requiredText(String value, int max, String label) {

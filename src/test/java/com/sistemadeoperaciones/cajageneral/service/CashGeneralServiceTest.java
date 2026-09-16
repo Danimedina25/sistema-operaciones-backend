@@ -180,6 +180,21 @@ class CashGeneralServiceTest {
         assertThatThrownBy(() -> service.createMovement(1L,request(CashMovementDirection.ENTRADA,money("100"),null,1))).hasMessageContaining("cerrada");
         assertThatThrownBy(() -> service.close(1L,new CloseCashDayRequest(money("100"),0L,counts(1,0),null))).hasMessageContaining("cerrada");
     }
+    @Test void pastOpenDayCannotReceiveMovementsOrClose() {
+        day.setFecha(LocalDate.now().minusDays(1));
+        assertThatThrownBy(() -> service.createMovement(1L,request(CashMovementDirection.ENTRADA,money("100"),null,1)))
+                .hasMessageContaining("día actual");
+        assertThatThrownBy(() -> service.close(1L,new CloseCashDayRequest(money("100"),0L,counts(1,0),null)))
+                .hasMessageContaining("día actual");
+        verify(movements, never()).saveAndFlush(any());
+    }
+    @Test void openingOnlyAcceptsToday() {
+        assertThatThrownBy(() -> service.open(new OpenCashDayRequest(LocalDate.now().minusDays(1),money("100"),counts(1,0))))
+                .hasMessageContaining("fecha actual");
+        assertThatThrownBy(() -> service.open(new OpenCashDayRequest(LocalDate.now().plusDays(1),money("100"),counts(1,0))))
+                .hasMessageContaining("fecha actual");
+        verify(days, never()).saveAndFlush(any());
+    }
     @Test void openingCarriesCountedBalanceAndRejectsOpenOrEarlierDay() {
         when(days.findFirstByOrderByFechaDesc()).thenReturn(Optional.of(day));
         var request = new OpenCashDayRequest(LocalDate.now(),money("100"),counts(1,0));
@@ -206,6 +221,7 @@ class CashGeneralServiceTest {
         var today = LocalDate.now();
         assertThatThrownBy(() -> service.ledger(today,today.minusDays(1))).hasMessageContaining("rango");
         assertThatThrownBy(() -> service.ledger(today,today.plusYears(2))).hasMessageContaining("rango");
+        assertThatThrownBy(() -> service.ledger(today,today.plusDays(1))).hasMessageContaining("futuro");
     }
     @Test void adminDeletionAuditsAndDeletesMovementsBeforeDay() {
         CashGeneralMovement movement = new CashGeneralMovement();
