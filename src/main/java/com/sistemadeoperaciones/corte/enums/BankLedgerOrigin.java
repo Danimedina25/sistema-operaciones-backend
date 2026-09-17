@@ -6,6 +6,8 @@ public enum BankLedgerOrigin {
     PAGO,
     /** Parcialidad de retorno completada desde la cuenta origen. */
     RETORNO,
-    /** Cheque cobrado registrado como entrada de efectivo en Caja General. */
-    CAJA_GENERAL
+    /** Cheque cobrado o retiro sin tarjeta registrado como entrada en Caja General. */
+    CAJA_GENERAL,
+    /** Comisión a socio comercial transferida desde la cuenta. */
+    COMISION
 }

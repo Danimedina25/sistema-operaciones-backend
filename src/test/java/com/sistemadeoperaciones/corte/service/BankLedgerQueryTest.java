@@ -6,6 +6,8 @@ import com.sistemadeoperaciones.cajageneral.enums.CashMovementDirection;
 import com.sistemadeoperaciones.cajageneral.model.CashGeneralDay;
 import com.sistemadeoperaciones.cajageneral.model.CashGeneralMovement;
 import com.sistemadeoperaciones.clientes.model.Clientes;
+import com.sistemadeoperaciones.comisionessocioscomerciales.models.CommercialPartnerCommission;
+import com.sistemadeoperaciones.pagos.enums.CommissionStatus;
 import com.sistemadeoperaciones.corte.dto.BankLedgerFilter;
 import com.sistemadeoperaciones.corte.enums.BankLedgerDirection;
 import com.sistemadeoperaciones.corte.enums.BankLedgerOrigin;
@@ -84,6 +86,11 @@ class BankLedgerQueryTest {
         a.setActivo(true);
         em.persist(a);
         return a;
+    }
+
+    void pagoValidado(PaymentType tipo, String monto, PaymentStatus estatus,
+                      BankAccount destino, LocalDateTime fechaValidacion) {
+        payment(tipo, monto, estatus, destino, fechaValidacion);
     }
 
     OperationPayment payment(PaymentType tipo, String monto, PaymentStatus estatus,
@@ -169,6 +176,48 @@ class BankLedgerQueryTest {
         em.flush();
         em.clear();
         return m;
+    }
+
+    /** Comisión pagada por transferencia desde una cuenta. */
+    void comisionPagada(String monto, BankAccount origen, LocalDateTime pagadaEn) {
+        CommercialPartnerCommission c = new CommercialPartnerCommission();
+        c.setOperation(operation);
+        c.setUser(user);
+        c.setCommissionAmount(new BigDecimal(monto));
+        c.setCommissionPercentage(BigDecimal.ONE);
+        c.setBaseAmount(new BigDecimal(monto));
+        c.setStatus(CommissionStatus.PAGADA);
+        c.setPaymentProofUrl("https://example.com/comision.jpg");
+        c.setCuentaOrigen(origen);
+        c.setPaidAt(pagadaEn);
+        c.setNivel(1);
+        em.persist(c);
+    }
+
+    @Test
+    void aPaidCommissionLeavesItsBankAccount() {
+        pagoValidado(PaymentType.TRANSFERENCIA, "1000", PaymentStatus.VALIDADA, cuenta, HOY.atTime(9, 0));
+        comisionPagada("250", cuenta, HOY.atTime(16, 0));
+        em.flush();
+
+        var buckets = ledger.bucketsForAccount(cuenta.getId(), HOY);
+        assertThat(buckets.salidasComisiones()).isEqualByComparingTo("250");
+        assertThat(buckets.totalSalidas()).isEqualByComparingTo("250");
+
+        var totals = ledger.totals(new BankLedgerFilter(HOY, HOY, cuenta.getId(), null, null, null));
+        assertThat(totals.totalSalidas()).isEqualByComparingTo("250");
+        assertThat(totals.variacionNeta()).isEqualByComparingTo("750");
+    }
+
+    @Test
+    void aCommissionWithoutAnAccountStaysOutOfThePerAccountCut() {
+        // Las comisiones pagadas antes de este cambio no registraron de dónde salieron.
+        comisionPagada("250", null, HOY.atTime(16, 0));
+        em.flush();
+
+        assertThat(ledger.totals(todo()).totalMovimientos()).isZero();
+        assertThat(ledger.bucketsForAccount(cuenta.getId(), HOY).salidasComisiones())
+                .isEqualByComparingTo("0");
     }
 
     BankLedgerFilter todo() {

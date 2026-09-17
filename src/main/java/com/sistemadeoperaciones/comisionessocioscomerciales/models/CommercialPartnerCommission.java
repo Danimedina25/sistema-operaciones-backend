@@ -8,6 +8,7 @@ import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 
 @Entity
 @Table(
@@ -69,6 +70,15 @@ public class CommercialPartnerCommission {
 
     @Column(name = "payment_proof_url", length = 500)
     private String paymentProofUrl;
+
+    /**
+     * Cuenta desde la que se transfirió la comisión. Todas se pagan por transferencia, así
+     * que al marcarla pagada es obligatoria: sin ella la salida no se puede atribuir a
+     * ninguna cuenta y el saldo bancario queda inflado.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cuenta_origen_id")
+    private BankAccount cuentaOrigen;
 
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
@@ -199,6 +209,14 @@ public class CommercialPartnerCommission {
 
     public void setPaymentProofUrl(String paymentProofUrl) {
         this.paymentProofUrl = paymentProofUrl;
+    }
+
+    public BankAccount getCuentaOrigen() {
+        return cuentaOrigen;
+    }
+
+    public void setCuentaOrigen(BankAccount cuentaOrigen) {
+        this.cuentaOrigen = cuentaOrigen;
     }
 
     public LocalDateTime getPaidAt() {

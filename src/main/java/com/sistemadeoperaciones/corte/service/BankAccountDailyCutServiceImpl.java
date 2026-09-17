@@ -307,14 +307,9 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
                         fecha
                 );
 
-        // TODO: las comisiones pagadas a socios comerciales todavía no descuentan del saldo
-        // bancario. La columna existe desde el diseño original y siempre ha valido cero.
-        BigDecimal salidasComisiones = BigDecimal.ZERO;
-
         BigDecimal totalEntradas = buckets.totalEntradas();
 
-        BigDecimal totalSalidas =
-                buckets.totalSalidas().add(salidasComisiones);
+        BigDecimal totalSalidas = buckets.totalSalidas();
 
         BigDecimal saldoFinal =
                 saldoInicial
@@ -337,7 +332,7 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
         dto.setTotalEntradas(totalEntradas);
         dto.setSalidasRetornos(buckets.salidasRetornos());
         dto.setSalidasCajaGeneral(buckets.salidasCajaGeneral());
-        dto.setSalidasComisiones(salidasComisiones);
+        dto.setSalidasComisiones(buckets.salidasComisiones());
         dto.setTotalSalidas(totalSalidas);
         dto.setSaldoFinal(saldoFinal);
 

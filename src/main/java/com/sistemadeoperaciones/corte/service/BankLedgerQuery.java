@@ -34,6 +34,8 @@ import java.util.Map;
  *   <li>{@code operation_return_installments} completadas sobre su cuenta origen (SALIDA).</li>
  *   <li>{@code cash_general_movements} que retiran del banco hacia la caja —cheque
  *       cobrado y retiro sin tarjeta— (SALIDA).</li>
+ *   <li>{@code commercial_partner_commissions} pagadas, transferidas desde su cuenta
+ *       origen (SALIDA).</li>
  * </ol>
  *
  * Persistir un libro canónico habría exigido escribir por duplicado desde
@@ -99,6 +101,16 @@ public class BankLedgerQuery {
             WHERE m.tipo IN ('CHEQUE', 'RETIRO_SIN_TARJETA')
               AND m.bank_account_id IS NOT NULL
               AND m.monto_manual IS NOT NULL
+            UNION ALL
+            SELECT 'COMISION', c.id, c.paid_at,
+                   'SALIDA', 'TRANSFERENCIA', c.commission_amount,
+                   c.cuenta_origen_id, c.operation_id,
+                   NULL, NULL,
+                   c.user_id, NULL
+            FROM commercial_partner_commissions c
+            WHERE c.status = 'PAGADA'
+              AND c.cuenta_origen_id IS NOT NULL
+              AND c.paid_at IS NOT NULL
             """;
 
     @PersistenceContext
@@ -179,7 +191,8 @@ public class BankLedgerQuery {
                     COALESCE(SUM(CASE WHEN mov.origen = 'PAGO' AND mov.tipo = 'DEPOSITO'      THEN mov.monto ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN mov.origen = 'PAGO' AND mov.tipo = 'CHEQUE'        THEN mov.monto ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN mov.origen = 'RETORNO'      THEN mov.monto ELSE 0 END), 0),
-                    COALESCE(SUM(CASE WHEN mov.origen = 'CAJA_GENERAL' THEN mov.monto ELSE 0 END), 0)
+                    COALESCE(SUM(CASE WHEN mov.origen = 'CAJA_GENERAL' THEN mov.monto ELSE 0 END), 0),
+                    COALESCE(SUM(CASE WHEN mov.origen = 'COMISION'      THEN mov.monto ELSE 0 END), 0)
                 FROM (%s) mov
                 WHERE mov.bank_account_id = :bankAccountId
                   AND mov.fecha >= :inicio
@@ -191,7 +204,8 @@ public class BankLedgerQuery {
         query.setParameter("inicio", startOfDay(fecha));
         query.setParameter("fin", startOfNextDay(fecha));
         Object[] row = (Object[]) query.getSingleResult();
-        return new BankLedgerBuckets(money(row[0]), money(row[1]), money(row[2]), money(row[3]), money(row[4]));
+        return new BankLedgerBuckets(money(row[0]), money(row[1]), money(row[2]),
+                money(row[3]), money(row[4]), money(row[5]));
     }
 
     private long countAll(BankLedgerFilter filter) {
@@ -272,6 +286,7 @@ public class BankLedgerQuery {
             case PAGO -> "Pago " + legible + " · Operación #" + operacionId;
             case RETORNO -> "Retorno " + legible + " · Operación #" + operacionId;
             case CAJA_GENERAL -> "Retiro de banco hacia Caja General";
+            case COMISION -> "Comisión a socio comercial · Operación #" + operacionId;
         };
     }
 

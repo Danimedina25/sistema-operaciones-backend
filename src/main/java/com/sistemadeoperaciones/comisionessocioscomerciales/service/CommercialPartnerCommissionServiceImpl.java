@@ -36,6 +36,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
+import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
+import com.sistemadeoperaciones.shared.exception.BadRequestException;
 
 @Service
 @Transactional
@@ -46,19 +49,22 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
     private final CommercialPartnerSettingsRepository commercialPartnerSettingsRepository;
     private final AuthenticatedUserService authenticatedUserService;
     private final NotificationService notificationService;
+    private final BankAccountRepository bankAccountRepository;
 
     public CommercialPartnerCommissionServiceImpl(
             CommercialPartnerCommissionRepository commissionRepository,
             PaymentOperationRepository operationRepository,
             CommercialPartnerSettingsRepository commercialPartnerSettingsRepository,
             AuthenticatedUserService authenticatedUserService,
-            NotificationService notificationService
+            NotificationService notificationService,
+            BankAccountRepository bankAccountRepository
     ) {
         this.commissionRepository = commissionRepository;
         this.operationRepository = operationRepository;
         this.commercialPartnerSettingsRepository = commercialPartnerSettingsRepository;
         this.authenticatedUserService = authenticatedUserService;
         this.notificationService = notificationService;
+        this.bankAccountRepository = bankAccountRepository;
     }
 
 
@@ -1091,6 +1097,23 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
         }
     }
 
+    /**
+     * Todas las comisiones se pagan por transferencia, así que la cuenta de origen es
+     * obligatoria: sin ella la salida no se puede atribuir y el saldo de esa cuenta queda
+     * inflado. Se exige activa, igual que en pagos y retornos.
+     */
+    private BankAccount requireActiveBankAccount(Long cuentaOrigenId) {
+        if (cuentaOrigenId == null) {
+            throw new BadRequestException("Selecciona la cuenta bancaria desde la que se transfiere la comisión");
+        }
+        BankAccount account = bankAccountRepository.findById(cuentaOrigenId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cuenta bancaria no encontrada"));
+        if (!Boolean.TRUE.equals(account.getActivo())) {
+            throw new BadRequestException("La cuenta bancaria está inactiva");
+        }
+        return account;
+    }
+
     @Override
     @Transactional
     public CommercialPartnerCommissionResponseDto markAsPaid(
@@ -1132,6 +1155,10 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
 
         commission.setPaymentProofUrl(
                 request.getPaymentProofUrl()
+        );
+
+        commission.setCuentaOrigen(
+                requireActiveBankAccount(request.getCuentaOrigenId())
         );
 
         commission.setPaidAt(
@@ -1207,6 +1234,9 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
             );
         }
 
+        BankAccount cuentaOrigen =
+                requireActiveBankAccount(request.getCuentaOrigenId());
+
         LocalDateTime paidAt =
                 LocalDateTime.now();
 
@@ -1230,6 +1260,10 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
 
             commission.setPaymentProofUrl(
                     request.getPaymentProofUrl()
+            );
+
+            commission.setCuentaOrigen(
+                    cuentaOrigen
             );
 
             commission.setPaidAt(
