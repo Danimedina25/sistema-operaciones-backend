@@ -28,6 +28,8 @@ public interface DailyCashCutRepository extends JpaRepository<DailyCashCut, Long
             LocalDate fechaFin
     );
 
+    List<DailyCashCut> findByFechaGreaterThanEqualOrderByFechaAsc(LocalDate fecha);
+
     boolean existsByFechaAfter(LocalDate fecha);
 
     boolean existsByFechaAfterAndEstatus(

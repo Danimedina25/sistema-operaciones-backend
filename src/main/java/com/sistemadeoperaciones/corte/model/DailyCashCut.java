@@ -72,6 +72,11 @@ public class DailyCashCut {
     @Column(name = "retornos_cheque", nullable = false, precision = 15, scale = 2)
     private BigDecimal retornosCheque = BigDecimal.ZERO;
 
+    // El retiro sin tarjeta sale de la cuenta origen de la parcialidad. Faltaba por completo
+    // en este corte: se sumaban transferencia, depósito, efectivo y cheque, pero no éste.
+    @Column(name = "retornos_retiro_sin_tarjeta", nullable = false, precision = 15, scale = 2)
+    private BigDecimal retornosRetiroSinTarjeta = BigDecimal.ZERO;
+
     @Column(name = "total_retornos", nullable = false, precision = 15, scale = 2)
     private BigDecimal totalRetornos = BigDecimal.ZERO;
 
@@ -261,6 +266,14 @@ public class DailyCashCut {
 
     public void setRetornosCheque(BigDecimal retornosCheque) {
         this.retornosCheque = retornosCheque;
+    }
+
+    public BigDecimal getRetornosRetiroSinTarjeta() {
+        return retornosRetiroSinTarjeta;
+    }
+
+    public void setRetornosRetiroSinTarjeta(BigDecimal retornosRetiroSinTarjeta) {
+        this.retornosRetiroSinTarjeta = retornosRetiroSinTarjeta;
     }
 
     public BigDecimal getTotalRetornos() {

@@ -11,7 +11,11 @@ import com.sistemadeoperaciones.corte.repository.DailyCashCutRepository;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.pagos.enums.PaymentStatus;
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
+import com.sistemadeoperaciones.pagos.enums.ReturnInstallmentStatus;
+import com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus;
 import com.sistemadeoperaciones.pagos.model.OperationPayment;
+import com.sistemadeoperaciones.pagos.model.OperationReturnInstallment;
+import com.sistemadeoperaciones.pagos.model.OperationReturnPayment;
 import com.sistemadeoperaciones.pagos.model.PaymentOperation;
 import com.sistemadeoperaciones.usuarios.model.User;
 import org.junit.jupiter.api.BeforeEach;
@@ -82,11 +86,15 @@ class DailyCashCutServiceTest {
     }
 
     void pagoValidado(String monto, LocalDateTime fechaValidacion) {
+        pagoValidado(PaymentType.TRANSFERENCIA, monto, fechaValidacion);
+    }
+
+    void pagoValidado(PaymentType tipo, String monto, LocalDateTime fechaValidacion) {
         OperationPayment p = new OperationPayment();
         p.setOperacion(operation);
         p.setMonto(new BigDecimal(monto));
-        p.setTipoPago(PaymentType.TRANSFERENCIA);
-        p.setCuentaDestino(cuenta);
+        p.setTipoPago(tipo);
+        p.setCuentaDestino(tipo == PaymentType.EFECTIVO ? null : cuenta);
         p.setComprobanteUrl("https://example.com/c.jpg");
         p.setEstatus(PaymentStatus.VALIDADA);
         p.setRegistradoPor(user);
@@ -127,7 +135,39 @@ class DailyCashCutServiceTest {
         return m;
     }
 
+    /** Retorno completado del tipo indicado. */
+    void retornoCompletado(PaymentType tipo, String monto, BankAccount origen) {
+        OperationReturnPayment r = new OperationReturnPayment();
+        r.setOperacion(operation);
+        r.setMonto(new BigDecimal(monto));
+        r.setTipoPago(tipo);
+        r.setSolicitadoPor(user);
+        r.setEstatus(ReturnPaymentStatus.SOLICITADO);
+        em.persist(r);
+
+        OperationReturnInstallment i = new OperationReturnInstallment();
+        i.setSolicitud(r);
+        i.setMonto(new BigDecimal(monto));
+        i.setTipoPago(tipo);
+        i.setEstatus(ReturnInstallmentStatus.COMPLETADA);
+        i.setCuentaOrigen(origen);
+        i.setFechaRealizacion(HOY.atTime(11, 0));
+        i.setRealizadoPor(user);
+        i.setCreadoPor(user);
+        em.persist(i);
+    }
+
     static void assertInvariant(DailyCashCutResponse dto) {
+        // El corte es SOLO bancos: el efectivo se informa pero no suma.
+        assertThat(dto.getTotalEntradas()).isEqualByComparingTo(
+                dto.getEntradasTransferencia()
+                        .add(dto.getEntradasDeposito())
+                        .add(dto.getEntradasCheque()));
+        assertThat(dto.getTotalRetornos()).isEqualByComparingTo(
+                dto.getRetornosTransferencia()
+                        .add(dto.getRetornosDeposito())
+                        .add(dto.getRetornosCheque())
+                        .add(dto.getRetornosRetiroSinTarjeta()));
         assertThat(dto.getTotalSalidas()).isEqualByComparingTo(
                 dto.getTotalRetornos()
                         .add(dto.getSalidasChequeCobrado())
@@ -177,6 +217,84 @@ class DailyCashCutServiceTest {
         assertThat(corte.getTotalSalidas()).isEqualByComparingTo("0");
         assertThat(corte.getSaldoFinal()).isEqualByComparingTo("20000");
         assertInvariant(corte);
+    }
+
+    @Test
+    void cashNeverTouchesTheBankPosition() {
+        pagoValidado(PaymentType.EFECTIVO, "8000", HOY.atTime(9, 0));
+        retornoCompletado(PaymentType.EFECTIVO, "3000", null);
+        em.flush();
+
+        DailyCashCutResponse corte = service.calculateDailyCut(HOY);
+
+        // Se siguen informando…
+        assertThat(corte.getEntradasEfectivo()).isEqualByComparingTo("8000");
+        assertThat(corte.getRetornosEfectivo()).isEqualByComparingTo("3000");
+        // …pero no mueven el saldo bancario: ese dinero vive en Caja General.
+        assertThat(corte.getTotalEntradas()).isEqualByComparingTo("0");
+        assertThat(corte.getTotalSalidas()).isEqualByComparingTo("0");
+        assertThat(corte.getSaldoFinal()).isEqualByComparingTo("0");
+        assertInvariant(corte);
+    }
+
+    @Test
+    void aCardlessWithdrawalReturnLeavesTheBank() {
+        pagoValidado("20000", HOY.atTime(9, 0));
+        retornoCompletado(PaymentType.RETIRO_SIN_TARJETA, "6000", cuenta);
+        em.flush();
+
+        DailyCashCutResponse corte = service.calculateDailyCut(HOY);
+
+        assertThat(corte.getRetornosRetiroSinTarjeta()).isEqualByComparingTo("6000");
+        assertThat(corte.getTotalRetornos()).isEqualByComparingTo("6000");
+        assertThat(corte.getSaldoFinal()).isEqualByComparingTo("14000");
+        assertInvariant(corte);
+    }
+
+    @Test
+    void recalculatingRebuildsTheChainWithTheCurrentDefinition() {
+        LocalDate ayer = HOY.minusDays(1);
+        // Un corte guardado con la fórmula vieja: sumaba el efectivo al saldo bancario.
+        com.sistemadeoperaciones.corte.model.DailyCashCut viejo =
+                new com.sistemadeoperaciones.corte.model.DailyCashCut();
+        viejo.setFecha(ayer);
+        viejo.setSaldoInicial(new BigDecimal("1000"));
+        viejo.setEntradasEfectivo(new BigDecimal("5000"));
+        viejo.setTotalEntradas(new BigDecimal("5000"));
+        viejo.setSaldoFinal(new BigDecimal("6000"));
+        viejo.setEstatus(com.sistemadeoperaciones.corte.enums.DailyCashCutStatus.CERRADO);
+        em.persist(viejo);
+        em.flush();
+
+        int recalculados = service.recalculateFrom(ayer);
+        em.clear();
+
+        assertThat(recalculados).isEqualTo(1);
+        var rehecho = cuts.findByFecha(ayer).orElseThrow();
+        // Se respeta el saldo inicial capturado a mano, pero el efectivo deja de sumar.
+        assertThat(rehecho.getSaldoInicial()).isEqualByComparingTo("1000");
+        assertThat(rehecho.getTotalEntradas()).isEqualByComparingTo("0");
+        assertThat(rehecho.getSaldoFinal()).isEqualByComparingTo("1000");
+    }
+
+    @Test
+    void recalculatingTwiceGivesTheSameResult() {
+        LocalDate ayer = HOY.minusDays(1);
+        com.sistemadeoperaciones.corte.model.DailyCashCut viejo =
+                new com.sistemadeoperaciones.corte.model.DailyCashCut();
+        viejo.setFecha(ayer);
+        viejo.setSaldoInicial(new BigDecimal("1000"));
+        viejo.setSaldoFinal(new BigDecimal("1000"));
+        viejo.setEstatus(com.sistemadeoperaciones.corte.enums.DailyCashCutStatus.CERRADO);
+        em.persist(viejo);
+        em.flush();
+
+        service.recalculateFrom(ayer);
+        var primera = cuts.findByFecha(ayer).orElseThrow().getSaldoFinal();
+        service.recalculateFrom(ayer);
+        var segunda = cuts.findByFecha(ayer).orElseThrow().getSaldoFinal();
+
+        assertThat(segunda).isEqualByComparingTo(primera);
     }
 
     @Test

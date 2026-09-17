@@ -21,6 +21,8 @@ public class DailyCashCutResponse {
     private BigDecimal retornosDeposito;
     private BigDecimal retornosEfectivo;
     private BigDecimal retornosCheque;
+    private BigDecimal retornosRetiroSinTarjeta;
+
     private BigDecimal totalRetornos;
 
     private BigDecimal salidasChequeCobrado;
@@ -130,6 +132,14 @@ public class DailyCashCutResponse {
 
     public void setRetornosCheque(BigDecimal retornosCheque) {
         this.retornosCheque = retornosCheque;
+    }
+
+    public BigDecimal getRetornosRetiroSinTarjeta() {
+        return retornosRetiroSinTarjeta;
+    }
+
+    public void setRetornosRetiroSinTarjeta(BigDecimal retornosRetiroSinTarjeta) {
+        this.retornosRetiroSinTarjeta = retornosRetiroSinTarjeta;
     }
 
     public BigDecimal getTotalRetornos() {

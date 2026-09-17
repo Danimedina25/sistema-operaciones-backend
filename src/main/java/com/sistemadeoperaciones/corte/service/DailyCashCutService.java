@@ -32,4 +32,19 @@ public interface DailyCashCutService {
      * Puede usarse para cortes semanales, mensuales, anuales o personalizados.
      */
     CashCutRangeResponse calculateRangeCut(LocalDate fechaInicio, LocalDate fechaFin);
+
+    /**
+     * Recalcula los cortes ya registrados desde una fecha en adelante y vuelve a encadenar
+     * sus saldos, devolviendo cuántos se rehicieron.
+     *
+     * <p>Hace falta cuando cambia la definición contable del corte —por ejemplo al dejar de
+     * contar el efectivo, que ahora vive sólo en Caja General—: los cortes guardados
+     * conservarían la fórmula vieja y el saldo inicial de hoy seguiría arrastrándola.
+     *
+     * <p>Es determinista e idempotente: los importes se recalculan siempre desde los pagos,
+     * retornos y cheques originales, nunca desde los agregados guardados. Lo único que se
+     * respeta es el saldo inicial del primer corte de la serie, que es un dato de negocio
+     * capturado a mano.
+     */
+    int recalculateFrom(LocalDate desde);
 }

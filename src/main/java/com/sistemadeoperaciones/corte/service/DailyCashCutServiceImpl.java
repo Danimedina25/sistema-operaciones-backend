@@ -139,6 +139,10 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
                 corte.getRetornosCheque()
         );
 
+        response.setRetornosRetiroSinTarjeta(
+                corte.getRetornosRetiroSinTarjeta()
+        );
+
         response.setTotalRetornos(
                 corte.getTotalRetornos()
         );
@@ -211,26 +215,7 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         DailyCashCut corte = new DailyCashCut();
 
         corte.setFecha(fecha);
-        corte.setSaldoInicial(calculado.getSaldoInicial());
-        corte.setSaldoFinal(calculado.getSaldoFinal());
-
-        corte.setEntradasTransferencia(calculado.getEntradasTransferencia());
-        corte.setEntradasDeposito(calculado.getEntradasDeposito());
-        corte.setEntradasEfectivo(calculado.getEntradasEfectivo());
-        corte.setEntradasCheque(calculado.getEntradasCheque());
-        corte.setTotalEntradas(calculado.getTotalEntradas());
-
-        corte.setRetornosTransferencia(calculado.getRetornosTransferencia());
-        corte.setRetornosDeposito(calculado.getRetornosDeposito());
-        corte.setRetornosEfectivo(calculado.getRetornosEfectivo());
-        corte.setRetornosCheque(calculado.getRetornosCheque());
-        corte.setTotalRetornos(calculado.getTotalRetornos());
-
-        corte.setSalidasChequeCobrado(calculado.getSalidasChequeCobrado());
-        corte.setTotalComisionesSocios(calculado.getTotalComisionesSocios());
-        corte.setTotalComisionesOficina(calculado.getTotalComisionesOficina());
-
-        corte.setTotalSalidas(calculado.getTotalSalidas());
+        applyAmounts(corte, calculado);
 
         corte.setEstatus(DailyCashCutStatus.CERRADO);
         corte.setObservaciones(request.getObservaciones());
@@ -320,6 +305,7 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         BigDecimal retornosDeposito = BigDecimal.ZERO;
         BigDecimal retornosEfectivo = BigDecimal.ZERO;
         BigDecimal retornosCheque = BigDecimal.ZERO;
+        BigDecimal retornosRetiroSinTarjeta = BigDecimal.ZERO;
         BigDecimal totalRetornos = BigDecimal.ZERO;
 
         BigDecimal salidasChequeCobrado = BigDecimal.ZERO;
@@ -354,6 +340,9 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
 
             retornosCheque = retornosCheque
                     .add(corte.getRetornosCheque());
+
+            retornosRetiroSinTarjeta = retornosRetiroSinTarjeta
+                    .add(corte.getRetornosRetiroSinTarjeta());
 
             totalRetornos = totalRetornos
                     .add(corte.getTotalRetornos());
@@ -421,6 +410,11 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
                             corteHoy.getRetornosCheque()
                     );
 
+            retornosRetiroSinTarjeta =
+                    retornosRetiroSinTarjeta.add(
+                            corteHoy.getRetornosRetiroSinTarjeta()
+                    );
+
             totalRetornos =
                     totalRetornos.add(
                             corteHoy.getTotalRetornos()
@@ -469,6 +463,7 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         response.setRetornosDeposito(retornosDeposito);
         response.setRetornosEfectivo(retornosEfectivo);
         response.setRetornosCheque(retornosCheque);
+        response.setRetornosRetiroSinTarjeta(retornosRetiroSinTarjeta);
         response.setTotalRetornos(totalRetornos);
 
         response.setSalidasChequeCobrado(salidasChequeCobrado);
@@ -517,9 +512,11 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
                 fin
         );
 
+        // Este corte es la posición de las CUENTAS BANCARIAS: el efectivo vive en Caja
+        // General y no entra al total. entradasEfectivo se sigue calculando y guardando
+        // como dato informativo del día, pero no afecta el saldo bancario.
         BigDecimal totalEntradas = entradasTransferencia
                 .add(entradasDeposito)
-                .add(entradasEfectivo)
                 .add(entradasCheque);
 
         BigDecimal retornosTransferencia = sumRetornoByTipo(
@@ -546,10 +543,19 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
                 fin
         );
 
+        BigDecimal retornosRetiroSinTarjeta = sumRetornoByTipo(
+                PaymentType.RETIRO_SIN_TARJETA,
+                inicio,
+                fin
+        );
+
+        // El retorno en efectivo sale de Caja General, no de un banco: queda fuera.
+        // El retiro sin tarjeta sí sale de la cuenta origen de la parcialidad, y hasta
+        // ahora faltaba por completo en este corte.
         BigDecimal totalRetornos = retornosTransferencia
                 .add(retornosDeposito)
-                .add(retornosEfectivo)
-                .add(retornosCheque);
+                .add(retornosCheque)
+                .add(retornosRetiroSinTarjeta);
 
         BigDecimal totalComisionesSocios = nvl(
                 commercialPartnerCommissionRepository
@@ -594,6 +600,7 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         response.setRetornosDeposito(retornosDeposito);
         response.setRetornosEfectivo(retornosEfectivo);
         response.setRetornosCheque(retornosCheque);
+        response.setRetornosRetiroSinTarjeta(retornosRetiroSinTarjeta);
         response.setTotalRetornos(totalRetornos);
 
         response.setSalidasChequeCobrado(salidasChequeCobrado);
@@ -604,6 +611,66 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         response.setRegistrado(false);
 
         return response;
+    }
+
+    /** Vuelca los importes calculados sobre la fila del corte. */
+    private void applyAmounts(DailyCashCut corte, DailyCashCutResponse calculado) {
+        corte.setSaldoInicial(calculado.getSaldoInicial());
+        corte.setSaldoFinal(calculado.getSaldoFinal());
+
+        corte.setEntradasTransferencia(calculado.getEntradasTransferencia());
+        corte.setEntradasDeposito(calculado.getEntradasDeposito());
+        corte.setEntradasEfectivo(calculado.getEntradasEfectivo());
+        corte.setEntradasCheque(calculado.getEntradasCheque());
+        corte.setTotalEntradas(calculado.getTotalEntradas());
+
+        corte.setRetornosTransferencia(calculado.getRetornosTransferencia());
+        corte.setRetornosDeposito(calculado.getRetornosDeposito());
+        corte.setRetornosEfectivo(calculado.getRetornosEfectivo());
+        corte.setRetornosCheque(calculado.getRetornosCheque());
+        corte.setRetornosRetiroSinTarjeta(calculado.getRetornosRetiroSinTarjeta());
+        corte.setTotalRetornos(calculado.getTotalRetornos());
+
+        corte.setSalidasChequeCobrado(calculado.getSalidasChequeCobrado());
+        corte.setTotalComisionesSocios(calculado.getTotalComisionesSocios());
+        corte.setTotalComisionesOficina(calculado.getTotalComisionesOficina());
+
+        corte.setTotalSalidas(calculado.getTotalSalidas());
+    }
+
+    @Override
+    @Transactional
+    public int recalculateFrom(LocalDate desde) {
+
+        if (desde == null) {
+            throw new CashCutDateRequiredException();
+        }
+
+        List<DailyCashCut> cortes = dailyCashCutRepository
+                .findByFechaGreaterThanEqualOrderByFechaAsc(desde);
+
+        if (cortes.isEmpty()) {
+            return 0;
+        }
+
+        // El saldo de arranque sale del corte anterior. Si no hay ninguno, se conserva el
+        // saldo inicial capturado a mano en el primer corte de la historia: ese número es
+        // un dato de negocio y no se puede derivar de ningún movimiento.
+        BigDecimal saldo = dailyCashCutRepository
+                .findTopByFechaBeforeOrderByFechaDesc(desde)
+                .map(DailyCashCut::getSaldoFinal)
+                .orElseGet(() -> cortes.get(0).getSaldoInicial());
+
+        for (DailyCashCut corte : cortes) {
+            DailyCashCutResponse calculado = calculateDailyCut(corte.getFecha(), saldo);
+            applyAmounts(corte, calculado);
+            dailyCashCutRepository.save(corte);
+            saldo = corte.getSaldoFinal();
+        }
+
+        dailyCashCutRepository.flush();
+
+        return cortes.size();
     }
 
     private BigDecimal obtenerSaldoInicial(LocalDate fecha) {

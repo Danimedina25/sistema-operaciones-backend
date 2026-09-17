@@ -73,6 +73,33 @@ public class DailyCashCutController {
     }
 
     /**
+     * Rehace los cortes ya registrados desde una fecha en adelante y vuelve a encadenar sus
+     * saldos con la definición contable vigente.
+     *
+     * <p>Reescribe filas financieras ya cerradas, así que queda restringido a Administración.
+     * Es determinista: los importes se recalculan desde los pagos, retornos y cheques
+     * originales, nunca desde los agregados guardados, de modo que ejecutarlo dos veces da el
+     * mismo resultado.
+     */
+    @PostMapping("/recalculate")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Integer>> recalculateFrom(
+            @RequestParam LocalDate desde
+    ) {
+
+        int recalculados = dailyCashCutService.recalculateFrom(desde);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Cortes diarios recalculados: " + recalculados,
+                        recalculados,
+                        null
+                )
+        );
+    }
+
+    /**
      * Registra el corte diario con datos adicionales.
      * Útil para primer corte, observaciones o saldo inicial manual.
      */
