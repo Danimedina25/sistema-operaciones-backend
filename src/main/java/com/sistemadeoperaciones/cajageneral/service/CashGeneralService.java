@@ -189,7 +189,7 @@ public class CashGeneralService {
     @Transactional
     public CashDayResponse close(Long dayId, CloseCashDayRequest request) {
         lock();
-        CashGeneralDay day = openDay(dayId);
+        CashGeneralDay day = openDayForClose(dayId);
         if (!Objects.equals(day.getVersion(), request.version()))
             throw new ConflictException("La caja cambió durante el conteo. Actualiza y revisa el cierre");
         BigDecimal counted = CashGeneralAmounts.money(request.saldoContado(), false);
@@ -260,12 +260,52 @@ public class CashGeneralService {
         deletionAudits.save(audit);
     }
 
+    /** Para capturar movimientos: sólo la caja de hoy, o quedarían fechados en otro día. */
     private CashGeneralDay openDay(Long id) {
+        CashGeneralDay day = openDayForClose(id);
+        if (!day.getFecha().equals(LocalDate.now()))
+            throw new InvalidCashGeneralException("Solo se pueden capturar movimientos en la caja del día actual");
+        return day;
+    }
+
+    /**
+     * Para cerrar: se admite una caja de un día anterior que quedó abierta por olvido.
+     *
+     * <p>Antes exigía que fuera la de hoy y eso trababa la operación: no se podía cerrar la de
+     * ayer por no ser hoy, y no se podía abrir la de hoy porque la anterior seguía abierta.
+     * Contar el efectivo hoy es válido porque desde que venció ese día ya no se le pudo
+     * capturar ningún movimiento, así que el dinero no se movió; si hay diferencia, el cierre
+     * la registra y exige explicarla como siempre.
+     */
+    private CashGeneralDay openDayForClose(Long id) {
         CashGeneralDay day = days.findById(id).orElseThrow(() -> new ResourceNotFoundException("Caja no encontrada"));
         if (day.getClosedAt() != null) throw new ConflictException("La caja está cerrada");
-        if (!day.getFecha().equals(LocalDate.now()))
-            throw new InvalidCashGeneralException("Solo se puede operar y cerrar la caja del día actual");
+        if (day.getFecha().isAfter(LocalDate.now()))
+            throw new InvalidCashGeneralException("La caja no puede cerrarse antes de su fecha");
         return day;
+    }
+
+    /**
+     * Desglose que debería haber en la caja: apertura + entradas − salidas, denominación por
+     * denominación. Sirve para prellenar el cierre y que sólo se valide contra el conteo real.
+     *
+     * <p>Alguna denominación puede salir negativa si durante el día se cambió físicamente un
+     * billete por otros: el importe total sigue cuadrando con el saldo, pero el detalle no.
+     * No se corrige ni se bloquea, porque el conteo real es el que manda.
+     */
+    private Map<CashDenomination, Integer> expectedCounts(CashGeneralDay day) {
+        if (day.getClosedAt() != null) return null;
+
+        Map<CashDenomination, Integer> expected = new EnumMap<>(CashDenomination.class);
+        for (CashDenomination denomination : CashDenomination.values()) {
+            expected.put(denomination, day.getApertura().getOrDefault(denomination, 0));
+        }
+        for (CashGeneralMovement movement : movements.findByDiaIdOrderByIdAsc(day.getId())) {
+            int sign = movement.getDireccion() == CashMovementDirection.ENTRADA ? 1 : -1;
+            movement.getDenominaciones()
+                    .forEach((denomination, quantity) -> expected.merge(denomination, sign * quantity, Integer::sum));
+        }
+        return expected;
     }
     private String requiredText(String value, int max, String label) {
         String text = optionalText(value, max);
@@ -288,8 +328,10 @@ public class CashGeneralService {
                 && (m.getMontoManual() == null ? r.monto() == null : r.monto() != null && m.getMontoManual().compareTo(r.monto()) == 0);
     }
     private CashDayResponse dayDto(CashGeneralDay d) {
+        Map<CashDenomination, Integer> expected = expectedCounts(d);
         return new CashDayResponse(d.getId(), d.getFecha(), d.getVersion(), d.getSaldoInicial(), d.getSaldoActual(),
                 d.getSaldoContado(), d.getDiferencia(), Map.copyOf(d.getApertura()), Map.copyOf(d.getCierre()),
+                expected == null ? null : Map.copyOf(expected),
                 d.getObservacionesCierre(), d.getCreatedAt(), d.getClosedAt(), d.getAbiertoPor().getId(),
                 d.getAbiertoPor().getNombre(),
                 d.getCerradoPor() == null ? null : d.getCerradoPor().getId());

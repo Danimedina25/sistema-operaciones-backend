@@ -207,12 +207,10 @@ class CashGeneralServiceTest {
         assertThatThrownBy(() -> service.createMovement(1L,request(CashMovementDirection.ENTRADA,money("100"),null,1))).hasMessageContaining("cerrada");
         assertThatThrownBy(() -> service.close(1L,new CloseCashDayRequest(money("100"),0L,counts(1,0),null))).hasMessageContaining("cerrada");
     }
-    @Test void pastOpenDayCannotReceiveMovementsOrClose() {
+    @Test void pastOpenDayCannotReceiveMovements() {
         day.setFecha(LocalDate.now().minusDays(1));
         assertThatThrownBy(() -> service.createMovement(1L,request(CashMovementDirection.ENTRADA,money("100"),null,1)))
-                .hasMessageContaining("día actual");
-        assertThatThrownBy(() -> service.close(1L,new CloseCashDayRequest(money("100"),0L,counts(1,0),null)))
-                .hasMessageContaining("día actual");
+                .hasMessageContaining("movimientos en la caja del día actual");
         verify(movements, never()).saveAndFlush(any());
     }
     @Test void openingOnlyAcceptsToday() {
@@ -406,4 +404,49 @@ class CashGeneralServiceTest {
         verify(deletionAudits, never()).save(any());
         verify(days, never()).delete(any());
     }
+    @Test void aDayLeftOpenFromAnEarlierDateCanStillBeClosed() {
+        // El bloqueo anterior: no se podía cerrar ayer por no ser hoy, y no se podía abrir hoy
+        // porque la anterior seguía abierta. La operación quedaba trabada.
+        day.setFecha(LocalDate.now().minusDays(1));
+
+        var result = service.close(1L, new CloseCashDayRequest(money("100"), 0L, counts(1,0), null));
+
+        assertThat(result.closedAt()).isNotNull();
+        assertThat(result.saldoContado()).isEqualByComparingTo("100");
+        assertThat(result.diferencia()).isEqualByComparingTo("0");
+    }
+    @Test void aFutureCashBoxCannotBeClosed() {
+        day.setFecha(LocalDate.now().plusDays(1));
+
+        assertThatThrownBy(() -> service.close(1L, new CloseCashDayRequest(money("100"), 0L, counts(1,0), null)))
+                .hasMessageContaining("antes de su fecha");
+    }
+    @Test void theExpectedBreakdownFollowsTheMovements() {
+        // Apertura: 1 billete de 100. Entra 1 de 100, sale 1 de 100 en dos monedas de 50.
+        var entrada = new CashGeneralMovement();
+        entrada.setDireccion(CashMovementDirection.ENTRADA);
+        entrada.setDenominaciones(counts(1, 0));
+        var salida = new CashGeneralMovement();
+        salida.setDireccion(CashMovementDirection.SALIDA);
+        salida.setDenominaciones(counts(0, 2));
+        when(movements.findByDiaIdOrderByIdAsc(1L)).thenReturn(List.of(entrada, salida));
+
+        when(days.findFirstByOrderByFechaDesc()).thenReturn(Optional.of(day));
+
+        var dto = service.latest();
+
+        // Se informa aunque alguna denominación quede negativa —se cambió un billete—:
+        // el conteo real es el que manda.
+        assertThat(dto.denominacionesEsperadas())
+                .containsEntry(CashDenomination.D100, 2)
+                .containsEntry(CashDenomination.D050, -2);
+    }
+    @Test void aClosedDayReportsNoExpectedBreakdown() {
+        day.setClosedAt(LocalDateTime.now());
+        when(days.findFirstByOrderByFechaDesc()).thenReturn(Optional.of(day));
+
+        assertThat(service.latest().denominacionesEsperadas()).isNull();
+        verify(movements, never()).findByDiaIdOrderByIdAsc(any());
+    }
+
 }
