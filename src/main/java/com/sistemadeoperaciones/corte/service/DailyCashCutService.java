@@ -47,4 +47,20 @@ public interface DailyCashCutService {
      * capturado a mano.
      */
     int recalculateFrom(LocalDate desde);
+
+    /**
+     * Borra los cortes bancarios de un rango —el global y el de cada cuenta— y los vuelve a
+     * calcular desde las operaciones registradas, en orden ascendente para que la cadena de
+     * saldos se reconstruya.
+     *
+     * <p>A diferencia de {@link #recalculateFrom(LocalDate)}, que sólo rehace los cortes que
+     * ya existen, esto reconstruye la serie completa aunque no quede ninguno.
+     *
+     * <p>{@code saldoInicial} sólo se usa cuando no existe ningún corte anterior a
+     * {@code desde}: es el punto de partida de toda la cadena y no puede derivarse de ningún
+     * movimiento. El día de hoy nunca se registra, siempre se calcula en vivo.
+     *
+     * @return cuántos días se reconstruyeron
+     */
+    int rebuildRange(LocalDate desde, LocalDate hasta, java.math.BigDecimal saldoInicial);
 }

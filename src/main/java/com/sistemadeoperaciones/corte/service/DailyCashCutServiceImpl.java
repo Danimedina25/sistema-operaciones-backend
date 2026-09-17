@@ -11,6 +11,7 @@ import com.sistemadeoperaciones.corte.exceptions.DailyCashCutAlreadyExistsExcept
 import com.sistemadeoperaciones.corte.exceptions.InitialCashBalanceRequiredException;
 import com.sistemadeoperaciones.corte.exceptions.InvalidCashCutDateRangeException;
 import com.sistemadeoperaciones.corte.model.DailyCashCut;
+import com.sistemadeoperaciones.corte.repository.BankAccountDailyCutRepository;
 import com.sistemadeoperaciones.corte.repository.DailyCashCutRepository;
 import com.sistemadeoperaciones.pagos.enums.CommissionStatus;
 import com.sistemadeoperaciones.pagos.enums.PaymentStatus;
@@ -38,18 +39,26 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
     /** Para restar lo que se retira del banco y entra a Caja General. */
     private final CashGeneralMovementRepository cashGeneralMovementRepository;
 
+    /** La reconstrucción rehace las dos series bancarias: la global y la de cada cuenta. */
+    private final BankAccountDailyCutRepository bankAccountDailyCutRepository;
+    private final BankAccountDailyCutService bankAccountDailyCutService;
+
     public DailyCashCutServiceImpl(
             DailyCashCutRepository dailyCashCutRepository,
             OperationPaymentRepository operationPaymentRepository,
             OperationReturnInstallmentRepository operationReturnInstallmentRepository,
             CommercialPartnerCommissionRepository commercialPartnerCommissionRepository,
-            CashGeneralMovementRepository cashGeneralMovementRepository
+            CashGeneralMovementRepository cashGeneralMovementRepository,
+            BankAccountDailyCutRepository bankAccountDailyCutRepository,
+            BankAccountDailyCutService bankAccountDailyCutService
     ) {
         this.dailyCashCutRepository = dailyCashCutRepository;
         this.operationPaymentRepository = operationPaymentRepository;
         this.operationReturnInstallmentRepository = operationReturnInstallmentRepository;
         this.commercialPartnerCommissionRepository = commercialPartnerCommissionRepository;
         this.cashGeneralMovementRepository = cashGeneralMovementRepository;
+        this.bankAccountDailyCutRepository = bankAccountDailyCutRepository;
+        this.bankAccountDailyCutService = bankAccountDailyCutService;
     }
 
     @Override
@@ -671,6 +680,65 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         dailyCashCutRepository.flush();
 
         return cortes.size();
+    }
+
+    @Override
+    @Transactional
+    public int rebuildRange(LocalDate desde, LocalDate hasta, BigDecimal saldoInicial) {
+
+        if (desde == null) {
+            throw new CashCutDateRequiredException();
+        }
+
+        // Hoy siempre se calcula en vivo: registrarlo lo congelaría a media jornada.
+        LocalDate ultimoCerrable = LocalDate.now().minusDays(1);
+        LocalDate fin = hasta == null || hasta.isAfter(ultimoCerrable) ? ultimoCerrable : hasta;
+
+        if (fin.isBefore(desde)) {
+            return 0;
+        }
+        if (desde.plusYears(1).isBefore(fin)) {
+            throw new InvalidCashCutDateRangeException(
+                    "El rango a reconstruir no puede superar un año"
+            );
+        }
+
+        boolean hayCorteAnterior = dailyCashCutRepository
+                .findTopByFechaBeforeOrderByFechaDesc(desde)
+                .isPresent();
+
+        if (!hayCorteAnterior && saldoInicial == null) {
+            throw new InitialCashBalanceRequiredException();
+        }
+
+        // Se borra el rango completo antes de reconstruir: si se fuera día por día, el saldo
+        // inicial de cada uno seguiría leyendo la fila vieja del día anterior.
+        dailyCashCutRepository.deleteAll(
+                dailyCashCutRepository.findByFechaBetweenOrderByFechaAsc(desde, fin)
+        );
+        dailyCashCutRepository.flush();
+
+        bankAccountDailyCutRepository.deleteAll(
+                bankAccountDailyCutRepository.findByFechaBetweenOrderByFechaAsc(desde, fin)
+        );
+        bankAccountDailyCutRepository.flush();
+
+        int dias = 0;
+
+        for (LocalDate fecha = desde; !fecha.isAfter(fin); fecha = fecha.plusDays(1)) {
+
+            DailyCashCutRequest request = new DailyCashCutRequest();
+            request.setFecha(fecha);
+            // Sólo lo usa el primer corte de la historia; el resto encadena del anterior.
+            request.setSaldoInicialManual(saldoInicial);
+
+            registerDailyCut(request);
+            bankAccountDailyCutService.registerDailyCut(fecha);
+
+            dias++;
+        }
+
+        return dias;
     }
 
     private BigDecimal obtenerSaldoInicial(LocalDate fecha) {

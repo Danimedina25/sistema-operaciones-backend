@@ -100,6 +100,34 @@ public class DailyCashCutController {
     }
 
     /**
+     * Borra los cortes bancarios del rango —el global y el de cada cuenta— y los vuelve a
+     * calcular desde las operaciones registradas.
+     *
+     * <p>Destructivo: reescribe filas financieras cerradas, así que queda restringido a
+     * Administración. {@code saldoInicial} sólo se usa cuando no hay ningún corte anterior a
+     * {@code desde}. El día de hoy nunca se registra: siempre se calcula en vivo.
+     */
+    @PostMapping("/rebuild")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Integer>> rebuildRange(
+            @RequestParam LocalDate desde,
+            @RequestParam(required = false) LocalDate hasta,
+            @RequestParam(required = false) java.math.BigDecimal saldoInicial
+    ) {
+
+        int dias = dailyCashCutService.rebuildRange(desde, hasta, saldoInicial);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Cortes bancarios reconstruidos: " + dias + " días",
+                        dias,
+                        null
+                )
+        );
+    }
+
+    /**
      * Registra el corte diario con datos adicionales.
      * Útil para primer corte, observaciones o saldo inicial manual.
      */

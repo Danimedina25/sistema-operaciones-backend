@@ -7,6 +7,7 @@ import com.sistemadeoperaciones.cajageneral.model.CashGeneralDay;
 import com.sistemadeoperaciones.cajageneral.model.CashGeneralMovement;
 import com.sistemadeoperaciones.clientes.model.Clientes;
 import com.sistemadeoperaciones.corte.dto.DailyCashCutResponse;
+import com.sistemadeoperaciones.corte.exceptions.InitialCashBalanceRequiredException;
 import com.sistemadeoperaciones.corte.repository.DailyCashCutRepository;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.pagos.enums.PaymentStatus;
@@ -33,6 +34,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * El corte diario global es la posición de las CUENTAS BANCARIAS: "Cortes y saldos" es
@@ -40,7 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * como salida —el dinero dejó el banco— y como entrada en el libro de Caja General.
  */
 @DataJpaTest
-@Import(DailyCashCutServiceImpl.class)
+@Import({DailyCashCutServiceImpl.class, BankAccountDailyCutServiceImpl.class, BankLedgerQuery.class})
 class DailyCashCutServiceTest {
 
     @Autowired TestEntityManager em;
@@ -309,4 +311,61 @@ class DailyCashCutServiceTest {
         assertThat(cuts.findByFecha(HOY).orElseThrow().getSalidasCajaGeneral())
                 .isEqualByComparingTo("17500");
     }
+    @Test
+    void rebuildingRecreatesTheWholeSeriesFromTheOperations() {
+        LocalDate anteayer = HOY.minusDays(2);
+        LocalDate ayer = HOY.minusDays(1);
+        pagoValidado("20000", anteayer.atTime(9, 0));
+        pagoValidado("5000", ayer.atTime(9, 0));
+        em.flush();
+
+        // No queda ningún corte: reconstruir NO es lo mismo que recalcular.
+        assertThat(cuts.count()).isZero();
+        assertThat(service.recalculateFrom(anteayer)).isZero();
+
+        int dias = service.rebuildRange(anteayer, ayer, new BigDecimal("1000"));
+        em.clear();
+
+        assertThat(dias).isEqualTo(2);
+        var primero = cuts.findByFecha(anteayer).orElseThrow();
+        var segundo = cuts.findByFecha(ayer).orElseThrow();
+        assertThat(primero.getSaldoInicial()).isEqualByComparingTo("1000");
+        assertThat(primero.getSaldoFinal()).isEqualByComparingTo("21000");
+        // La cadena se encadena sola a partir del segundo día.
+        assertThat(segundo.getSaldoInicial()).isEqualByComparingTo("21000");
+        assertThat(segundo.getSaldoFinal()).isEqualByComparingTo("26000");
+    }
+
+    @Test
+    void rebuildingNeverFreezesToday() {
+        pagoValidado("20000", HOY.atTime(9, 0));
+        em.flush();
+
+        int dias = service.rebuildRange(HOY, HOY, BigDecimal.ZERO);
+
+        assertThat(dias).isZero();
+        assertThat(cuts.findByFecha(HOY)).isEmpty();
+    }
+
+    @Test
+    void rebuildingWithoutAPriorCutDemandsAnOpeningBalance() {
+        assertThatThrownBy(() -> service.rebuildRange(HOY.minusDays(1), HOY.minusDays(1), null))
+                .isInstanceOf(InitialCashBalanceRequiredException.class);
+    }
+
+    @Test
+    void rebuildingTwiceGivesTheSameSeries() {
+        LocalDate ayer = HOY.minusDays(1);
+        pagoValidado("20000", ayer.atTime(9, 0));
+        em.flush();
+
+        service.rebuildRange(ayer, ayer, new BigDecimal("1000"));
+        var primera = cuts.findByFecha(ayer).orElseThrow().getSaldoFinal();
+        service.rebuildRange(ayer, ayer, new BigDecimal("1000"));
+        var segunda = cuts.findByFecha(ayer).orElseThrow().getSaldoFinal();
+
+        assertThat(segunda).isEqualByComparingTo(primera);
+        assertThat(cuts.count()).isEqualTo(1);
+    }
+
 }
