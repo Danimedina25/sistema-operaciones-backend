@@ -7,6 +7,7 @@ import com.sistemadeoperaciones.configuraciones.service.ConfiguracionGeneralServ
 import com.sistemadeoperaciones.comisionessocioscomerciales.repository.CommercialPartnerCommissionRepository;
 import com.sistemadeoperaciones.comisionessocioscomerciales.service.CommercialPartnerCommissionService;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
+import com.sistemadeoperaciones.cajageneral.service.CashGeneralService;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
 import com.sistemadeoperaciones.notifications.enums.NotificationModule;
 import com.sistemadeoperaciones.notifications.enums.NotificationPriority;
@@ -96,6 +97,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     private final NotificationRepository notificationRepository;
     private final UserNotificationRepository userNotificationRepository;
     private final DeletionAuditService deletionAuditService;
+    /** Un pago validado en efectivo entra a Caja General en la misma transacción. */
+    private final CashGeneralService cashGeneralService;
     public PaymentOperationServiceImpl(
             PaymentOperationRepository paymentOperationRepository,
             OperationPaymentRepository operationPaymentRepository,
@@ -114,7 +117,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             OperationCommissionRepository operationCommissionRepository,
             NotificationRepository notificationRepository,
             UserNotificationRepository userNotificationRepository,
-            DeletionAuditService deletionAuditService
+            DeletionAuditService deletionAuditService,
+            CashGeneralService cashGeneralService
     ) {
         this.paymentOperationRepository = paymentOperationRepository;
         this.operationPaymentRepository = operationPaymentRepository;
@@ -133,6 +137,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         this.operationCommissionRepository = operationCommissionRepository;
         this.notificationRepository = notificationRepository;
         this.userNotificationRepository = userNotificationRepository;
+        this.cashGeneralService = cashGeneralService;
         this.deletionAuditService = deletionAuditService;
     }
 
@@ -737,6 +742,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         }
 
         PaymentOperation operation = payment.getOperacion();
+        PaymentType previousPaymentType = payment.getTipoPago();
 
         validateOperationCanReceivePayments(operation);
         validateCurrentUserOwnsOperation(operation);
@@ -777,6 +783,10 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         OperationPayment updated = operationPaymentRepository.save(payment);
 
         recalculateOperation(operation);
+
+        if (previousPaymentType != request.getTipoPago()) {
+            notifyPaymentTypeChanged(operation, updated, previousPaymentType);
+        }
 
         return mapToPaymentResponse(updated);
     }
@@ -850,6 +860,14 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         }
 
         OperationPayment updated = operationPaymentRepository.save(payment);
+
+        // El efectivo cobrado entra físicamente a la caja. Se registra aquí y no aparte para
+        // que no pueda quedar un pago validado sin su entrada: si Caja General falla —no hay
+        // caja abierta, el desglose no cuadra— toda la validación se revierte.
+        if (updated.getTipoPago() == PaymentType.EFECTIVO) {
+            cashGeneralService.recordCashPayment(updated, request.getDenominaciones());
+        }
+
         recalculateOperation(payment.getOperacion());
         PaymentOperation operation =
                 paymentOperationRepository
@@ -1538,6 +1556,27 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         }
 
         return List.of(RoleName.ADMIN); // RETIRO_SIN_TARJETA no aplica a ingresos
+    }
+
+    private void notifyPaymentTypeChanged(
+            PaymentOperation operation,
+            OperationPayment payment,
+            PaymentType previousPaymentType
+    ) {
+        notificationService.createForRoles(
+                resolvePaymentSubmittedRoles(payment.getTipoPago()),
+                "Cambio de tipo de comprobante",
+                "El comprobante de la operación #" + operation.getId()
+                        + " del cliente " + operation.getCliente().getNombre()
+                        + " cambió de " + previousPaymentType
+                        + " a " + payment.getTipoPago() + ".",
+                NotificationType.PAYMENT_TYPE_CHANGED,
+                NotificationModule.PAGOS,
+                NotificationReferenceType.OPERATION_PAYMENT,
+                payment.getId(),
+                "/operaciones/" + operation.getId() + "?scrollToPayments=true",
+                NotificationPriority.HIGH
+        );
     }
 
     private void notifyPaymentValidated(OperationPayment payment) {

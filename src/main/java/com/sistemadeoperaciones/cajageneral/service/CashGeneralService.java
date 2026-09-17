@@ -10,6 +10,7 @@ import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import com.sistemadeoperaciones.pagos.enums.ReturnInstallmentStatus;
+import com.sistemadeoperaciones.pagos.model.OperationPayment;
 import com.sistemadeoperaciones.pagos.model.OperationReturnInstallment;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
@@ -100,6 +101,57 @@ public class CashGeneralService {
         movement.setSaldoAcumulado(balance);
         movement.setDenominaciones(new EnumMap<>(denominations));
         movement.setComprobanteUrl(installment.getComprobanteEntregaUrl());
+        movement.setCreadoPor(auth.getCurrentUser());
+        day.setSaldoActual(balance);
+        days.saveAndFlush(day);
+        return movementDto(movements.saveAndFlush(movement));
+    }
+
+    /**
+     * Registra la entrada de efectivo en la misma transacción que la validación del pago.
+     * Es el espejo de {@link #recordCashDelivery}: allí el efectivo sale de la caja y aquí
+     * entra, y en los dos casos el ID determinista vuelve la operación idempotente ante
+     * reintentos HTTP.
+     *
+     * <p>Exige la caja abierta del día, igual que cualquier otro movimiento: si el dinero
+     * entra físicamente al efectivo, tiene que haber una caja donde entre. Si algo falla
+     * aquí, la validación del pago se revierte completa.
+     */
+    @Transactional
+    public CashMovementResponse recordCashPayment(
+            OperationPayment payment,
+            Map<CashDenomination, Integer> denominations
+    ) {
+        lock();
+        if (payment.getTipoPago() != PaymentType.EFECTIVO) {
+            throw new InvalidCashGeneralException("Solo los pagos en efectivo entran a Caja General");
+        }
+        Optional<CashGeneralMovement> existing = movements.findByPagoId(payment.getId());
+        if (existing.isPresent()) {
+            return movementDto(existing.get());
+        }
+        CashGeneralDay day = days.findFirstByOrderByFechaDesc()
+                .orElseThrow(() -> new InvalidCashGeneralException("Abre la Caja General antes de validar un pago en efectivo"));
+        if (day.getClosedAt() != null || !day.getFecha().equals(LocalDate.now())) {
+            throw new InvalidCashGeneralException("Debe existir una Caja General abierta para el día de hoy");
+        }
+        BigDecimal amount = CashGeneralAmounts.money(payment.getMonto(), true);
+        CashGeneralAmounts.requireTotal(denominations, amount);
+        BigDecimal balance = CashGeneralAmounts.balance(day.getSaldoActual(), amount, BigDecimal.ZERO);
+
+        CashGeneralMovement movement = new CashGeneralMovement();
+        movement.setDia(day);
+        movement.setRequestId(UUID.nameUUIDFromBytes(
+                ("cash-payment:" + payment.getId()).getBytes(java.nio.charset.StandardCharsets.UTF_8)
+        ).toString());
+        movement.setDireccion(CashMovementDirection.ENTRADA);
+        movement.setTipo(CashMovementConcept.EFECTIVO);
+        movement.setConcepto("Pago en efectivo · Operación #" + payment.getOperacion().getId());
+        movement.setMontoManual(amount);
+        movement.setPago(payment);
+        movement.setSaldoAcumulado(balance);
+        movement.setDenominaciones(new EnumMap<>(denominations));
+        movement.setComprobanteUrl(payment.getComprobanteValidacionUrl());
         movement.setCreadoPor(auth.getCurrentUser());
         day.setSaldoActual(balance);
         days.saveAndFlush(day);
@@ -339,12 +391,14 @@ public class CashGeneralService {
     private CashMovementResponse movementDto(CashGeneralMovement m) {
         OperationReturnInstallment i = m.getParcialidad();
         BankAccount c = m.getCuentaBancaria();
+        Long operacionId = i != null ? i.getSolicitud().getOperacion().getId()
+                : m.getPago() != null ? m.getPago().getOperacion().getId() : null;
         return new CashMovementResponse(m.getId(), m.getDia().getId(), m.getDia().getFecha(), m.getCreatedAt(),
                 m.getDireccion(), m.getTipo(), m.getConcepto(), m.getBanco(),
                 c == null ? null : c.getId(), c == null ? null : c.getBanco(), c == null ? null : c.getTitular(),
                 c == null ? null : c.getNumeroCuenta(), c == null ? null : c.getActivo(),
                 m.importe(), m.getSaldoAcumulado(),
-                i == null ? null : i.getId(), i == null ? null : i.getSolicitud().getOperacion().getId(),
+                i == null ? null : i.getId(), operacionId,
                 Map.copyOf(m.getDenominaciones()), m.getComprobanteUrl(), m.getCreadoPor().getId());
     }
 

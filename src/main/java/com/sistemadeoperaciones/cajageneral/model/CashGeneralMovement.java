@@ -6,6 +6,7 @@ import java.time.*;
 import java.util.*;
 import com.sistemadeoperaciones.cajageneral.enums.*;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
+import com.sistemadeoperaciones.pagos.model.OperationPayment;
 import com.sistemadeoperaciones.pagos.model.OperationReturnInstallment;
 import com.sistemadeoperaciones.usuarios.model.User;
 
@@ -47,6 +48,11 @@ public class CashGeneralMovement {
     @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "installment_id", unique = true)
     private OperationReturnInstallment parcialidad;
 
+    // Pago de ingreso en efectivo que originó la entrada. Único: un pago validado produce
+    // una sola entrada de caja, y esa unicidad es la que impide duplicarla.
+    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "operation_payment_id", unique = true)
+    private OperationPayment pago;
+
     @Column(precision = 15, scale = 2, nullable = false)
     private BigDecimal saldoAcumulado;
 
@@ -86,6 +92,8 @@ public class CashGeneralMovement {
     public void setCuentaBancaria(BankAccount value) { this.cuentaBancaria = value; }
     public BigDecimal getMontoManual() { return montoManual; }
     public void setMontoManual(BigDecimal value) { this.montoManual = value; }
+    public OperationPayment getPago() { return pago; }
+    public void setPago(OperationPayment value) { this.pago = value; }
     public OperationReturnInstallment getParcialidad() { return parcialidad; }
     public void setParcialidad(OperationReturnInstallment value) { this.parcialidad = value; }
     public BigDecimal getSaldoAcumulado() { return saldoAcumulado; }

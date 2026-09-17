@@ -25,6 +25,7 @@ import com.sistemadeoperaciones.pagos.repository.OperationPaymentRepository;
 import com.sistemadeoperaciones.pagos.repository.PaymentOperationRepository;
 import com.sistemadeoperaciones.shared.audit.repository.DeletionAuditLogRepository;
 import com.sistemadeoperaciones.shared.audit.service.DeletionAuditService;
+import com.sistemadeoperaciones.cajageneral.service.CashGeneralService;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.shared.exception.ConflictException;
 import com.sistemadeoperaciones.shared.exception.EntityHasDependenciesException;
@@ -69,6 +70,9 @@ class PaymentOperationDeleteTest {
 
     @PersistenceContext EntityManager em;
 
+    // La validación de un pago en efectivo entra a Caja General; estas pruebas son de
+    // eliminación y no la ejercitan.
+    @MockBean CashGeneralService cashGeneralService;
     @MockBean AuthenticatedUserService authenticatedUserService;
     @MockBean NotificationService notificationService;
     @MockBean CommercialPartnerCommissionService commercialPartnerCommissionService;

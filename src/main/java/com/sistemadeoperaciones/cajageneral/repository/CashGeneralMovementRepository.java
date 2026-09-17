@@ -12,6 +12,7 @@ public interface CashGeneralMovementRepository extends JpaRepository<CashGeneral
     Optional<CashGeneralMovement> findByRequestId(String requestId);
     boolean existsByParcialidadId(Long id);
     Optional<CashGeneralMovement> findByParcialidadId(Long id);
+    Optional<CashGeneralMovement> findByPagoId(Long paymentId);
     long countByCuentaBancariaId(Long bankAccountId);
 
     /**
@@ -32,7 +33,7 @@ public interface CashGeneralMovementRepository extends JpaRepository<CashGeneral
     BigDecimal sumRetiradoHaciaCajaBetween(@Param("inicio") LocalDateTime inicio,
                                            @Param("fin") LocalDateTime fin);
     List<CashGeneralMovement> findByDiaIdOrderByIdAsc(Long dayId);
-    @EntityGraph(attributePaths = {"parcialidad", "dia", "creadoPor", "cuentaBancaria"})
+    @EntityGraph(attributePaths = {"parcialidad", "pago", "dia", "creadoPor", "cuentaBancaria"})
     List<CashGeneralMovement> findByDiaFechaBetweenOrderByIdAsc(LocalDate start, LocalDate end);
     @Query("""
         select i from OperationReturnInstallment i

@@ -449,4 +449,78 @@ class CashGeneralServiceTest {
         verify(movements, never()).findByDiaIdOrderByIdAsc(any());
     }
 
+    OperationPayment cashPayment() {
+        var op = new PaymentOperation(); op.setId(12L);
+        var p = new OperationPayment();
+        p.setId(44L); p.setOperacion(op); p.setTipoPago(PaymentType.EFECTIVO); p.setMonto(money("100"));
+        p.setComprobanteValidacionUrl("https://example.com/validacion.jpg");
+        return p;
+    }
+
+    @Test void aValidatedCashPaymentEntersTheCashBox() {
+        when(days.findFirstByOrderByFechaDesc()).thenReturn(Optional.of(day));
+        var payment = cashPayment();
+
+        var result = service.recordCashPayment(payment, counts(1,0));
+
+        assertThat(result.direccion()).isEqualTo(CashMovementDirection.ENTRADA);
+        assertThat(result.tipo()).isEqualTo(CashMovementConcept.EFECTIVO);
+        assertThat(result.monto()).isEqualByComparingTo("100");
+        assertThat(result.saldoAcumulado()).isEqualByComparingTo("200");
+        // El movimiento apunta a la operación, igual que las entregas vinculadas.
+        assertThat(result.operacionId()).isEqualTo(12L);
+        assertThat(day.getSaldoActual()).isEqualByComparingTo("200");
+
+        var capture = ArgumentCaptor.forClass(CashGeneralMovement.class);
+        verify(movements).saveAndFlush(capture.capture());
+        assertThat(capture.getValue().getPago()).isSameAs(payment);
+        assertThat(capture.getValue().getComprobanteUrl()).isEqualTo("https://example.com/validacion.jpg");
+    }
+
+    @Test void revalidatingTheSamePaymentDoesNotDuplicateTheEntry() {
+        var payment = cashPayment();
+        var existing = new CashGeneralMovement();
+        existing.setId(50L); existing.setDia(day); existing.setDireccion(CashMovementDirection.ENTRADA);
+        existing.setTipo(CashMovementConcept.EFECTIVO); existing.setConcepto("Pago en efectivo · Operación #12");
+        existing.setMontoManual(money("100")); existing.setPago(payment);
+        existing.setSaldoAcumulado(money("200")); existing.setDenominaciones(counts(1,0));
+        existing.setCreadoPor(user);
+        when(movements.findByPagoId(44L)).thenReturn(Optional.of(existing));
+
+        var result = service.recordCashPayment(payment, counts(1,0));
+
+        assertThat(result.id()).isEqualTo(50L);
+        verify(movements, never()).saveAndFlush(any());
+        assertThat(day.getSaldoActual()).isEqualByComparingTo("100");
+    }
+
+    @Test void onlyCashPaymentsEnterTheCashBox() {
+        var payment = cashPayment();
+        payment.setTipoPago(PaymentType.TRANSFERENCIA);
+
+        assertThatThrownBy(() -> service.recordCashPayment(payment, counts(1,0)))
+                .hasMessageContaining("Solo los pagos en efectivo");
+        verify(movements, never()).saveAndFlush(any());
+    }
+
+    @Test void aCashPaymentNeedsAnOpenCashBoxAndAnExactBreakdown() {
+        var payment = cashPayment();
+
+        when(days.findFirstByOrderByFechaDesc()).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.recordCashPayment(payment, counts(1,0)))
+                .hasMessageContaining("Abre la Caja General");
+
+        when(days.findFirstByOrderByFechaDesc()).thenReturn(Optional.of(day));
+        day.setClosedAt(LocalDateTime.now());
+        assertThatThrownBy(() -> service.recordCashPayment(payment, counts(1,0)))
+                .hasMessageContaining("abierta para el día de hoy");
+
+        day.setClosedAt(null);
+        assertThatThrownBy(() -> service.recordCashPayment(payment, counts(0,1)))
+                .hasMessageContaining("exactamente");
+
+        verify(movements, never()).saveAndFlush(any());
+        assertThat(day.getSaldoActual()).isEqualByComparingTo("100");
+    }
+
 }
