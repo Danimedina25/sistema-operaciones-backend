@@ -32,7 +32,8 @@ import java.util.Map;
  * <ol>
  *   <li>{@code operation_payments} validados sobre su cuenta destino (ENTRADA).</li>
  *   <li>{@code operation_return_installments} completadas sobre su cuenta origen (SALIDA).</li>
- *   <li>{@code cash_general_movements} de tipo CHEQUE, el cheque cobrado (SALIDA).</li>
+ *   <li>{@code cash_general_movements} que retiran del banco hacia la caja —cheque
+ *       cobrado y retiro sin tarjeta— (SALIDA).</li>
  * </ol>
  *
  * Persistir un libro canónico habría exigido escribir por duplicado desde
@@ -90,12 +91,12 @@ public class BankLedgerQuery {
               AND i.tipo_pago <> 'EFECTIVO'
             UNION ALL
             SELECT 'CAJA_GENERAL', m.id, m.created_at,
-                   'SALIDA', 'CHEQUE', m.monto_manual,
+                   'SALIDA', m.tipo, m.monto_manual,
                    m.bank_account_id, NULL,
                    NULL, m.id,
                    m.creado_por, m.concepto
             FROM cash_general_movements m
-            WHERE m.tipo = 'CHEQUE'
+            WHERE m.tipo IN ('CHEQUE', 'RETIRO_SIN_TARJETA')
               AND m.bank_account_id IS NOT NULL
               AND m.monto_manual IS NOT NULL
             """;
@@ -270,7 +271,7 @@ public class BankLedgerQuery {
         return switch (origen) {
             case PAGO -> "Pago " + legible + " · Operación #" + operacionId;
             case RETORNO -> "Retorno " + legible + " · Operación #" + operacionId;
-            case CAJA_GENERAL -> "Cheque cobrado";
+            case CAJA_GENERAL -> "Retiro de banco hacia Caja General";
         };
     }
 

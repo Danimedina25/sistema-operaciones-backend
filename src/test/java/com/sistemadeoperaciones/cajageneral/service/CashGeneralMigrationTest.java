@@ -50,7 +50,7 @@ class CashGeneralMigrationTest {
             }
             statement.execute("alter table cash_general_movements add column bank_account_id bigint null");
             statement.execute("alter table cash_general_movements add constraint fk_cg_movement_bank_account foreign key (bank_account_id) references bank_accounts(id)");
-            statement.execute("alter table cash_general_movements add constraint chk_cg_movement_bank_account check (bank_account_id is null or (tipo = 'CHEQUE' and direccion = 'ENTRADA'))");
+            statement.execute("alter table cash_general_movements add constraint chk_cg_movement_bank_account check (bank_account_id is null or (tipo in ('CHEQUE','RETIRO_SIN_TARJETA') and direccion = 'ENTRADA'))");
             statement.execute("insert into cash_general_days(id,fecha,saldo_inicial,saldo_actual,abierto_por,created_at,updated_at) values(1,'2026-09-16',0,0,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
 
             String movement = "insert into cash_general_movements(day_id,request_id,direccion,tipo,concepto,banco,bank_account_id,monto_manual,saldo_acumulado,creado_por,created_at) values(1,";
@@ -62,14 +62,17 @@ class CashGeneralMigrationTest {
             assertThatThrownBy(() -> statement.execute(movement + "'salida','SALIDA','CHEQUE','Cheque cobrado','BBVA',1,100,0,1,CURRENT_TIMESTAMP)"))
                     .isInstanceOf(SQLException.class);
 
-            // El efectivo y el retiro con tarjeta, tampoco.
-            assertThatThrownBy(() -> statement.execute(movement + "'efectivo','ENTRADA','EFECTIVO','Efectivo',null,1,100,200,1,CURRENT_TIMESTAMP)"))
+            // El retiro sin tarjeta de entrada también puede llevar cuenta.
+            statement.execute(movement + "'retiro','ENTRADA','RETIRO_SIN_TARJETA','Retiro sin tarjeta',null,1,100,200,1,CURRENT_TIMESTAMP)");
+
+            // El efectivo y el retiro con tarjeta, no.
+            assertThatThrownBy(() -> statement.execute(movement + "'efectivo','ENTRADA','EFECTIVO','Efectivo',null,1,100,300,1,CURRENT_TIMESTAMP)"))
                     .isInstanceOf(SQLException.class);
-            assertThatThrownBy(() -> statement.execute(movement + "'tarjeta','ENTRADA','RETIRO_CON_TARJETA','Retiro','BBVA',1,100,200,1,CURRENT_TIMESTAMP)"))
+            assertThatThrownBy(() -> statement.execute(movement + "'tarjeta','ENTRADA','RETIRO_CON_TARJETA','Retiro','BBVA',1,100,300,1,CURRENT_TIMESTAMP)"))
                     .isInstanceOf(SQLException.class);
 
             // Los cheques históricos, sin cuenta vinculada, siguen siendo válidos.
-            statement.execute(movement + "'historico','ENTRADA','CHEQUE','Cheque cobrado','Banorte',null,100,200,1,CURRENT_TIMESTAMP)");
+            statement.execute(movement + "'historico','ENTRADA','CHEQUE','Cheque cobrado','Banorte',null,100,300,1,CURRENT_TIMESTAMP)");
 
             // Y la cuenta vinculada no se puede borrar mientras exista el movimiento.
             assertThatThrownBy(() -> statement.execute("delete from bank_accounts where id = 1"))

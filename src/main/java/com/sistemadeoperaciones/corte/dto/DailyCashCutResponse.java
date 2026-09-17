@@ -25,7 +25,7 @@ public class DailyCashCutResponse {
 
     private BigDecimal totalRetornos;
 
-    private BigDecimal salidasChequeCobrado;
+    private BigDecimal salidasCajaGeneral;
 
     private BigDecimal totalComisionesSocios;
     private BigDecimal totalComisionesOficina;
@@ -150,12 +150,12 @@ public class DailyCashCutResponse {
         this.totalRetornos = totalRetornos;
     }
 
-    public BigDecimal getSalidasChequeCobrado() {
-        return salidasChequeCobrado;
+    public BigDecimal getSalidasCajaGeneral() {
+        return salidasCajaGeneral;
     }
 
-    public void setSalidasChequeCobrado(BigDecimal salidasChequeCobrado) {
-        this.salidasChequeCobrado = salidasChequeCobrado;
+    public void setSalidasCajaGeneral(BigDecimal salidasCajaGeneral) {
+        this.salidasCajaGeneral = salidasCajaGeneral;
     }
 
     public BigDecimal getTotalComisionesSocios() {

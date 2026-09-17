@@ -276,7 +276,7 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
         cut.setEntradasDeposito(calculado.getEntradasDeposito());
         cut.setEntradasCheque(calculado.getEntradasCheque());
         cut.setSalidasRetornos(calculado.getSalidasRetornos());
-        cut.setSalidasCheque(calculado.getSalidasCheque());
+        cut.setSalidasCajaGeneral(calculado.getSalidasCajaGeneral());
         cut.setSalidasComisiones(calculado.getSalidasComisiones());
         cut.setTotalEntradas(calculado.getTotalEntradas());
         cut.setTotalSalidas(calculado.getTotalSalidas());
@@ -336,7 +336,7 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
         dto.setEntradasCheque(buckets.entradasCheque());
         dto.setTotalEntradas(totalEntradas);
         dto.setSalidasRetornos(buckets.salidasRetornos());
-        dto.setSalidasCheque(buckets.salidasCheque());
+        dto.setSalidasCajaGeneral(buckets.salidasCajaGeneral());
         dto.setSalidasComisiones(salidasComisiones);
         dto.setTotalSalidas(totalSalidas);
         dto.setSaldoFinal(saldoFinal);
@@ -363,7 +363,7 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
         dto.setEntradasCheque(cut.getEntradasCheque());
         dto.setTotalEntradas(cut.getTotalEntradas());
         dto.setSalidasRetornos(cut.getSalidasRetornos());
-        dto.setSalidasCheque(cut.getSalidasCheque());
+        dto.setSalidasCajaGeneral(cut.getSalidasCajaGeneral());
         dto.setSalidasComisiones(cut.getSalidasComisiones());
         dto.setTotalSalidas(cut.getTotalSalidas());
         dto.setSaldoFinal(cut.getSaldoFinal());

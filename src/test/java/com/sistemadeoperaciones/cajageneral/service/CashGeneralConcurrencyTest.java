@@ -191,7 +191,7 @@ class CashGeneralConcurrencyTest {
         assertThat(totals.variacionNeta()).isEqualByComparingTo("-100");
 
         var buckets = ledger.bucketsForAccount(accountId, LocalDate.now());
-        assertThat(buckets.salidasCheque()).isEqualByComparingTo("100");
+        assertThat(buckets.salidasCajaGeneral()).isEqualByComparingTo("100");
         assertThat(buckets.totalEntradas()).isEqualByComparingTo("0");
 
         var rows = ledger.search(filter, org.springframework.data.domain.PageRequest.of(0, 20));

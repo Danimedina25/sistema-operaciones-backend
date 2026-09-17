@@ -227,7 +227,7 @@ class BankLedgerQueryTest {
         // El pago CHEQUE del cliente sigue siendo ENTRADA bancaria: no cambia con este trabajo.
         assertThat(buckets.entradasCheque()).isEqualByComparingTo("250");
         assertThat(buckets.salidasRetornos()).isEqualByComparingTo("300");
-        assertThat(buckets.salidasCheque()).isEqualByComparingTo("400");
+        assertThat(buckets.salidasCajaGeneral()).isEqualByComparingTo("400");
 
         // Los buckets del corte y los totales del libro son la misma definición.
         var totals = ledger.totals(new BankLedgerFilter(HOY, HOY, cuenta.getId(), null, null, null));

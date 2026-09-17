@@ -15,20 +15,22 @@ public interface CashGeneralMovementRepository extends JpaRepository<CashGeneral
     long countByCuentaBancariaId(Long bankAccountId);
 
     /**
-     * Cheques cobrados en todo el sistema, sin importar la cuenta. Lo consume el corte
-     * bancario global, al que sólo le interesa que el dinero salió de algún banco. Incluye
-     * los movimientos históricos que sólo guardan el nombre del banco como texto: también
-     * sacaron dinero de una cuenta, aunque no se pueda saber de cuál.
+     * Efectivo retirado del banco hacia la caja en todo el sistema, sin importar la cuenta:
+     * cheques cobrados y retiros sin tarjeta. Lo consume el corte bancario global, al que
+     * sólo le interesa que el dinero salió de algún banco. Incluye los movimientos históricos
+     * que sólo guardan el nombre del banco como texto: también sacaron dinero de una cuenta,
+     * aunque no se pueda saber de cuál.
      */
     @Query("""
         select coalesce(sum(m.montoManual), 0)
         from CashGeneralMovement m
-        where m.tipo = com.sistemadeoperaciones.cajageneral.enums.CashMovementConcept.CHEQUE
+        where m.tipo in (com.sistemadeoperaciones.cajageneral.enums.CashMovementConcept.CHEQUE,
+                         com.sistemadeoperaciones.cajageneral.enums.CashMovementConcept.RETIRO_SIN_TARJETA)
           and m.direccion = com.sistemadeoperaciones.cajageneral.enums.CashMovementDirection.ENTRADA
           and m.createdAt between :inicio and :fin
         """)
-    BigDecimal sumChequeCobradoBetween(@Param("inicio") LocalDateTime inicio,
-                                       @Param("fin") LocalDateTime fin);
+    BigDecimal sumRetiradoHaciaCajaBetween(@Param("inicio") LocalDateTime inicio,
+                                           @Param("fin") LocalDateTime fin);
     List<CashGeneralMovement> findByDiaIdOrderByIdAsc(Long dayId);
     @EntityGraph(attributePaths = {"parcialidad", "dia", "creadoPor", "cuentaBancaria"})
     List<CashGeneralMovement> findByDiaFechaBetweenOrderByIdAsc(LocalDate start, LocalDate end);

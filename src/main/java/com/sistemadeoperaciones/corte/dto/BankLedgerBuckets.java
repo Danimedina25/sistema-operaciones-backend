@@ -12,13 +12,14 @@ public record BankLedgerBuckets(
         BigDecimal entradasDeposito,
         BigDecimal entradasCheque,
         BigDecimal salidasRetornos,
-        BigDecimal salidasCheque
+        /** Efectivo retirado del banco hacia la caja: cheque cobrado y retiro sin tarjeta. */
+        BigDecimal salidasCajaGeneral
 ) {
     public BigDecimal totalEntradas() {
         return entradasTransferencia.add(entradasDeposito).add(entradasCheque);
     }
 
     public BigDecimal totalSalidas() {
-        return salidasRetornos.add(salidasCheque);
+        return salidasRetornos.add(salidasCajaGeneral);
     }
 }

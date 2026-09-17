@@ -99,7 +99,7 @@ class CashGeneralServiceTest {
         var nonCash = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
                 CashMovementConcept.DEPOSITO, "Depósito", "BBVA", null, money("100"), null, counts(1,0), null);
         assertThatThrownBy(() -> service.createMovement(1L, nonCash))
-                .hasMessageContaining("efectivo, cheque cobrado o retiro con tarjeta");
+                .hasMessageContaining("efectivo, cheque cobrado o retiro sin tarjeta");
 
         var cashWithBank = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
                 CashMovementConcept.EFECTIVO, "Efectivo", "BBVA", null, money("100"), null, counts(1,0), null);
@@ -111,10 +111,17 @@ class CashGeneralServiceTest {
         assertThat(chequeResponse.tipo()).isEqualTo(CashMovementConcept.CHEQUE);
         assertThat(chequeResponse.bankAccountId()).isEqualTo(4L);
 
-        var cardWithoutBank = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
+        // El retiro sin tarjeta exige cuenta real, igual que el cheque.
+        var withdrawalWithoutAccount = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
+                CashMovementConcept.RETIRO_SIN_TARJETA, "Retiro sin tarjeta", null, null, money("100"), null, counts(1,0), null);
+        assertThatThrownBy(() -> service.createMovement(1L, withdrawalWithoutAccount))
+                .hasMessageContaining("Selecciona la cuenta bancaria");
+
+        // El retiro con tarjeta nunca existió en la operación: ya no se puede capturar.
+        var card = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
                 CashMovementConcept.RETIRO_CON_TARJETA, "Retiro con tarjeta", null, null, money("100"), null, counts(1,0), null);
-        assertThatThrownBy(() -> service.createMovement(1L, cardWithoutBank))
-                .hasMessageContaining("banco del catálogo");
+        assertThatThrownBy(() -> service.createMovement(1L, card))
+                .hasMessageContaining("efectivo, cheque cobrado o retiro sin tarjeta");
         verify(movements, times(1)).saveAndFlush(any());
     }
     OperationReturnInstallment completed() {
@@ -262,16 +269,38 @@ class CashGeneralServiceTest {
         verify(movements, never()).saveAndFlush(any());
         assertThat(day.getSaldoActual()).isEqualByComparingTo("100");
     }
-    @Test void cashAndCardNeverCarryABankAccount() {
+    @Test void cashNeverCarriesABankAccount() {
         var cashWithAccount = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
                 CashMovementConcept.EFECTIVO, "Efectivo", null, 4L, money("100"), null, counts(1,0), null);
         assertThatThrownBy(() -> service.createMovement(1L, cashWithAccount))
                 .hasMessageContaining("no admiten banco ni cuenta bancaria");
 
-        var cardWithAccount = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
-                CashMovementConcept.RETIRO_CON_TARJETA, "Retiro con tarjeta", "BBVA", 4L, money("100"), null, counts(1,0), null);
-        assertThatThrownBy(() -> service.createMovement(1L, cardWithAccount))
-                .hasMessageContaining("no admite cuenta bancaria");
+        verify(movements, never()).saveAndFlush(any());
+    }
+    @Test void aCardlessWithdrawalBehavesLikeACashedCheque() {
+        BankAccount account = activeAccount();
+        var withdrawal = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
+                CashMovementConcept.RETIRO_SIN_TARJETA, "Retiro sin tarjeta", null, 4L, money("100"), null, counts(1,0), null);
+
+        var response = service.createMovement(1L, withdrawal);
+
+        assertThat(response.bankAccountId()).isEqualTo(4L);
+        assertThat(response.saldoAcumulado()).isEqualByComparingTo("200");
+        var capture = ArgumentCaptor.forClass(CashGeneralMovement.class);
+        verify(movements).saveAndFlush(capture.capture());
+        assertThat(capture.getValue().getCuentaBancaria()).isSameAs(account);
+    }
+    @Test void aCardlessWithdrawalOnlyEntersCash() {
+        activeAccount();
+        var asExit = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.SALIDA,
+                CashMovementConcept.RETIRO_SIN_TARJETA, "Retiro sin tarjeta", null, 4L, money("100"), null, counts(1,0), null);
+        assertThatThrownBy(() -> service.createMovement(1L, asExit))
+                .hasMessageContaining("sólo se registra como entrada");
+
+        var withFreeText = new CreateCashMovementRequest(UUID.randomUUID(), CashMovementDirection.ENTRADA,
+                CashMovementConcept.RETIRO_SIN_TARJETA, "Retiro sin tarjeta", "BBVA", 4L, money("100"), null, counts(1,0), null);
+        assertThatThrownBy(() -> service.createMovement(1L, withFreeText))
+                .hasMessageContaining("no con el nombre del banco");
 
         verify(movements, never()).saveAndFlush(any());
     }

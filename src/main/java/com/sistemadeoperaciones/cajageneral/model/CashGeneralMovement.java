@@ -31,13 +31,13 @@ public class CashGeneralMovement {
     private String concepto;
 
     // Snapshot histórico del nombre del banco. Sigue siendo la única referencia de los
-    // movimientos anteriores a la integración y del concepto RETIRO_CON_TARJETA.
+    // movimientos anteriores a la integración.
     @Column(length = 50)
     private String banco;
 
-    // Cuenta bancaria real de la que salió el dinero. Sólo la llena CHEQUE (cheque cobrado):
-    // esa fila es a la vez la entrada de efectivo y la salida bancaria, así que es imposible
-    // que exista una sin la otra.
+    // Cuenta bancaria real de la que salió el dinero. La llenan los retiros de banco hacia
+    // la caja —cheque cobrado y retiro sin tarjeta—: esa fila es a la vez la entrada de
+    // efectivo y la salida bancaria, así que es imposible que exista una sin la otra.
     @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "bank_account_id")
     private BankAccount cuentaBancaria;
 

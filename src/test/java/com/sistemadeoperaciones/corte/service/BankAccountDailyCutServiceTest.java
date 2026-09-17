@@ -149,7 +149,7 @@ class BankAccountDailyCutServiceTest {
         assertThat(dto.getTotalEntradas()).isEqualByComparingTo(
                 dto.getEntradasTransferencia().add(dto.getEntradasDeposito()).add(dto.getEntradasCheque()));
         assertThat(dto.getTotalSalidas()).isEqualByComparingTo(
-                dto.getSalidasRetornos().add(dto.getSalidasCheque()).add(dto.getSalidasComisiones()));
+                dto.getSalidasRetornos().add(dto.getSalidasCajaGeneral()).add(dto.getSalidasComisiones()));
         assertThat(dto.getSaldoFinal()).isEqualByComparingTo(
                 dto.getSaldoInicial().add(dto.getTotalEntradas()).subtract(dto.getTotalSalidas()));
     }
@@ -163,7 +163,7 @@ class BankAccountDailyCutServiceTest {
         var dto = service.calculateBalance(cuenta.getId(), HOY);
 
         assertThat(dto.getEntradasTransferencia()).isEqualByComparingTo("1000");
-        assertThat(dto.getSalidasCheque()).isEqualByComparingTo("400");
+        assertThat(dto.getSalidasCajaGeneral()).isEqualByComparingTo("400");
         assertThat(dto.getSaldoFinal()).isEqualByComparingTo("600");
         assertInvariant(dto);
     }
@@ -181,7 +181,7 @@ class BankAccountDailyCutServiceTest {
 
         var historico = service.calculateBalance(cuenta.getId(), ANTEAYER);
         assertThat(historico.getSaldoFinal()).isEqualByComparingTo("1000");
-        assertThat(historico.getSalidasCheque()).isEqualByComparingTo("0");
+        assertThat(historico.getSalidasCajaGeneral()).isEqualByComparingTo("0");
         assertInvariant(historico);
     }
 
@@ -205,7 +205,7 @@ class BankAccountDailyCutServiceTest {
 
         var ayer = service.calculateBalance(cuenta.getId(), AYER);
         assertThat(ayer.getSaldoInicial()).isEqualByComparingTo("1000");
-        assertThat(ayer.getSalidasCheque()).isEqualByComparingTo("400");
+        assertThat(ayer.getSalidasCajaGeneral()).isEqualByComparingTo("400");
         assertThat(ayer.getSaldoFinal()).isEqualByComparingTo("600");
         assertInvariant(ayer);
     }
@@ -236,7 +236,7 @@ class BankAccountDailyCutServiceTest {
         assertThat(recalculados).isEqualTo(2);
         var anteayer = service.calculateBalance(cuenta.getId(), ANTEAYER);
         var ayer = service.calculateBalance(cuenta.getId(), AYER);
-        assertThat(anteayer.getSalidasCheque()).isEqualByComparingTo("0");
+        assertThat(anteayer.getSalidasCajaGeneral()).isEqualByComparingTo("0");
         assertThat(anteayer.getSaldoFinal()).isEqualByComparingTo("1000");
         // La cadena vuelve a cuadrar: ningún saldo queda huérfano.
         assertThat(ayer.getSaldoInicial()).isEqualByComparingTo("1000");

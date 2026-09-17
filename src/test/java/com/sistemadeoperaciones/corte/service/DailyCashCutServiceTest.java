@@ -170,7 +170,7 @@ class DailyCashCutServiceTest {
                         .add(dto.getRetornosRetiroSinTarjeta()));
         assertThat(dto.getTotalSalidas()).isEqualByComparingTo(
                 dto.getTotalRetornos()
-                        .add(dto.getSalidasChequeCobrado())
+                        .add(dto.getSalidasCajaGeneral())
                         .add(dto.getTotalComisionesSocios()));
         assertThat(dto.getSaldoFinal()).isEqualByComparingTo(
                 dto.getSaldoInicial().add(dto.getTotalEntradas()).subtract(dto.getTotalSalidas()));
@@ -185,7 +185,7 @@ class DailyCashCutServiceTest {
         DailyCashCutResponse corte = service.calculateDailyCut(HOY);
 
         assertThat(corte.getEntradasTransferencia()).isEqualByComparingTo("20000");
-        assertThat(corte.getSalidasChequeCobrado()).isEqualByComparingTo("17500");
+        assertThat(corte.getSalidasCajaGeneral()).isEqualByComparingTo("17500");
         assertThat(corte.getTotalSalidas()).isEqualByComparingTo("17500");
         assertThat(corte.getSaldoFinal()).isEqualByComparingTo("2500");
         assertInvariant(corte);
@@ -201,7 +201,7 @@ class DailyCashCutServiceTest {
 
         DailyCashCutResponse corte = service.calculateDailyCut(HOY);
 
-        assertThat(corte.getSalidasChequeCobrado()).isEqualByComparingTo("5000");
+        assertThat(corte.getSalidasCajaGeneral()).isEqualByComparingTo("5000");
         assertThat(corte.getSaldoFinal()).isEqualByComparingTo("-5000");
         assertInvariant(corte);
     }
@@ -213,7 +213,7 @@ class DailyCashCutServiceTest {
 
         DailyCashCutResponse corte = service.calculateDailyCut(HOY);
 
-        assertThat(corte.getSalidasChequeCobrado()).isEqualByComparingTo("0");
+        assertThat(corte.getSalidasCajaGeneral()).isEqualByComparingTo("0");
         assertThat(corte.getTotalSalidas()).isEqualByComparingTo("0");
         assertThat(corte.getSaldoFinal()).isEqualByComparingTo("20000");
         assertInvariant(corte);
@@ -306,7 +306,7 @@ class DailyCashCutServiceTest {
         em.clear();
 
         assertThat(cuts.findByFecha(HOY)).isPresent();
-        assertThat(cuts.findByFecha(HOY).orElseThrow().getSalidasChequeCobrado())
+        assertThat(cuts.findByFecha(HOY).orElseThrow().getSalidasCajaGeneral())
                 .isEqualByComparingTo("17500");
     }
 }

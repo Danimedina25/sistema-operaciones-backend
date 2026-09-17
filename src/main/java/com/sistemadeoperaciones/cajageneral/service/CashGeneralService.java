@@ -36,10 +36,14 @@ public class CashGeneralService {
     // TODO: confirmar con negocio PDF descargable o impresión del navegador para los tres formatos (Fase 2).
     // TODO: confirmar con negocio historial completo de asignaciones de tarjetas o sólo estado actual (Fase 2).
     private static final Set<CashMovementConcept> PHYSICAL_CONCEPTS = EnumSet.of(
-            CashMovementConcept.EFECTIVO, CashMovementConcept.CHEQUE, CashMovementConcept.RETIRO_CON_TARJETA);
-    // Catálogo fijo heredado. Sólo sigue vigente para RETIRO_CON_TARJETA: el cheque cobrado
-    // ya no usa nombres de banco sino la FK real hacia bank_accounts.
-    private static final Set<String> CARD_BANKS = Set.of("BBVA", "Banorte", "Scotiabank", "Inbursa", "Kapital", "Bajío");
+            CashMovementConcept.EFECTIVO, CashMovementConcept.CHEQUE, CashMovementConcept.RETIRO_SIN_TARJETA);
+    /**
+     * Conceptos que sacan efectivo de una cuenta bancaria y lo meten a la caja. Los dos
+     * exigen la cuenta real: el cheque se cobra contra una cuenta concreta y el retiro sin
+     * tarjeta necesita esa cuenta para generar su código.
+     */
+    private static final Set<CashMovementConcept> BANK_WITHDRAWALS = EnumSet.of(
+            CashMovementConcept.CHEQUE, CashMovementConcept.RETIRO_SIN_TARJETA);
     public CashGeneralService(CashGeneralRegisterRepository register, CashGeneralDayRepository days,
             CashGeneralMovementRepository movements, OperationReturnInstallmentRepository installments,
             AuthenticatedUserService auth, CashGeneralDeletionAuditRepository deletionAudits,
@@ -139,7 +143,7 @@ public class CashGeneralService {
         if (request.direccion() == null || request.tipo() == null)
             throw new InvalidCashGeneralException("Indica dirección y tipo del movimiento");
         if (!PHYSICAL_CONCEPTS.contains(request.tipo()))
-            throw new InvalidCashGeneralException("Caja General solo admite efectivo, cheque cobrado o retiro con tarjeta");
+            throw new InvalidCashGeneralException("Caja General solo admite efectivo, cheque cobrado o retiro sin tarjeta");
         String concept = requiredText(request.concepto(), 300, "concepto");
         String bank = optionalText(request.banco(), 50);
         BankAccount account = resolveBankAccount(request, bank);
@@ -308,33 +312,28 @@ public class CashGeneralService {
      * conserva el catálogo fijo de nombres y no afecta todavía ningún saldo bancario.
      */
     private BankAccount resolveBankAccount(CreateCashMovementRequest request, String bank) {
-        switch (request.tipo()) {
-            case EFECTIVO -> {
-                if (bank != null || request.bankAccountId() != null)
-                    throw new InvalidCashGeneralException("Los movimientos en efectivo no admiten banco ni cuenta bancaria");
-                return null;
-            }
-            case CHEQUE -> {
-                if (bank != null)
-                    throw new InvalidCashGeneralException("El cheque cobrado se captura con la cuenta bancaria, no con el nombre del banco");
-                if (request.direccion() != CashMovementDirection.ENTRADA)
-                    throw new InvalidCashGeneralException("El cheque cobrado sólo se registra como entrada de efectivo");
-                if (request.bankAccountId() == null)
-                    throw new InvalidCashGeneralException("Selecciona la cuenta bancaria de la que se cobró el cheque");
-                BankAccount account = bankAccounts.findById(request.bankAccountId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Cuenta bancaria no encontrada"));
-                if (!Boolean.TRUE.equals(account.getActivo()))
-                    throw new InvalidCashGeneralException("La cuenta bancaria está inactiva");
-                return account;
-            }
-            case RETIRO_CON_TARJETA -> {
-                if (request.bankAccountId() != null)
-                    throw new InvalidCashGeneralException("El retiro con tarjeta no admite cuenta bancaria");
-                if (!CARD_BANKS.contains(bank == null ? "" : bank))
-                    throw new InvalidCashGeneralException("Selecciona un banco del catálogo");
-                return null;
-            }
-            default -> throw new InvalidCashGeneralException("Concepto no admitido en Caja General");
+        if (request.tipo() == CashMovementConcept.EFECTIVO) {
+            if (bank != null || request.bankAccountId() != null)
+                throw new InvalidCashGeneralException("Los movimientos en efectivo no admiten banco ni cuenta bancaria");
+            return null;
         }
+        if (!BANK_WITHDRAWALS.contains(request.tipo()))
+            throw new InvalidCashGeneralException("Concepto no admitido en Caja General");
+
+        String concepto = request.tipo() == CashMovementConcept.CHEQUE
+                ? "El cheque cobrado"
+                : "El retiro sin tarjeta";
+        if (bank != null)
+            throw new InvalidCashGeneralException(concepto + " se captura con la cuenta bancaria, no con el nombre del banco");
+        // Retirar dinero del banco sólo puede meter efectivo a la caja, nunca sacarlo.
+        if (request.direccion() != CashMovementDirection.ENTRADA)
+            throw new InvalidCashGeneralException(concepto + " sólo se registra como entrada de efectivo");
+        if (request.bankAccountId() == null)
+            throw new InvalidCashGeneralException("Selecciona la cuenta bancaria de la que salió el dinero");
+        BankAccount account = bankAccounts.findById(request.bankAccountId())
+                .orElseThrow(() -> new ResourceNotFoundException("Cuenta bancaria no encontrada"));
+        if (!Boolean.TRUE.equals(account.getActivo()))
+            throw new InvalidCashGeneralException("La cuenta bancaria está inactiva");
+        return account;
     }
 }

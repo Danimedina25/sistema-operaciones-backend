@@ -86,8 +86,8 @@ public class DailyCashCut {
     // Cheque cobrado en ventanilla: el dinero sale de una cuenta bancaria y entra como
     // efectivo físico a Caja General. Este corte es la posición BANCARIA, así que aquí
     // cuenta como salida; la entrada correspondiente vive en el libro de Caja General.
-    @Column(name = "salidas_cheque_cobrado", nullable = false, precision = 15, scale = 2)
-    private BigDecimal salidasChequeCobrado = BigDecimal.ZERO;
+    @Column(name = "salidas_caja_general", nullable = false, precision = 15, scale = 2)
+    private BigDecimal salidasCajaGeneral = BigDecimal.ZERO;
 
     // ==========================
     // COMISIONES SOCIOS
@@ -284,12 +284,12 @@ public class DailyCashCut {
         this.totalRetornos = totalRetornos;
     }
 
-    public BigDecimal getSalidasChequeCobrado() {
-        return salidasChequeCobrado;
+    public BigDecimal getSalidasCajaGeneral() {
+        return salidasCajaGeneral;
     }
 
-    public void setSalidasChequeCobrado(BigDecimal salidasChequeCobrado) {
-        this.salidasChequeCobrado = salidasChequeCobrado;
+    public void setSalidasCajaGeneral(BigDecimal salidasCajaGeneral) {
+        this.salidasCajaGeneral = salidasCajaGeneral;
     }
 
     public BigDecimal getTotalComisionesSocios() {

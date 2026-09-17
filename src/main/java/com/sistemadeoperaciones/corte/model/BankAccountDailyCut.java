@@ -76,12 +76,12 @@ public class BankAccountDailyCut {
     private BigDecimal salidasRetornos = BigDecimal.ZERO;
 
     @Column(
-            name = "salidas_cheque",
+            name = "salidas_caja_general",
             nullable = false,
             precision = 15,
             scale = 2
     )
-    private BigDecimal salidasCheque = BigDecimal.ZERO;
+    private BigDecimal salidasCajaGeneral = BigDecimal.ZERO;
 
     @Column(
             name = "salidas_comisiones",
@@ -196,12 +196,12 @@ public class BankAccountDailyCut {
         this.salidasRetornos = salidasRetornos;
     }
 
-    public BigDecimal getSalidasCheque() {
-        return salidasCheque;
+    public BigDecimal getSalidasCajaGeneral() {
+        return salidasCajaGeneral;
     }
 
-    public void setSalidasCheque(BigDecimal salidasCheque) {
-        this.salidasCheque = salidasCheque;
+    public void setSalidasCajaGeneral(BigDecimal salidasCajaGeneral) {
+        this.salidasCajaGeneral = salidasCajaGeneral;
     }
 
     public BigDecimal getSalidasComisiones() {
