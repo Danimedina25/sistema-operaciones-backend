@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @ControllerAdvice
+@lombok.extern.slf4j.Slf4j
 public class GlobalExceptionHandler {
 
     // ==========================================================
@@ -131,8 +132,14 @@ public class GlobalExceptionHandler {
     // ==========================================================
     // EXCEPCIÓN GENERAL
     // ==========================================================
+    /**
+     * Último recurso. Al cliente se le responde un mensaje genérico a propósito —no se filtran
+     * detalles internos—, pero la traza SÍ se registra: sin esto, cualquier 500 del sistema
+     * era invisible y no había forma de diagnosticarlo desde los logs.
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGenericException(Exception ex) {
+        log.error("Error no controlado atendiendo la petición", ex);
         return buildErrorResponse("Ocurrió un error interno en el servidor", HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
