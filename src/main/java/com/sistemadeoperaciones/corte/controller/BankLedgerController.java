@@ -20,7 +20,7 @@ import java.time.LocalDate;
  */
 @RestController
 @RequestMapping("/api/bank-movements")
-@PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS')")
+@PreAuthorize("hasAnyRole('ADMIN', 'JEFA_CUENTAS', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS')")
 public class BankLedgerController {
 
     private final BankLedgerService bankLedgerService;

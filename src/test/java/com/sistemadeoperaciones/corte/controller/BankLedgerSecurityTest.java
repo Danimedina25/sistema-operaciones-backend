@@ -33,15 +33,16 @@ class BankLedgerSecurityTest {
         @Bean BankLedgerController controller(BankLedgerService service) { return new BankLedgerController(service); }
     }
 
-    static final List<String> ALLOWED = List.of("ADMIN", "GERENTE", "DIRECCION", "AUXILIAR_CUENTAS");
+    static final List<String> ALLOWED =
+            List.of("ADMIN", "JEFA_CUENTAS", "GERENTE", "DIRECCION", "AUXILIAR_CUENTAS");
 
     @Test
     void onlyAccountingRolesCanQueryTheLedger() {
         LocalDate hoy = LocalDate.now();
         try (var context = new AnnotationConfigApplicationContext(Config.class)) {
             var controller = context.getBean(BankLedgerController.class);
-            for (String role : List.of("ADMIN", "GERENTE", "DIRECCION", "AUXILIAR_CUENTAS",
-                    "JEFA_CAJAS", "JEFA_CUENTAS", "SOCIO_COMERCIAL")) {
+            for (String role : List.of("ADMIN", "JEFA_CUENTAS", "GERENTE", "DIRECCION",
+                    "AUXILIAR_CUENTAS", "JEFA_CAJAS", "SOCIO_COMERCIAL")) {
                 SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
                         "user", "", List.of(new SimpleGrantedAuthority("ROLE_" + role))));
                 if (ALLOWED.contains(role)) {

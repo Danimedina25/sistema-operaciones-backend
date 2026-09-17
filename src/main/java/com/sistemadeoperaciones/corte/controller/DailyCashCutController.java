@@ -29,7 +29,7 @@ public class DailyCashCutController {
      * Útil para mostrar el corte en vivo del día actual.
      */
     @GetMapping("/daily")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'JEFA_CUENTAS', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<DailyCashCutResponse>>
     calculateDailyCut(
             @RequestParam LocalDate fecha
@@ -53,7 +53,7 @@ public class DailyCashCutController {
      * Normalmente lo usará el scheduler automático.
      */
     @PostMapping("/register")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'JEFA_CUENTAS')")
     public ResponseEntity<ApiResponse<DailyCashCutResponse>>
     registerDailyCut(
             @RequestParam LocalDate fecha
@@ -132,7 +132,7 @@ public class DailyCashCutController {
      * Útil para primer corte, observaciones o saldo inicial manual.
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'JEFA_CUENTAS')")
     public ResponseEntity<ApiResponse<DailyCashCutResponse>>
     registerDailyCutWithRequest(
             @Valid @RequestBody DailyCashCutRequest request
@@ -156,7 +156,7 @@ public class DailyCashCutController {
      * Sirve para reportes semanales, mensuales, anuales o personalizados.
      */
     @GetMapping("/range")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'JEFA_CUENTAS', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS')")
     public ResponseEntity<ApiResponse<CashCutRangeResponse>>
     calculateRangeCut(
             @RequestParam LocalDate startDate,
