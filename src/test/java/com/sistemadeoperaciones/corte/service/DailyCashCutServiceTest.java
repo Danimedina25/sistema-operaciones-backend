@@ -42,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * como salida —el dinero dejó el banco— y como entrada en el libro de Caja General.
  */
 @DataJpaTest
+@org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase(replace = org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace.NONE)
 @Import({DailyCashCutServiceImpl.class, BankAccountDailyCutServiceImpl.class, BankLedgerQuery.class})
 class DailyCashCutServiceTest {
 

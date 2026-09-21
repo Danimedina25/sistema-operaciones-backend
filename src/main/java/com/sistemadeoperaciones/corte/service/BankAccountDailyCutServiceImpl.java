@@ -20,6 +20,9 @@ import java.util.stream.Collectors;
 
 @Service
 public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.sistemadeoperaciones.cajageneral.repository.CashGeneralRegisterRepository chequePeriodLock;
+
 
     private final BankAccountRepository bankAccountRepository;
 
@@ -179,6 +182,7 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
     @Override
     @Transactional
     public void registerDailyCut(LocalDate fecha) {
+        if (chequePeriodLock != null) { chequePeriodLock.ensureRegister(); chequePeriodLock.lockRegister(); }
 
         if (fecha == null) {
             throw new IllegalArgumentException(
@@ -219,6 +223,7 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
     @Override
     @Transactional
     public int recalculateFrom(Long bankAccountId, LocalDate fecha) {
+        if (chequePeriodLock != null) { chequePeriodLock.ensureRegister(); chequePeriodLock.lockRegister(); }
 
         if (bankAccountId == null || fecha == null) {
             throw new IllegalArgumentException(

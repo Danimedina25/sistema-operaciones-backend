@@ -70,13 +70,14 @@ public class BankLedgerQuery {
      * de caja abierto, que es siempre el de hoy, así que su instante cae dentro de ese día.
      */
     private static final String UNION = """
-            SELECT 'PAGO' AS origen, p.id AS source_id, p.fecha_validacion AS fecha,
+            SELECT 'PAGO' AS origen, p.id AS source_id, COALESCE(p.cheque_fecha_cobro, p.fecha_validacion) AS fecha,
                    'ENTRADA' AS direccion, p.tipo_pago AS tipo, p.monto AS monto,
                    p.cuenta_destino_id AS bank_account_id, p.operacion_id AS operacion_id,
                    NULL AS parcialidad_id, NULL AS cash_movement_id,
                    p.validado_por AS usuario_id, NULL AS concepto
             FROM operation_payments p
             WHERE p.estatus = 'VALIDADA'
+              AND (p.tipo_pago <> 'CHEQUE' OR p.cheque_estado IS NULL OR (p.cheque_estado = 'COBRADO' AND p.cheque_destino_cobro = 'CUENTA_BANCARIA'))
               AND p.cuenta_destino_id IS NOT NULL
               AND p.fecha_validacion IS NOT NULL
             UNION ALL

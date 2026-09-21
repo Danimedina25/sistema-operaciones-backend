@@ -30,6 +30,8 @@ import java.util.List;
 
 @Service
 public class DailyCashCutServiceImpl implements DailyCashCutService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.sistemadeoperaciones.cajageneral.repository.CashGeneralRegisterRepository chequePeriodLock;
 
     private final DailyCashCutRepository dailyCashCutRepository;
     private final OperationPaymentRepository operationPaymentRepository;
@@ -193,6 +195,7 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
     @Override
     @Transactional
     public DailyCashCutResponse registerDailyCut(DailyCashCutRequest request) {
+        if (chequePeriodLock != null) { chequePeriodLock.ensureRegister(); chequePeriodLock.lockRegister(); }
         if (request == null || request.getFecha() == null) {
             throw new CashCutDateRequiredException();
         }
@@ -650,6 +653,7 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
     @Override
     @Transactional
     public int recalculateFrom(LocalDate desde) {
+        if (chequePeriodLock != null) { chequePeriodLock.ensureRegister(); chequePeriodLock.lockRegister(); }
 
         if (desde == null) {
             throw new CashCutDateRequiredException();
@@ -685,6 +689,7 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
     @Override
     @Transactional
     public int rebuildRange(LocalDate desde, LocalDate hasta, BigDecimal saldoInicial) {
+        if (chequePeriodLock != null) { chequePeriodLock.ensureRegister(); chequePeriodLock.lockRegister(); }
 
         if (desde == null) {
             throw new CashCutDateRequiredException();

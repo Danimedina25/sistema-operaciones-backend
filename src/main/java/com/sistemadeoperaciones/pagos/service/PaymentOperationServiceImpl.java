@@ -77,6 +77,11 @@ import java.time.LocalDate;
 @Service
 public class PaymentOperationServiceImpl implements PaymentOperationService {
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager chequeEntityManager;
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.context.ApplicationEventPublisher chequeEvents;
+
     private final PaymentOperationRepository paymentOperationRepository;
     private final OperationPaymentRepository operationPaymentRepository;
     private final BankAccountRepository bankAccountRepository;
@@ -684,14 +689,14 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Transactional
     public OperationPaymentResponseDto addPayment(CreateOperationPaymentRequestDto request) {
 
-        PaymentOperation operation = paymentOperationRepository.findById(request.getOperacionId())
+        PaymentOperation operation = paymentOperationRepository.findByIdForUpdate(request.getOperacionId())
                 .orElseThrow(() -> new PaymentOperationNotFoundException(request.getOperacionId()));
 
         User registradoPor = authenticatedUserService.getCurrentUser();
 
         BankAccount cuentaDestino = null;
 
-        if (request.getTipoPago() != PaymentType.EFECTIVO) {
+        if (request.getTipoPago() == PaymentType.TRANSFERENCIA || request.getTipoPago() == PaymentType.DEPOSITO) {
             cuentaDestino = bankAccountRepository.findById(request.getCuentaDestinoId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Cuenta bancaria no encontrada con id: " + request.getCuentaDestinoId()
@@ -709,6 +714,10 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         OperationPayment payment = new OperationPayment();
         payment.setOperacion(operation);
+        if (request.getTipoPago() == PaymentType.CHEQUE)
+            com.sistemadeoperaciones.cheques.ChequeService.validateProof(request.getComprobanteUrl(), operation.getId());
+        com.sistemadeoperaciones.cheques.ChequeCapture.apply(payment, request.getTipoPago(), request.getCuentaDestinoId(),
+                request.getNumeroCheque(), request.getBancoEmisor(), request.getEmisor(), request.getBeneficiario());
         payment.setMonto(request.getMonto());
         payment.setTipoPago(request.getTipoPago());
         payment.setCuentaDestino(cuentaDestino);
@@ -721,8 +730,10 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         OperationPayment saved = operationPaymentRepository.save(payment);
 
+        recordChequeCapture(saved, "REGISTRAR");
         recalculateOperation(operation);
-        notifyPaymentSubmitted(operation, saved);
+        if (saved.getTipoPago() == PaymentType.CHEQUE) chequeEvents.publishEvent(new com.sistemadeoperaciones.cheques.ChequeService.Changed(saved.getId(), "REGISTRAR"));
+        else notifyPaymentSubmitted(operation, saved);
         return mapToPaymentResponse(saved);
     }
 
@@ -732,8 +743,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             Long paymentId,
             UpdateOperationPaymentRequestDto request
     ) {
-        OperationPayment payment = operationPaymentRepository.findById(paymentId)
-                .orElseThrow(() -> new OperationPaymentNotFoundException(paymentId));
+        OperationPayment payment = loadPaymentForMutation(paymentId);
 
         if (payment.getEstatus() != PaymentStatus.PENDIENTE_VALIDACION) {
             throw new InvalidPaymentStatusException(
@@ -749,7 +759,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         BankAccount cuentaDestino = null;
 
-        if (request.getTipoPago() != PaymentType.EFECTIVO) {
+        if (request.getTipoPago() == PaymentType.TRANSFERENCIA || request.getTipoPago() == PaymentType.DEPOSITO) {
             cuentaDestino = bankAccountRepository.findById(request.getCuentaDestinoId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Cuenta bancaria no encontrada con id: " + request.getCuentaDestinoId()
@@ -772,6 +782,10 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 request.getComprobanteUrl()
         );
 
+        if (request.getTipoPago() == PaymentType.CHEQUE)
+            com.sistemadeoperaciones.cheques.ChequeService.validateProof(request.getComprobanteUrl(), operation.getId());
+        com.sistemadeoperaciones.cheques.ChequeCapture.apply(payment, request.getTipoPago(), request.getCuentaDestinoId(),
+                request.getNumeroCheque(), request.getBancoEmisor(), request.getEmisor(), request.getBeneficiario());
         payment.setMonto(request.getMonto());
         payment.setTipoPago(request.getTipoPago());
         payment.setCuentaDestino(cuentaDestino);
@@ -781,10 +795,12 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         payment.setFechaComprobante(request.getFechaComprobante());
 
         OperationPayment updated = operationPaymentRepository.save(payment);
+        recordChequeCapture(updated, "EDITAR");
 
         recalculateOperation(operation);
 
-        if (previousPaymentType != request.getTipoPago()) {
+        if (updated.getTipoPago() == PaymentType.CHEQUE) chequeEvents.publishEvent(new com.sistemadeoperaciones.cheques.ChequeService.Changed(updated.getId(), "EDITAR"));
+        else if (previousPaymentType != request.getTipoPago()) {
             notifyPaymentTypeChanged(operation, updated, previousPaymentType);
         }
 
@@ -797,7 +813,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             BigDecimal newAmount
     ) {
         List<OperationPayment> existingPayments =
-                operationPaymentRepository.findByOperacionId(operation.getId());
+                operationPaymentRepository.findByOperacionIdForUpdate(operation.getId());
 
         BigDecimal accumulated = existingPayments.stream()
                 .filter(payment -> payment.getEstatus() != PaymentStatus.RECHAZADA)
@@ -834,8 +850,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Override
     @Transactional
     public OperationPaymentResponseDto validatePayment(Long paymentId, UpdatePaymentStatusRequestDto request) {
-        OperationPayment payment = operationPaymentRepository.findById(paymentId)
-                .orElseThrow(() -> new OperationPaymentNotFoundException(paymentId));
+        OperationPayment payment = loadPaymentForMutation(paymentId);
 
         if (payment.getEstatus() != PaymentStatus.PENDIENTE_VALIDACION
                 && payment.getEstatus() != PaymentStatus.EN_PROCESO) {
@@ -889,8 +904,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Override
     @Transactional
     public OperationPaymentResponseDto rejectPayment(Long paymentId, UpdatePaymentStatusRequestDto request) {
-        OperationPayment payment = operationPaymentRepository.findById(paymentId)
-                .orElseThrow(() -> new OperationPaymentNotFoundException(paymentId));
+        OperationPayment payment = loadPaymentForMutation(paymentId);
 
         if (payment.getEstatus() != PaymentStatus.PENDIENTE_VALIDACION
                 && payment.getEstatus() != PaymentStatus.EN_PROCESO) {
@@ -920,8 +934,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Override
     @Transactional
     public OperationPaymentResponseDto markPaymentInProgress(Long paymentId, UpdatePaymentStatusRequestDto request) {
-        OperationPayment payment = operationPaymentRepository.findById(paymentId)
-                .orElseThrow(() -> new OperationPaymentNotFoundException(paymentId));
+        OperationPayment payment = loadPaymentForMutation(paymentId);
 
         if (payment.getTipoPago() != PaymentType.TRANSFERENCIA
                 && payment.getTipoPago() != PaymentType.DEPOSITO) {
@@ -955,8 +968,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Override
     @Transactional
     public OperationPaymentResponseDto releasePaymentInProgress(Long paymentId) {
-        OperationPayment payment = operationPaymentRepository.findById(paymentId)
-                .orElseThrow(() -> new OperationPaymentNotFoundException(paymentId));
+        OperationPayment payment = loadPaymentForMutation(paymentId);
 
         if (payment.getEstatus() != PaymentStatus.EN_PROCESO) {
             throw new InvalidPaymentStatusException(
@@ -978,8 +990,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Override
     @Transactional
     public OperationPaymentResponseDto updateValidationReceipt(Long paymentId, UpdatePaymentStatusRequestDto request) {
-        OperationPayment payment = operationPaymentRepository.findById(paymentId)
-                .orElseThrow(() -> new OperationPaymentNotFoundException(paymentId));
+        OperationPayment payment = loadPaymentForMutation(paymentId);
 
         if (payment.getEstatus() != PaymentStatus.VALIDADA) {
             throw new InvalidPaymentStatusException(
@@ -1062,6 +1073,9 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         assertOperationHasNoFinancialMovements(operation);
 
         List<OperationPayment> comprobantes = operationPaymentRepository.findByOperacionId(id);
+        if (comprobantes.stream().anyMatch(p -> p.getTipoPago() == PaymentType.CHEQUE)) {
+            throw new ConflictException("Los cheques requieren conservación de historial; cancela el cheque, no elimines la operación");
+        }
 
         // La etiqueta se arma mientras la entidad sigue cargada.
         String auditLabel = buildOperationDeletionLabel(operation, comprobantes.size());
@@ -1449,6 +1463,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     }
 
     private void validateCurrentUserCanValidatePayments(PaymentType tipoPago) {
+        if (tipoPago == PaymentType.CHEQUE) throw new ConflictException("Gestiona el cheque desde Cheques por cobrar");
         User currentUser = authenticatedUserService.getCurrentUser();
 
         boolean isAdmin = currentUser.getRoles().stream()
@@ -1485,7 +1500,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     }
 
     private void validatePaymentAmountDoesNotExceedOperation(PaymentOperation operation, BigDecimal newPaymentAmount) {
-        List<OperationPayment> existingPayments = operationPaymentRepository.findByOperacionId(operation.getId());
+        List<OperationPayment> existingPayments = operationPaymentRepository.findByOperacionIdForUpdate(operation.getId());
 
         BigDecimal accumulated = existingPayments.stream()
                 .filter(payment -> payment.getEstatus() != PaymentStatus.RECHAZADA)
@@ -1902,8 +1917,57 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             dto.setEnProcesoPorNombre(payment.getEnProcesoPor().getNombre());
         }
         dto.setFechaEnProceso(payment.getFechaEnProceso());
+        dto.setNumeroCheque(payment.getNumeroCheque());
+        dto.setBancoEmisor(payment.getBancoEmisor());
+        dto.setEmisor(payment.getEmisor());
+        dto.setBeneficiario(payment.getBeneficiario());
+        dto.setChequeEstado(payment.getChequeEstado());
+
 
         return dto;
+    }
+
+    private void recordChequeCapture(OperationPayment p, String action) {
+        if (p.getTipoPago() != PaymentType.CHEQUE || chequeEntityManager == null) return;
+        var a = new com.sistemadeoperaciones.cheques.ChequeAudit();
+        a.setPagoId(p.getId()); a.setAccion(action); a.setFecha(LocalDateTime.now()); a.setRegistradoEn(LocalDateTime.now());
+        var user = authenticatedUserService.getCurrentUser(); a.setUsuarioId(user.getId()); a.setUsuarioNombre(user.getNombre());
+        a.setComprobanteUrl(p.getComprobanteUrl());
+        a.setDetalle("numero="+p.getNumeroCheque()+", banco="+p.getBancoEmisor()+", emisor="+p.getEmisor()+", beneficiario="+p.getBeneficiario()+", monto="+p.getMonto());
+        chequeEntityManager.persist(a);
+    }
+
+    private OperationPayment loadPaymentForMutation(Long id) {
+        OperationPayment payment = operationPaymentRepository.findById(id)
+                .orElseThrow(() -> new OperationPaymentNotFoundException(id));
+        paymentOperationRepository.findByIdForUpdate(payment.getOperacion().getId())
+                .orElseThrow(() -> new PaymentOperationNotFoundException(payment.getOperacion().getId()));
+        if (chequeEntityManager != null) {
+            chequeEntityManager.refresh(payment.getOperacion(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+            chequeEntityManager.refresh(payment, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        }
+        return payment;
+    }
+
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public void recalculateAfterCheque(OperationPayment payment) {
+        recalculateOperation(payment.getOperacion());
+        if (payment.getEstatus() == PaymentStatus.VALIDADA && payment.getOperacion().getEstatus() == OperationStatus.VALIDADA) {
+            commercialPartnerCommissionService.generateCommissionsForOperation(payment.getOperacion().getId());
+        }
+    }
+
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public void notifyChequeChanged(Long id, String action) {
+        OperationPayment payment = operationPaymentRepository.findById(id).orElseThrow();
+        if (action.startsWith("COBRAR_")) notifyPaymentValidated(payment);
+        else if (action.equals("DEVOLVER") || action.equals("CANCELAR")) notifyPaymentRejected(payment);
+        else if (action.equals("REGISTRAR") || action.equals("EDITAR")) notifyPaymentSubmitted(payment.getOperacion(), payment);
+        else if (action.equals("DEPOSITAR")) notificationService.createForUser(
+                payment.getOperacion().getSocioComercial().getId(), "Cheque depositado",
+                "El cheque de la operación #" + payment.getOperacion().getId() + " está en compensación; el cobro aún no está confirmado.",
+                NotificationType.SYSTEM_ALERT, NotificationModule.PAGOS, NotificationReferenceType.OPERATION_PAYMENT,
+                id, "/operaciones/" + payment.getOperacion().getId() + "?scrollToPayments=true", NotificationPriority.MEDIUM);
     }
 
     private BigDecimal safe(BigDecimal value) {

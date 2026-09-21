@@ -11,12 +11,21 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public interface OperationPaymentRepository extends JpaRepository<OperationPayment, Long> {
+public interface OperationPaymentRepository extends JpaRepository<OperationPayment, Long>, org.springframework.data.jpa.repository.JpaSpecificationExecutor<OperationPayment> {
 
     List<OperationPayment> findByOperacionId(Long operacionId);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from OperationPayment p where p.operacion.id=:id order by p.id")
+    List<OperationPayment> findByOperacionIdForUpdate(@Param("id") Long id);
+
     long countByOperacionId(Long operacionId);
 
+    @Override
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths={"operacion", "operacion.cliente", "cuentaDestino", "registradoPor"})
+    org.springframework.data.domain.Page<OperationPayment> findAll(org.springframework.data.jpa.domain.Specification<OperationPayment> spec, org.springframework.data.domain.Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     List<OperationPayment> findByOperacionIdAndEstatus(Long operacionId, PaymentStatus estatus);
 
     boolean existsByOperacionIdAndEstatus(Long operacionId, PaymentStatus estatus);
@@ -39,8 +48,9 @@ public interface OperationPaymentRepository extends JpaRepository<OperationPayme
     SELECT COALESCE(SUM(op.monto), 0)
     FROM OperationPayment op
     WHERE op.tipoPago = :tipoPago
+      AND (op.chequeEstado IS NULL OR (op.chequeEstado = 'COBRADO' AND op.chequeDestinoCobro = 'CUENTA_BANCARIA'))
       AND op.estatus = :estatus
-      AND op.fechaValidacion BETWEEN :inicio AND :fin
+      AND COALESCE(op.chequeFechaCobro, op.fechaValidacion) BETWEEN :inicio AND :fin
 """)
     BigDecimal sumValidatedPaymentsByTypeBetween(
             @Param("tipoPago") PaymentType tipoPago,
@@ -56,7 +66,7 @@ public interface OperationPaymentRepository extends JpaRepository<OperationPayme
     FROM OperationPayment p
     JOIN p.operacion op
     WHERE p.estatus = :estatus
-      AND p.fechaValidacion BETWEEN :inicio AND :fin
+      AND COALESCE(p.chequeFechaCobro, p.fechaValidacion) BETWEEN :inicio AND :fin
 """)
     BigDecimal sumOfficeCommissionsBetween(
             @Param("inicio") LocalDateTime inicio,
@@ -69,12 +79,13 @@ SELECT COALESCE(SUM(p.monto),0)
 FROM OperationPayment p
 WHERE p.cuentaDestino.id = :bankAccountId
 AND p.estatus = :status
+AND (p.chequeEstado IS NULL OR (p.chequeEstado = 'COBRADO' AND p.chequeDestinoCobro = 'CUENTA_BANCARIA'))
 AND p.tipoPago IN (
     com.sistemadeoperaciones.pagos.enums.PaymentType.TRANSFERENCIA,
     com.sistemadeoperaciones.pagos.enums.PaymentType.DEPOSITO,
     com.sistemadeoperaciones.pagos.enums.PaymentType.CHEQUE
 )
-AND p.fechaValidacion BETWEEN :inicio AND :fin
+AND COALESCE(p.chequeFechaCobro, p.fechaValidacion) BETWEEN :inicio AND :fin
 """)
     BigDecimal sumEntradasCuenta(
             Long bankAccountId,
@@ -88,8 +99,9 @@ SELECT COALESCE(SUM(p.monto),0)
 FROM OperationPayment p
 WHERE p.cuentaDestino.id = :bankAccountId
 AND p.estatus = :status
+AND (p.chequeEstado IS NULL OR (p.chequeEstado = 'COBRADO' AND p.chequeDestinoCobro = 'CUENTA_BANCARIA'))
 AND p.tipoPago = com.sistemadeoperaciones.pagos.enums.PaymentType.TRANSFERENCIA
-AND p.fechaValidacion BETWEEN :inicio AND :fin
+AND COALESCE(p.chequeFechaCobro, p.fechaValidacion) BETWEEN :inicio AND :fin
 """)
     BigDecimal sumEntradasTransferenciaCuenta(
             @Param("bankAccountId") Long bankAccountId,
@@ -103,8 +115,9 @@ SELECT COALESCE(SUM(p.monto),0)
 FROM OperationPayment p
 WHERE p.cuentaDestino.id = :bankAccountId
 AND p.estatus = :status
+AND (p.chequeEstado IS NULL OR (p.chequeEstado = 'COBRADO' AND p.chequeDestinoCobro = 'CUENTA_BANCARIA'))
 AND p.tipoPago = com.sistemadeoperaciones.pagos.enums.PaymentType.DEPOSITO
-AND p.fechaValidacion BETWEEN :inicio AND :fin
+AND COALESCE(p.chequeFechaCobro, p.fechaValidacion) BETWEEN :inicio AND :fin
 """)
     BigDecimal sumEntradasDepositoCuenta(
             @Param("bankAccountId") Long bankAccountId,
@@ -118,8 +131,9 @@ SELECT COALESCE(SUM(p.monto),0)
 FROM OperationPayment p
 WHERE p.cuentaDestino.id = :bankAccountId
 AND p.estatus = :status
+AND (p.chequeEstado IS NULL OR (p.chequeEstado = 'COBRADO' AND p.chequeDestinoCobro = 'CUENTA_BANCARIA'))
 AND p.tipoPago = com.sistemadeoperaciones.pagos.enums.PaymentType.CHEQUE
-AND p.fechaValidacion BETWEEN :inicio AND :fin
+AND COALESCE(p.chequeFechaCobro, p.fechaValidacion) BETWEEN :inicio AND :fin
 """)
     BigDecimal sumEntradasChequeCuenta(
             @Param("bankAccountId") Long bankAccountId,

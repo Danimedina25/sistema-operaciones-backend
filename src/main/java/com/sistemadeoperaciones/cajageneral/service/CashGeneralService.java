@@ -159,6 +159,49 @@ public class CashGeneralService {
     }
 
     @Transactional
+    public CashMovementResponse recordChequePayment(
+            OperationPayment payment,
+            Map<CashDenomination, Integer> denominations, Long expectedDayId, LocalDate effectiveDate
+    ) {
+        lock();
+        if (payment.getTipoPago() != PaymentType.CHEQUE || !"COBRADO".equals(payment.getChequeEstado()) || !"EFECTIVO".equals(payment.getChequeDestinoCobro())) {
+            throw new InvalidCashGeneralException("El cheque debe estar cobrado en efectivo");
+        }
+        Optional<CashGeneralMovement> existing = movements.findByPagoId(payment.getId());
+        if (existing.isPresent()) {
+            return movementDto(existing.get());
+        }
+        CashGeneralDay day = days.findTopByOrderByFechaDesc()
+                .orElseThrow(() -> new InvalidCashGeneralException("Abre la Caja General antes de validar un pago en efectivo"));
+        if (day.getClosedAt() != null || !day.getFecha().equals(LocalDate.now())) {
+            throw new InvalidCashGeneralException("Debe existir una Caja General abierta para el día de hoy");
+        }
+        if (!day.getId().equals(expectedDayId) || !day.getFecha().equals(effectiveDate))
+            throw new InvalidCashGeneralException("La fecha y caja deben corresponder al día abierto");
+        BigDecimal amount = CashGeneralAmounts.money(payment.getMonto(), true);
+        CashGeneralAmounts.requireTotal(denominations, amount);
+        BigDecimal balance = CashGeneralAmounts.balance(day.getSaldoActual(), amount, BigDecimal.ZERO);
+
+        CashGeneralMovement movement = new CashGeneralMovement();
+        movement.setDia(day);
+        movement.setRequestId(UUID.nameUUIDFromBytes(
+                ("cheque-payment:" + payment.getId()).getBytes(java.nio.charset.StandardCharsets.UTF_8)
+        ).toString());
+        movement.setDireccion(CashMovementDirection.ENTRADA);
+        movement.setTipo(CashMovementConcept.COBRO_CHEQUE_CLIENTE);
+        movement.setConcepto("Cobro de cheque de cliente · Operación #" + payment.getOperacion().getId());
+        movement.setMontoManual(amount);
+        movement.setPago(payment);
+        movement.setSaldoAcumulado(balance);
+        movement.setDenominaciones(new EnumMap<>(denominations));
+        movement.setComprobanteUrl(payment.getComprobanteValidacionUrl());
+        movement.setCreadoPor(auth.getCurrentUser());
+        day.setSaldoActual(balance);
+        days.saveAndFlush(day);
+        return movementDto(movements.saveAndFlush(movement));
+    }
+
+    @Transactional
     public CashDayResponse open(OpenCashDayRequest request) {
         lock();
         if (request.fecha() == null || !request.fecha().equals(LocalDate.now()))
@@ -284,6 +327,8 @@ public class CashGeneralService {
             throw new ConflictException("El corte cambió. Actualiza la página antes de eliminarlo");
         }
         List<CashGeneralMovement> dayMovements = movements.findByDiaIdOrderByIdAsc(dayId);
+        if (dayMovements.stream().anyMatch(m -> m.getTipo() == CashMovementConcept.COBRO_CHEQUE_CLIENTE))
+            throw new ConflictException("El día contiene cheques de clientes cobrados; requiere reversión auditada");
         // Los cheques cobrados del día son salidas bancarias. Al borrarlos hay que rehacer los
         // cortes bancarios ya persistidos de esas cuentas o quedarían con una salida sin origen.
         Set<Long> affectedAccounts = dayMovements.stream()

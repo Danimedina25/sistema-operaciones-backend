@@ -13,6 +13,34 @@ import java.time.LocalDateTime;
 @Table(name = "operation_payments")
 public class OperationPayment {
 
+    @lombok.Getter @lombok.Setter
+    @Column(name="numero_cheque")
+    private String numeroCheque;
+    @lombok.Getter @lombok.Setter
+    @Column(name="banco_emisor")
+    private String bancoEmisor;
+    @lombok.Getter @lombok.Setter
+    @Column(name="emisor")
+    private String emisor;
+    @lombok.Getter @lombok.Setter
+    @Column(name="beneficiario")
+    private String beneficiario;
+    @lombok.Getter @lombok.Setter
+    @Column(name="cheque_estado")
+    private String chequeEstado;
+    @lombok.Getter @lombok.Setter
+    @Column(name="cheque_destino_cobro")
+    private String chequeDestinoCobro;
+    @lombok.Getter @lombok.Setter
+    @Column(name="cheque_fecha_cobro")
+    private LocalDateTime chequeFechaCobro;
+    @lombok.Getter @lombok.Setter
+    @Column(name="cheque_fecha_deposito")
+    private LocalDateTime chequeFechaDeposito;
+    @lombok.Getter @lombok.Setter
+    @Column(name="cheque_version", nullable=false)
+    private long chequeVersion;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

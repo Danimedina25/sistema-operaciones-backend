@@ -8,6 +8,16 @@ import java.time.LocalDateTime;
 
 public class OperationPaymentResponseDto {
 
+    @lombok.Getter @lombok.Setter
+    private String numeroCheque;
+    @lombok.Getter @lombok.Setter
+    private String bancoEmisor;
+    @lombok.Getter @lombok.Setter
+    private String emisor;
+    @lombok.Getter @lombok.Setter
+    private String beneficiario;
+    @lombok.Getter @lombok.Setter
+    private String chequeEstado;
     private Long id;
     private BigDecimal monto;
     private PaymentType tipoPago;

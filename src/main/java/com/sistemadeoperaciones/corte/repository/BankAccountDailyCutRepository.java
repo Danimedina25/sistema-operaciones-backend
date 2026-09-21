@@ -10,6 +10,9 @@ import java.util.Optional;
 public interface BankAccountDailyCutRepository
         extends JpaRepository<BankAccountDailyCut, Long> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    Optional<BankAccountDailyCut> findFirstByBankAccountIdAndFechaGreaterThanEqualOrderByFechaAsc(Long bankAccountId, LocalDate fecha);
+
     /**
      * Obtiene el corte de una cuenta para una fecha específica.
      */

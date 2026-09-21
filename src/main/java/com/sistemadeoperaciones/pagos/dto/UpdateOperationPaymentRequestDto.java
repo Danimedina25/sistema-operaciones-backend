@@ -16,6 +16,15 @@ public class UpdateOperationPaymentRequestDto {
     private PaymentType tipoPago;
 
     private Long cuentaDestinoId;
+    @lombok.Getter @lombok.Setter @Size(max=200)
+    private String numeroCheque;
+    @lombok.Getter @lombok.Setter @Size(max=200)
+    private String bancoEmisor;
+    @lombok.Getter @lombok.Setter @Size(max=200)
+    private String emisor;
+    @lombok.Getter @lombok.Setter @Size(max=200)
+    private String beneficiario;
+
 
     @NotBlank(message = "El comprobante es obligatorio")
     @Size(max = 500, message = "La URL del comprobante no puede exceder 500 caracteres")
@@ -27,8 +36,9 @@ public class UpdateOperationPaymentRequestDto {
     @Size(max = 500, message = "Las observaciones no pueden exceder 500 caracteres")
     private String observaciones;
 
-    @AssertTrue(message = "La cuenta destino es obligatoria para transferencias, depósitos y cheques")
+    @AssertTrue(message = "La cuenta destino es obligatoria para transferencias y depósitos; los cheques se reciben sin cuenta")
     public boolean isCuentaDestinoValid() {
+        if (tipoPago == PaymentType.CHEQUE) return cuentaDestinoId == null;
         if (tipoPago == PaymentType.EFECTIVO) {
             return true;
         }
@@ -50,6 +60,17 @@ public class UpdateOperationPaymentRequestDto {
 
     public void setTipoPago(PaymentType tipoPago) {
         this.tipoPago = tipoPago;
+    }
+
+    @AssertTrue(message = "Completa número, banco emisor, emisor y beneficiario del cheque")
+    public boolean isChequeIdentificationValid() {
+        return tipoPago != PaymentType.CHEQUE || java.util.stream.Stream.of(numeroCheque, bancoEmisor, emisor, beneficiario)
+                .allMatch(v -> v != null && !v.isBlank() && v.length() <= 200);
+    }
+
+    @com.fasterxml.jackson.annotation.JsonAnySetter
+    public void rejectUnknownCaptureField(String key, Object value) {
+        throw new IllegalArgumentException("Campo no permitido en captura: " + key);
     }
 
     public Long getCuentaDestinoId() {

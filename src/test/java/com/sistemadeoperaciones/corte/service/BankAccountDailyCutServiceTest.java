@@ -38,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * siendo reproducible y que la cadena se pueda rehacer sin dejar saldos huérfanos.
  */
 @DataJpaTest
+@org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase(replace = org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase.Replace.NONE)
 @Import({BankAccountDailyCutServiceImpl.class, BankLedgerQuery.class})
 class BankAccountDailyCutServiceTest {
 
