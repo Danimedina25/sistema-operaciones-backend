@@ -17,7 +17,7 @@ public class ChequeController {
             @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate hasta,
             @RequestParam(defaultValue="0") int page) {
-        return new ApiResponse<>(true,"Cheques consultados",service.list(estados == null ? "POR_COBRAR,DEPOSITADO" : estados,busqueda,cliente,operacionId,banco,desde,hasta,page),null);
+        return new ApiResponse<>(true,"Cheques consultados",service.list(estados == null ? "POR_COBRAR,DEPOSITADO,PENDIENTE_COBRO_EFECTIVO" : estados,busqueda,cliente,operacionId,banco,desde,hasta,page),null);
     }
     @GetMapping("/by-payment/{paymentId}") public ApiResponse<ChequeView> get(@PathVariable Long paymentId) {
         return new ApiResponse<>(true,"Cheque consultado",service.byPayment(paymentId),null);

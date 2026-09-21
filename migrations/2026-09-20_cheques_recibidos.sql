@@ -12,7 +12,7 @@ ALTER TABLE operation_payments
     ADD COLUMN cheque_version BIGINT NOT NULL DEFAULT 0,
     ADD INDEX idx_cheques_list (tipo_pago, cheque_estado, created_at, id),
     ADD CONSTRAINT chk_cheque_estado CHECK (cheque_estado IS NULL OR
-        (tipo_pago = 'CHEQUE' AND cheque_estado IN ('POR_COBRAR','DEPOSITADO','COBRADO','DEVUELTO','CANCELADO'))),
+        (tipo_pago = 'CHEQUE' AND cheque_estado IN ('POR_COBRAR','DEPOSITADO','PENDIENTE_COBRO_EFECTIVO','COBRADO','DEVUELTO','CANCELADO'))),
     ADD CONSTRAINT chk_cheque_destino CHECK (cheque_destino_cobro IS NULL OR cheque_destino_cobro IN ('EFECTIVO','CUENTA_BANCARIA')),
     ADD CONSTRAINT chk_cheque_cobrado CHECK (cheque_estado IS NULL OR cheque_estado <> 'COBRADO' OR
         (estatus = 'VALIDADA' AND cheque_fecha_cobro IS NOT NULL AND cheque_destino_cobro IS NOT NULL AND

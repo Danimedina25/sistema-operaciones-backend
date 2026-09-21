@@ -8,7 +8,7 @@ public class ChequeNotifications {
     @TransactionalEventListener
     public void collected(ChequeService.Changed event) {
         // A delivery failure must not report a committed collection as failed to the client.
-        try { payments.notifyChequeChanged(event.paymentId(), event.action()); }
+        try { payments.notifyChequeChanged(event.paymentId(), event.action(), event.actorName()); }
         catch (RuntimeException e) { log.error("No se pudo notificar la acción del cheque {}", event.paymentId(), e); }
     }
 }

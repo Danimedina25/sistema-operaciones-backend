@@ -23,16 +23,19 @@ Lectura: ADMIN, JEFA_CUENTAS, AUXILIAR_CUENTAS, JEFA_CAJAS, GERENTE, DIRECCION. 
 | Acción | Desde | Hasta | Roles de escritura | Requisitos |
 |---|---|---|---|---|
 | DEPOSITAR | POR_COBRAR | DEPOSITADO | ADMIN, JEFA_CUENTAS, AUXILIAR_CUENTAS | cuenta activa y comprobante |
-| COBRAR_BANCO | POR_COBRAR / DEPOSITADO | COBRADO | mismos | cuenta activa, comprobante, periodo abierto |
-| COBRAR_EFECTIVO | POR_COBRAR | COBRADO | ADMIN, JEFA_CAJAS | caja de hoy abierta, fecha coincidente, 11 denominaciones exactas, comprobante |
-| DEVOLVER | POR_COBRAR / DEPOSITADO | DEVUELTO | ADMIN, JEFA_CUENTAS, AUXILIAR_CUENTAS | motivo |
-| CANCELAR | POR_COBRAR | CANCELADO | mismos | motivo |
+| COBRAR_BANCO | POR_COBRAR / DEPOSITADO | COBRADO | ADMIN, JEFA_CUENTAS | cuenta activa, comprobante, periodo abierto |
+| ASIGNAR_COBRO_EFECTIVO | POR_COBRAR | PENDIENTE_COBRO_EFECTIVO | ADMIN, JEFA_CUENTAS | observación opcional; notifica a Caja, sin movimiento financiero |
+| CONFIRMAR_COBRO_EFECTIVO | PENDIENTE_COBRO_EFECTIVO | COBRADO | ADMIN, JEFA_CAJAS | caja de hoy abierta, fecha coincidente, 11 denominaciones exactas, comprobante |
+| DEVOLVER_A_CUENTAS | PENDIENTE_COBRO_EFECTIVO | POR_COBRAR | ADMIN, JEFA_CAJAS | motivo; no rechaza el pago y notifica a Cuentas |
+| RETIRAR_COBRO_EFECTIVO | PENDIENTE_COBRO_EFECTIVO | POR_COBRAR | ADMIN, JEFA_CUENTAS | motivo; retira la tarea de Caja |
+| DEVOLVER | DEPOSITADO | DEVUELTO | ADMIN, JEFA_CUENTAS | motivo |
+| CANCELAR | POR_COBRAR | CANCELADO | ADMIN, JEFA_CUENTAS | motivo |
 
 No hay reapertura de terminales en la API. Devolución posterior a cobro requiere una reversión financiera auditada, fuera de estas acciones. Tampoco se permite eliminar una operación con cheques, ni borrar un día de caja con COBRO_CHEQUE_CLIENTE.
 
 ## Contabilidad y concurrencia
 
-Recibir y depositar no validan el pago ni suman dinero disponible. Cobrar valida y recalcula operación/comisiones en la misma transacción. DEVUELTO/CANCELADO marca el pago RECHAZADA: libera la reserva para sustitución pero no disminuye la deuda efectivamente cobrada. Retornos siguen usando el ingreso validado existente.
+Recibir, depositar y asignar a Caja no validan el pago ni suman dinero disponible. La asignación transfiere la responsabilidad a Caja y genera una notificación, pero solo CONFIRMAR_COBRO_EFECTIVO crea el movimiento. Si Caja no puede cobrarlo, DEVOLVER_A_CUENTAS regresa a POR_COBRAR sin rechazar el pago. Cobrar valida y recalcula operación/comisiones en la misma transacción. DEVUELTO/CANCELADO marca el pago RECHAZADA: libera la reserva para sustitución pero no disminuye la deuda efectivamente cobrada. Retornos siguen usando el ingreso validado existente.
 
 El banco mantiene una sola fuente derivada del pago; no se inserta un segundo movimiento paralelo. Para cheques nuevos se exige COBRADO + CUENTA_BANCARIA y se usa `cheque_fecha_cobro`. Los históricos de estado NULL conservan exactamente la consulta previa. Caja usa COBRO_CHEQUE_CLIENTE, con operation_payment_id único y sin cuenta bancaria; CHEQUE manual conserva el significado de retiro de una cuenta propia.
 
@@ -44,7 +47,7 @@ Orden de bloqueo: operación → pago → mutex de cierre/caja (cash_general_reg
 
 ## Despliegue y migración
 
-1. Respaldar y revisar el esquema real antes de aplicar `migrations/2026-09-20_cheques_recibidos.sql` una sola vez. Requiere las migraciones anteriores, especialmente `operation_payment_id` único en caja. El script no cambia importes, estatus, cuentas ni fechas de pagos existentes.
+1. Respaldar y revisar el esquema real. Después de `migrations/2026-09-20_cheques_recibidos.sql`, aplicar una sola vez `migrations/2026-09-21_asignacion_cobro_efectivo_cheques.sql` para admitir el estado de transferencia a Caja y sus tipos de notificación. Requiere las migraciones anteriores, especialmente `operation_payment_id` único en caja. Los scripts no cambian importes, estatus, cuentas ni fechas de pagos existentes.
 2. Aplicar primero la migración y luego el backend. No basarse únicamente en ddl-auto=update: las restricciones adicionales del script también son necesarias.
 3. Coordinar el despliegue con el frontend ya preparado. No se requieren cambios de nombres de sus endpoints o DTO.
 4. Validar totales antes/después con el inventario y los libros de banco y caja. No aplicar un backfill automático a COBRADO.

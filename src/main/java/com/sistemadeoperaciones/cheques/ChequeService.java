@@ -44,8 +44,8 @@ public class ChequeService {
     private final ObjectMapper mapper;
     private final ApplicationEventPublisher events;
     @PersistenceContext private EntityManager em;
-    public record Changed(Long paymentId, String action) {}
-    private static final Set<String> STATES = Set.of("POR_COBRAR", "DEPOSITADO", "COBRADO", "DEVUELTO", "CANCELADO");
+    public record Changed(Long paymentId, String action, String actorName) {}
+    private static final Set<String> STATES = Set.of("POR_COBRAR", "DEPOSITADO", "PENDIENTE_COBRO_EFECTIVO", "COBRADO", "DEVUELTO", "CANCELADO");
     private boolean has(User user, RoleName... roles) {
         return user.getRoles().stream().anyMatch(r -> Arrays.asList(roles).contains(r.getName()));
     }
@@ -56,9 +56,13 @@ public class ChequeService {
         return user;
     }
     private void authorizeAction(User user, ChequeAction action) {
-        boolean allowed = action == ChequeAction.COBRAR_EFECTIVO
-                ? has(user, RoleName.ADMIN, RoleName.JEFA_CAJAS)
-                : has(user, RoleName.ADMIN, RoleName.JEFA_CUENTAS, RoleName.AUXILIAR_CUENTAS);
+        boolean allowed = switch (action) {
+            case DEPOSITAR -> has(user, RoleName.ADMIN, RoleName.JEFA_CUENTAS, RoleName.AUXILIAR_CUENTAS);
+            case COBRAR_BANCO, ASIGNAR_COBRO_EFECTIVO, DEVOLVER, CANCELAR, RETIRAR_COBRO_EFECTIVO ->
+                    has(user, RoleName.ADMIN, RoleName.JEFA_CUENTAS);
+            case CONFIRMAR_COBRO_EFECTIVO, DEVOLVER_A_CUENTAS ->
+                    has(user, RoleName.ADMIN, RoleName.JEFA_CAJAS);
+        };
         if (!allowed) throw new AccessDeniedException("No tienes permiso para esta acción del cheque");
     }
     private OperationPayment requireCheque(Long id) {
@@ -102,15 +106,21 @@ public class ChequeService {
         if (p.getChequeFechaDeposito() != null && command.fecha().isBefore(p.getChequeFechaDeposito().toLocalDate()))
             throw new BusinessException("La fecha no puede preceder al depósito");
         // Shared with daily-cut registration: absence of a closed row is also protected.
-        boolean financial = command.accion() == ChequeAction.COBRAR_BANCO || command.accion() == ChequeAction.COBRAR_EFECTIVO;
+        boolean financial = command.accion() == ChequeAction.COBRAR_BANCO || command.accion() == ChequeAction.CONFIRMAR_COBRO_EFECTIVO;
         if (financial && cuts.findFirstByFechaGreaterThanEqualAndEstatusOrderByFechaAsc(command.fecha(), DailyCashCutStatus.CERRADO).isPresent())
             throw new ConflictException("El periodo está cerrado");
         boolean bank = command.accion() == ChequeAction.DEPOSITAR || command.accion() == ChequeAction.COBRAR_BANCO;
-        boolean cashAction = command.accion() == ChequeAction.COBRAR_EFECTIVO;
+        boolean cashAction = command.accion() == ChequeAction.CONFIRMAR_COBRO_EFECTIVO;
+        boolean reasonRequired = command.accion() == ChequeAction.DEVOLVER
+                || command.accion() == ChequeAction.CANCELAR
+                || command.accion() == ChequeAction.DEVOLVER_A_CUENTAS
+                || command.accion() == ChequeAction.RETIRAR_COBRO_EFECTIVO;
         if (!bank && command.cuentaDestinoId() != null) throw new BusinessException("Esta acción no admite cuenta bancaria");
         if (!cashAction && (command.diaCajaId() != null || command.denominaciones() != null)) throw new BusinessException("Esta acción no admite datos de caja");
         if (bank || cashAction) validateProof(command.comprobanteUrl(), p.getOperacion().getId());
-        else if (command.motivo() == null || command.motivo().isBlank() || command.motivo().length() > 500) throw new BusinessException("Indica el motivo");
+        else if (reasonRequired && (command.motivo() == null || command.motivo().isBlank() || command.motivo().length() > 500))
+            throw new BusinessException("Indica el motivo");
+        else if (command.motivo() != null && command.motivo().length() > 500) throw new BusinessException("La observación es demasiado larga");
         String previous = snapshot(p);
         if (bank) {
             BankAccount account = command.cuentaDestinoId() == null ? null : em.find(BankAccount.class, command.cuentaDestinoId(), LockModeType.PESSIMISTIC_WRITE);
@@ -122,7 +132,8 @@ public class ChequeService {
         }
         switch (command.accion()) {
             case DEPOSITAR -> { p.setChequeEstado("DEPOSITADO"); p.setChequeFechaDeposito(command.fecha().atStartOfDay()); }
-            case COBRAR_BANCO, COBRAR_EFECTIVO -> {
+            case ASIGNAR_COBRO_EFECTIVO -> p.setChequeEstado("PENDIENTE_COBRO_EFECTIVO");
+            case COBRAR_BANCO, CONFIRMAR_COBRO_EFECTIVO -> {
                 p.setChequeEstado("COBRADO"); p.setChequeDestinoCobro(cashAction ? "EFECTIVO" : "CUENTA_BANCARIA");
                 p.setChequeFechaCobro(command.fecha().atStartOfDay()); p.setEstatus(PaymentStatus.VALIDADA);
                 p.setFechaValidacion(LocalDateTime.now()); p.setValidadoPor(user); p.setComprobanteValidacionUrl(command.comprobanteUrl());
@@ -130,6 +141,10 @@ public class ChequeService {
                     p.setCuentaDestino(null);
                     cash.recordChequePayment(p, command.denominaciones(), command.diaCajaId(), command.fecha());
                 }
+            }
+            case DEVOLVER_A_CUENTAS, RETIRAR_COBRO_EFECTIVO -> {
+                p.setChequeEstado("POR_COBRAR");
+                p.setObservaciones(command.motivo().trim());
             }
             case DEVOLVER, CANCELAR -> { p.setChequeEstado(command.accion() == ChequeAction.DEVOLVER ? "DEVUELTO" : "CANCELADO"); p.setEstatus(PaymentStatus.RECHAZADA); p.setObservaciones(command.motivo().trim()); }
         }
@@ -145,12 +160,22 @@ public class ChequeService {
         try { audit.setResultado(mapper.writeValueAsString(result)); }
         catch (Exception e) { throw new IllegalStateException(e); }
         audits.saveAndFlush(audit);
-        events.publishEvent(new Changed(id, command.accion().name()));
+        events.publishEvent(new Changed(id, command.accion().name(), user.getNombre()));
         return result;
     }
     static void validateTransition(String state, ChequeAction action) {
-        boolean initial = "POR_COBRAR".equals(state), deposited = "DEPOSITADO".equals(state);
-        if (!(initial || deposited && (action == ChequeAction.COBRAR_BANCO || action == ChequeAction.DEVOLVER)))
+        boolean allowed = switch (state) {
+            case "POR_COBRAR" -> action == ChequeAction.DEPOSITAR
+                    || action == ChequeAction.COBRAR_BANCO
+                    || action == ChequeAction.ASIGNAR_COBRO_EFECTIVO
+                    || action == ChequeAction.CANCELAR;
+            case "DEPOSITADO" -> action == ChequeAction.COBRAR_BANCO || action == ChequeAction.DEVOLVER;
+            case "PENDIENTE_COBRO_EFECTIVO" -> action == ChequeAction.CONFIRMAR_COBRO_EFECTIVO
+                    || action == ChequeAction.DEVOLVER_A_CUENTAS
+                    || action == ChequeAction.RETIRAR_COBRO_EFECTIVO;
+            default -> false;
+        };
+        if (!allowed)
             throw new ConflictException("Transición de cheque no permitida");
     }
     public static void validateProof(String proof, Long operationId) {
@@ -209,7 +234,9 @@ public class ChequeService {
         Map<String,BigDecimal> totals = new HashMap<>();
         em.createQuery(query).getResultList().forEach(row -> totals.put((String)row[0], (BigDecimal)row[1]));
         return new ChequeView.Page(data.getContent().stream().map(p -> view(p, histories.getOrDefault(p.getId(), List.of()))).toList(), data.getTotalPages(), data.getTotalElements(),
-                List.of(new ChequeView.Total("MXN", totals.getOrDefault("POR_COBRAR", BigDecimal.ZERO), totals.getOrDefault("DEPOSITADO", BigDecimal.ZERO), totals.getOrDefault("COBRADO", BigDecimal.ZERO))));
+                List.of(new ChequeView.Total("MXN", totals.getOrDefault("POR_COBRAR", BigDecimal.ZERO)
+                        .add(totals.getOrDefault("PENDIENTE_COBRO_EFECTIVO", BigDecimal.ZERO)),
+                        totals.getOrDefault("DEPOSITADO", BigDecimal.ZERO), totals.getOrDefault("COBRADO", BigDecimal.ZERO))));
     }
     private static String pattern(String value) { return "%"+value.trim().toLowerCase(Locale.ROOT).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")+"%"; }
 }

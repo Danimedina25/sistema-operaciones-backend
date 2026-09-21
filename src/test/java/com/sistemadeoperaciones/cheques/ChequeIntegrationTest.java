@@ -121,16 +121,35 @@ class ChequeIntegrationTest {
         assertThat(page.content()).isEmpty(); assertThat(page.totales().get(0).cobrados()).isEqualByComparingTo("100");
     }
     @Test void cashCollectionCreatesOnlyCashEntry() {
-        var day=cash.open(new OpenCashDayRequest(LocalDate.now(),BigDecimal.ZERO,counts(0))); var p=received();
-        var c=new ChequeCommand(UUID.randomUUID(),p.version(),ChequeAction.COBRAR_EFECTIVO,LocalDate.now(),null,proof(),null,day.id(),counts(1));
+        var day=cash.open(new OpenCashDayRequest(LocalDate.now(),BigDecimal.ZERO,counts(0))); var received=received();
+        var p=service.act(received.id(),command(received,ChequeAction.ASIGNAR_COBRO_EFECTIVO));
+        assertThat(p.estado()).isEqualTo("PENDIENTE_COBRO_EFECTIVO"); assertThat(movements.findByPagoId(p.id())).isEmpty();
+        var c=new ChequeCommand(UUID.randomUUID(),p.version(),ChequeAction.CONFIRMAR_COBRO_EFECTIVO,LocalDate.now(),null,proof(),null,day.id(),counts(1));
         var result=service.act(p.id(),c); assertThat(result.destinoCobro()).isEqualTo("EFECTIVO"); assertThat(bankRows()).isZero();
         var movement=tx(() -> movements.findByPagoId(p.id()).orElseThrow()); assertThat(movement.getTipo()).isEqualTo(CashMovementConcept.COBRO_CHEQUE_CLIENTE); assertThat(movement.getCuentaBancaria()).isNull();
         assertThat(cash.latest().saldoActual()).isEqualByComparingTo("100");
     }
+    @Test void accountsHandsTheChequeToCashAndCashCanReturnItWithoutRejectingThePayment() {
+        var p=received();
+        var accountsRole=new Role(); accountsRole.setName(RoleName.JEFA_CUENTAS); actor.setRoles(Set.of(accountsRole));
+        var assigned=service.act(p.id(),new ChequeCommand(UUID.randomUUID(),p.version(),ChequeAction.ASIGNAR_COBRO_EFECTIVO,
+                LocalDate.now(),null,null,"Cobrar en ventanilla",null,null));
+        assertThat(assigned.estado()).isEqualTo("PENDIENTE_COBRO_EFECTIVO");
+        assertThat(tx(() -> paymentRepository.findById(p.id()).orElseThrow().getEstatus())).isEqualTo(PaymentStatus.PENDIENTE_VALIDACION);
+        var cashRole=new Role(); cashRole.setName(RoleName.JEFA_CAJAS); actor.setRoles(Set.of(cashRole));
+        var returned=service.act(p.id(),new ChequeCommand(UUID.randomUUID(),assigned.version(),ChequeAction.DEVOLVER_A_CUENTAS,
+                LocalDate.now(),null,null,"Solo permite abono en cuenta",null,null));
+        assertThat(returned.estado()).isEqualTo("POR_COBRAR");
+        assertThat(returned.historial()).extracting(ChequeView.History::accion)
+                .containsSubsequence("ASIGNAR_COBRO_EFECTIVO","DEVOLVER_A_CUENTAS");
+        assertThat(movements.findByPagoId(p.id())).isEmpty();
+        assertThat(tx(() -> paymentRepository.findById(p.id()).orElseThrow().getEstatus())).isEqualTo(PaymentStatus.PENDIENTE_VALIDACION);
+    }
     @Test void cashFailureRollsBackPaymentAndAudit() {
-        var p=received(); var c=new ChequeCommand(UUID.randomUUID(),p.version(),ChequeAction.COBRAR_EFECTIVO,LocalDate.now(),null,proof(),null,999L,counts(1));
+        var received=received(); var p=service.act(received.id(),command(received,ChequeAction.ASIGNAR_COBRO_EFECTIVO));
+        var c=new ChequeCommand(UUID.randomUUID(),p.version(),ChequeAction.CONFIRMAR_COBRO_EFECTIVO,LocalDate.now(),null,proof(),null,999L,counts(1));
         assertThatThrownBy(() -> service.act(p.id(),c)).isInstanceOf(BusinessException.class);
-        assertThat(service.byPayment(p.id()).estado()).isEqualTo("POR_COBRAR"); assertThat(audits.findByRequestId(c.requestId().toString())).isEmpty(); verifyNoInteractions(commissions);
+        assertThat(service.byPayment(p.id()).estado()).isEqualTo("PENDIENTE_COBRO_EFECTIVO"); assertThat(audits.findByRequestId(c.requestId().toString())).isEmpty(); verifyNoInteractions(commissions);
     }
     @Test void downstreamFailureRollsBackCollection() {
         var p=received(); clearInvocations(notifications); doThrow(new IllegalStateException("commission failure")).when(commissions).generateCommissionsForOperation(operationId);
@@ -138,7 +157,7 @@ class ChequeIntegrationTest {
         assertThat(service.byPayment(p.id()).estado()).isEqualTo("POR_COBRAR"); assertThat(bankRows()).isZero(); assertThat(audits.findByRequestId(c.requestId().toString())).isEmpty(); verifyNoInteractions(notifications);
     }
     @Test void rejectionReleasesReservationForReplacement() {
-        var p=received(); service.act(p.id(),command(p,ChequeAction.DEVOLVER));
+        var p=received(); var deposited=service.act(p.id(),command(p,ChequeAction.DEPOSITAR)); service.act(p.id(),command(deposited,ChequeAction.DEVOLVER));
         assertThat(payments.addPayment(request()).getId()).isNotEqualTo(p.id()); assertThat(bankRows()).isZero();
     }
     @Test void legacyValidationRemainsInLedgerButCannotBeCollectedAgain() {
@@ -157,7 +176,7 @@ class ChequeIntegrationTest {
         var p=received(); run(() -> em.find(BankAccount.class,bankId).setActivo(false));
         assertThatThrownBy(() -> service.act(p.id(),command(p,ChequeAction.COBRAR_BANCO))).isInstanceOf(BusinessException.class); assertThat(bankRows()).isZero();
     }
-    @ParameterizedTest @EnumSource(value=RoleName.class,names={"SOCIO_COMERCIAL","GERENTE","DIRECCION","JEFA_CAJAS"})
+    @ParameterizedTest @EnumSource(value=RoleName.class,names={"SOCIO_COMERCIAL","GERENTE","DIRECCION","JEFA_CAJAS","AUXILIAR_CUENTAS"})
     void unauthorizedBankActionsAreRejected(RoleName role) {
         var p=received(); var r=new Role(); r.setName(role); actor.setRoles(Set.of(r));
         assertThatThrownBy(() -> service.act(p.id(),command(p,ChequeAction.COBRAR_BANCO))).isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
@@ -189,18 +208,19 @@ class ChequeIntegrationTest {
         } finally { run(() -> em.remove(em.find(com.sistemadeoperaciones.corte.model.DailyCashCut.class,cutId))); }
     }
     @Test void closedCashAndIncorrectDenominationsLeaveTheChequePending() {
-        var day=cash.open(new OpenCashDayRequest(LocalDate.now(),BigDecimal.ZERO,counts(0))); var p=received();
-        var bad=new ChequeCommand(UUID.randomUUID(),p.version(),ChequeAction.COBRAR_EFECTIVO,LocalDate.now(),null,proof(),null,day.id(),counts(0));
+        var day=cash.open(new OpenCashDayRequest(LocalDate.now(),BigDecimal.ZERO,counts(0))); var received=received();
+        var p=service.act(received.id(),command(received,ChequeAction.ASIGNAR_COBRO_EFECTIVO));
+        var bad=new ChequeCommand(UUID.randomUUID(),p.version(),ChequeAction.CONFIRMAR_COBRO_EFECTIVO,LocalDate.now(),null,proof(),null,day.id(),counts(0));
         assertThatThrownBy(() -> service.act(p.id(),bad)).isInstanceOf(BusinessException.class);
         cash.close(day.id(),new CloseCashDayRequest(BigDecimal.ZERO,cash.latest().version(),counts(0),null));
-        var closed=new ChequeCommand(UUID.randomUUID(),p.version(),ChequeAction.COBRAR_EFECTIVO,LocalDate.now(),null,proof(),null,day.id(),counts(1));
+        var closed=new ChequeCommand(UUID.randomUUID(),p.version(),ChequeAction.CONFIRMAR_COBRO_EFECTIVO,LocalDate.now(),null,proof(),null,day.id(),counts(1));
         assertThatThrownBy(() -> service.act(p.id(),closed)).isInstanceOf(BusinessException.class);
-        assertThat(service.byPayment(p.id()).estado()).isEqualTo("POR_COBRAR");
+        assertThat(service.byPayment(p.id()).estado()).isEqualTo("PENDIENTE_COBRO_EFECTIVO");
     }
     @ParameterizedTest @EnumSource(value=RoleName.class,names={"JEFA_CUENTAS","AUXILIAR_CUENTAS","GERENTE","DIRECCION"})
     void accountingAndReadOnlyRolesCannotReceiveCash(RoleName role) {
         var p=received(); var r=new Role(); r.setName(role); actor.setRoles(Set.of(r));
-        assertThatThrownBy(() -> service.act(p.id(),command(p,ChequeAction.COBRAR_EFECTIVO))).isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        assertThatThrownBy(() -> service.act(p.id(),command(p,ChequeAction.CONFIRMAR_COBRO_EFECTIVO))).isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
     }
     @Test void concurrentDistinctRequestsCollectOnce() throws Exception {
         var p=received(); var c1=command(p,ChequeAction.COBRAR_BANCO); var c2=command(p,ChequeAction.COBRAR_BANCO);
@@ -208,8 +228,9 @@ class ChequeIntegrationTest {
         assertThat(results.stream().filter(ChequeView.class::isInstance).count()).isEqualTo(1); assertThat(bankRows()).isEqualTo(1); verify(commissions,times(1)).generateCommissionsForOperation(operationId);
     }
     @Test void cashCloseRacingCollectionHasExactlyOneWinner() throws Exception {
-        var day=cash.open(new OpenCashDayRequest(LocalDate.now(),BigDecimal.ZERO,counts(0))); var p=received();
-        var c=new ChequeCommand(UUID.randomUUID(),p.version(),ChequeAction.COBRAR_EFECTIVO,LocalDate.now(),null,proof(),null,day.id(),counts(1));
+        var day=cash.open(new OpenCashDayRequest(LocalDate.now(),BigDecimal.ZERO,counts(0))); var received=received();
+        var p=service.act(received.id(),command(received,ChequeAction.ASIGNAR_COBRO_EFECTIVO));
+        var c=new ChequeCommand(UUID.randomUUID(),p.version(),ChequeAction.CONFIRMAR_COBRO_EFECTIVO,LocalDate.now(),null,proof(),null,day.id(),counts(1));
         var results=parallel(() -> service.act(p.id(),c), () -> cash.close(day.id(),new CloseCashDayRequest(BigDecimal.ZERO,day.version(),counts(0),null)));
         assertThat(results.stream().filter(BusinessException.class::isInstance).count()).isEqualTo(1);
         if ("COBRADO".equals(service.byPayment(p.id()).estado())) {

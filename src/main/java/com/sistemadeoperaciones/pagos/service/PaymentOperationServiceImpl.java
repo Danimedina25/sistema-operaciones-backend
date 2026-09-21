@@ -732,7 +732,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         recordChequeCapture(saved, "REGISTRAR");
         recalculateOperation(operation);
-        if (saved.getTipoPago() == PaymentType.CHEQUE) chequeEvents.publishEvent(new com.sistemadeoperaciones.cheques.ChequeService.Changed(saved.getId(), "REGISTRAR"));
+        if (saved.getTipoPago() == PaymentType.CHEQUE) chequeEvents.publishEvent(new com.sistemadeoperaciones.cheques.ChequeService.Changed(saved.getId(), "REGISTRAR", registradoPor.getNombre()));
         else notifyPaymentSubmitted(operation, saved);
         return mapToPaymentResponse(saved);
     }
@@ -799,7 +799,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         recalculateOperation(operation);
 
-        if (updated.getTipoPago() == PaymentType.CHEQUE) chequeEvents.publishEvent(new com.sistemadeoperaciones.cheques.ChequeService.Changed(updated.getId(), "EDITAR"));
+        if (updated.getTipoPago() == PaymentType.CHEQUE) chequeEvents.publishEvent(new com.sistemadeoperaciones.cheques.ChequeService.Changed(updated.getId(), "EDITAR", authenticatedUserService.getCurrentUser().getNombre()));
         else if (previousPaymentType != request.getTipoPago()) {
             notifyPaymentTypeChanged(operation, updated, previousPaymentType);
         }
@@ -1958,16 +1958,54 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     }
 
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
-    public void notifyChequeChanged(Long id, String action) {
+    public void notifyChequeChanged(Long id, String action, String actorName) {
         OperationPayment payment = operationPaymentRepository.findById(id).orElseThrow();
-        if (action.startsWith("COBRAR_")) notifyPaymentValidated(payment);
-        else if (action.equals("DEVOLVER") || action.equals("CANCELAR")) notifyPaymentRejected(payment);
-        else if (action.equals("REGISTRAR") || action.equals("EDITAR")) notifyPaymentSubmitted(payment.getOperacion(), payment);
-        else if (action.equals("DEPOSITAR")) notificationService.createForUser(
-                payment.getOperacion().getSocioComercial().getId(), "Cheque depositado",
-                "El cheque de la operación #" + payment.getOperacion().getId() + " está en compensación; el cobro aún no está confirmado.",
-                NotificationType.SYSTEM_ALERT, NotificationModule.PAGOS, NotificationReferenceType.OPERATION_PAYMENT,
-                id, "/operaciones/" + payment.getOperacion().getId() + "?scrollToPayments=true", NotificationPriority.MEDIUM);
+        PaymentOperation operation = payment.getOperacion();
+        String actionUrl = "/operaciones/" + operation.getId() + "?scrollToPayments=true";
+        switch (action) {
+            case "COBRAR_BANCO" -> notifyPaymentValidated(payment);
+            case "CONFIRMAR_COBRO_EFECTIVO" -> {
+                notifyPaymentValidated(payment);
+                notificationService.createForRoles(
+                        List.of(RoleName.JEFA_CUENTAS, RoleName.AUXILIAR_CUENTAS, RoleName.ADMIN),
+                        "Cheque cobrado en efectivo",
+                        actorName + " confirmó la recepción de " + payment.getMonto() + " MXN en Caja General para el cheque "
+                                + payment.getNumeroCheque() + " de la operación #" + operation.getId() + ".",
+                        NotificationType.CHEQUE_CASH_COLLECTION_COMPLETED, NotificationModule.PAGOS,
+                        NotificationReferenceType.OPERATION_PAYMENT, id, actionUrl, NotificationPriority.HIGH);
+            }
+            case "ASIGNAR_COBRO_EFECTIVO" -> notificationService.createForRoles(
+                    List.of(RoleName.JEFA_CAJAS, RoleName.ADMIN),
+                    "Nuevo cheque pendiente de cobro en efectivo",
+                    actorName + " envió el cheque " + payment.getNumeroCheque() + " por " + payment.getMonto()
+                            + " MXN de la operación #" + operation.getId() + " para cobro en efectivo.",
+                    NotificationType.CHEQUE_CASH_COLLECTION_ASSIGNED, NotificationModule.PAGOS,
+                    NotificationReferenceType.OPERATION_PAYMENT, id, actionUrl, NotificationPriority.HIGH);
+            case "DEVOLVER_A_CUENTAS" -> notificationService.createForRoles(
+                    List.of(RoleName.JEFA_CUENTAS, RoleName.AUXILIAR_CUENTAS, RoleName.ADMIN),
+                    "Cheque devuelto a Cuentas",
+                    actorName + " informó que no pudo cobrarse en efectivo el cheque " + payment.getNumeroCheque()
+                            + " de la operación #" + operation.getId() + ". Motivo: " + payment.getObservaciones(),
+                    NotificationType.CHEQUE_CASH_COLLECTION_RETURNED, NotificationModule.PAGOS,
+                    NotificationReferenceType.OPERATION_PAYMENT, id, actionUrl, NotificationPriority.HIGH);
+            case "RETIRAR_COBRO_EFECTIVO" -> notificationService.createForRoles(
+                    List.of(RoleName.JEFA_CAJAS, RoleName.ADMIN),
+                    "Solicitud de cobro en efectivo retirada",
+                    actorName + " retiró de Caja el cheque " + payment.getNumeroCheque() + " de la operación #"
+                            + operation.getId() + ". Motivo: " + payment.getObservaciones(),
+                    NotificationType.CHEQUE_CASH_COLLECTION_WITHDRAWN, NotificationModule.PAGOS,
+                    NotificationReferenceType.OPERATION_PAYMENT, id, actionUrl, NotificationPriority.MEDIUM);
+            case "DEVOLVER", "CANCELAR" -> notifyPaymentRejected(payment);
+            case "REGISTRAR", "EDITAR" -> notifyPaymentSubmitted(operation, payment);
+            case "DEPOSITAR" -> {
+                if (operation.getSocioComercial() != null) notificationService.createForUser(
+                        operation.getSocioComercial().getId(), "Cheque depositado",
+                        "El cheque de la operación #" + operation.getId() + " está en compensación; el cobro aún no está confirmado.",
+                        NotificationType.SYSTEM_ALERT, NotificationModule.PAGOS, NotificationReferenceType.OPERATION_PAYMENT,
+                        id, actionUrl, NotificationPriority.MEDIUM);
+            }
+            default -> { }
+        }
     }
 
     private BigDecimal safe(BigDecimal value) {
