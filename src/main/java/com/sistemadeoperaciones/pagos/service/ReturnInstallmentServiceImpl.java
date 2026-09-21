@@ -1,6 +1,7 @@
 package com.sistemadeoperaciones.pagos.service;
 
 import com.sistemadeoperaciones.cajageneral.service.CashGeneralService;
+import com.sistemadeoperaciones.cajageneral.service.CashGeneralAmounts;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
 import com.sistemadeoperaciones.notifications.enums.NotificationModule;
@@ -281,6 +282,10 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         if (isBlank(request.getPersonaQueRecibioEfectivo())) {
             throw new ReturnInstallmentReceiverRequiredException();
         }
+        // Ambos métodos terminan en una entrega física de billetes/monedas.
+        // En EFECTIVO el desglose además alimenta Caja General; en retiro sin
+        // tarjeta se valida como evidencia del importe retirado y entregado.
+        CashGeneralAmounts.requireTotal(request.getDenominaciones(), installment.getMonto());
         // Si coincide con un autorizado se guarda el nombre canónico de la
         // solicitud; si es alguien ajeno a la lista se guarda tal cual y se deja
         // marcado (recibioPersonaAutorizada = false) para auditoría.

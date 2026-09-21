@@ -31,7 +31,7 @@ public class DeliverReturnInstallmentRequestDto {
     @Size(max = 200, message = "El nombre de la persona que recibió no puede exceder 200 caracteres")
     private String personaQueRecibioEfectivo;
 
-    /** Requerido por negocio únicamente para entregas de efectivo físico. */
+    /** Requerido para EFECTIVO y RETIRO_SIN_TARJETA; debe sumar el importe entregado. */
     @JsonDeserialize(contentUsing = CashQuantityDeserializer.class)
     private Map<CashDenomination, @NotNull @Min(0) Integer> denominaciones;
 

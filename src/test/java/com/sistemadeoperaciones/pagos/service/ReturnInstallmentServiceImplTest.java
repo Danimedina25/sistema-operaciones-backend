@@ -3,6 +3,8 @@ package com.sistemadeoperaciones.pagos.service;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
 import com.sistemadeoperaciones.cajageneral.service.CashGeneralService;
+import com.sistemadeoperaciones.cajageneral.enums.CashDenomination;
+import com.sistemadeoperaciones.cajageneral.exceptions.InvalidCashGeneralException;
 import com.sistemadeoperaciones.notifications.enums.NotificationType;
 import com.sistemadeoperaciones.notifications.service.NotificationService;
 import com.sistemadeoperaciones.pagos.dto.retornos.CancelReturnInstallmentRequestDto;
@@ -39,6 +41,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -202,7 +205,15 @@ class ReturnInstallmentServiceImplTest {
         DeliverReturnInstallmentRequestDto dto = new DeliverReturnInstallmentRequestDto();
         dto.setComprobanteEntregaUrl("https://files/evidencia-entrega.jpg");
         dto.setPersonaQueRecibioEfectivo(personaQueRecibioEfectivo);
+        dto.setDenominaciones(countsFor10000());
         return dto;
+    }
+
+    private Map<CashDenomination, Integer> countsFor10000() {
+        Map<CashDenomination, Integer> counts = new EnumMap<>(CashDenomination.class);
+        for (CashDenomination denomination : CashDenomination.values()) counts.put(denomination, 0);
+        counts.put(CashDenomination.D100, 100);
+        return counts;
     }
 
     private User user(long id, String nombre) {
@@ -500,7 +511,8 @@ class ReturnInstallmentServiceImplTest {
         assertThat(dto.getEstatus()).isEqualTo(ReturnInstallmentStatus.COMPLETADA);
         assertThat(dto.getPersonaQueRecibioEfectivo()).isEqualTo(AUTORIZADO_CANONICO);
         assertThat(installmentRepository.sumCompletedBySolicitud(1L)).isEqualByComparingTo("10000");
-        verify(cashGeneralService).recordCashDelivery(any(OperationReturnInstallment.class), eq(null));
+        verify(cashGeneralService).recordCashDelivery(
+                any(OperationReturnInstallment.class), eq(countsFor10000()));
     }
 
     @Test
@@ -512,6 +524,27 @@ class ReturnInstallmentServiceImplTest {
 
         assertThat(dto.getEstatus()).isEqualTo(ReturnInstallmentStatus.COMPLETADA);
         assertThat(dto.getPersonaQueRecibioEfectivo()).isEqualTo(AUTORIZADO_CANONICO);
+        verify(cashGeneralService, never()).recordCashDelivery(any(), any());
+    }
+
+    @Test
+    void withdrawalWithoutCardRequiresExactCashBreakdown() {
+        request(1L, PaymentType.RETIRO_SIN_TARJETA, "25000");
+        Long id = installmentReadyToDeliver(1L, PaymentType.RETIRO_SIN_TARJETA, "10000");
+
+        DeliverReturnInstallmentRequestDto missing = deliver(AUTORIZADO_CANONICO);
+        missing.setDenominaciones(null);
+        assertThatThrownBy(() -> service.deliverInstallment(id, missing))
+                .isInstanceOf(InvalidCashGeneralException.class)
+                .hasMessageContaining("11 denominaciones");
+
+        DeliverReturnInstallmentRequestDto wrongTotal = deliver(AUTORIZADO_CANONICO);
+        wrongTotal.getDenominaciones().put(CashDenomination.D100, 99);
+        assertThatThrownBy(() -> service.deliverInstallment(id, wrongTotal))
+                .isInstanceOf(InvalidCashGeneralException.class)
+                .hasMessageContaining("sumar exactamente");
+
+        assertThat(storedInstallment(id).getFechaEntrega()).isNull();
         verify(cashGeneralService, never()).recordCashDelivery(any(), any());
     }
 
