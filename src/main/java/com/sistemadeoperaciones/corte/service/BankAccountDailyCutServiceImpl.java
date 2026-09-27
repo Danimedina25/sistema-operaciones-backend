@@ -283,6 +283,8 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
         cut.setSalidasRetornos(calculado.getSalidasRetornos());
         cut.setSalidasCajaGeneral(calculado.getSalidasCajaGeneral());
         cut.setSalidasComisiones(calculado.getSalidasComisiones());
+        cut.setEntradasTransferenciaInterna(calculado.getEntradasTransferenciaInterna());
+        cut.setSalidasTransferenciaInterna(calculado.getSalidasTransferenciaInterna());
         cut.setTotalEntradas(calculado.getTotalEntradas());
         cut.setTotalSalidas(calculado.getTotalSalidas());
         cut.setSaldoFinal(calculado.getSaldoFinal());
@@ -338,6 +340,8 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
         dto.setSalidasRetornos(buckets.salidasRetornos());
         dto.setSalidasCajaGeneral(buckets.salidasCajaGeneral());
         dto.setSalidasComisiones(buckets.salidasComisiones());
+        dto.setEntradasTransferenciaInterna(buckets.entradasTransferenciaInterna());
+        dto.setSalidasTransferenciaInterna(buckets.salidasTransferenciaInterna());
         dto.setTotalSalidas(totalSalidas);
         dto.setSaldoFinal(saldoFinal);
 
@@ -365,6 +369,8 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
         dto.setSalidasRetornos(cut.getSalidasRetornos());
         dto.setSalidasCajaGeneral(cut.getSalidasCajaGeneral());
         dto.setSalidasComisiones(cut.getSalidasComisiones());
+        dto.setEntradasTransferenciaInterna(cut.getEntradasTransferenciaInterna());
+        dto.setSalidasTransferenciaInterna(cut.getSalidasTransferenciaInterna());
         dto.setTotalSalidas(cut.getTotalSalidas());
         dto.setSaldoFinal(cut.getSaldoFinal());
 

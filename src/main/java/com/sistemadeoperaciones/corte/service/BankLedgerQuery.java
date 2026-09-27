@@ -34,6 +34,8 @@ import java.util.Map;
  *   <li>{@code operation_return_installments} completadas sobre su cuenta origen (SALIDA).</li>
  *   <li>{@code cash_general_movements} que retiran del banco hacia la caja —cheque
  *       cobrado y retiro sin tarjeta— (SALIDA).</li>
+ *   <li>{@code bank_transfers} entre cuentas propias: SALIDA en la origen y ENTRADA en la
+ *       destino, dos renglones de la misma fila.</li>
  *   <li>{@code commercial_partner_commissions} pagadas, transferidas desde su cuenta
  *       origen (SALIDA).</li>
  * </ol>
@@ -112,6 +114,22 @@ public class BankLedgerQuery {
             WHERE c.status = 'PAGADA'
               AND c.cuenta_origen_id IS NOT NULL
               AND c.paid_at IS NOT NULL
+            UNION ALL
+            SELECT 'TRANSFERENCIA_INTERNA', t.id, t.created_at,
+                   'SALIDA', 'TRANSFERENCIA_INTERNA', t.monto,
+                   t.cuenta_origen_id, NULL,
+                   NULL, NULL,
+                   t.registrado_por, CONCAT('Transferencia a ', td.banco, ' ••••', RIGHT(td.numero_cuenta, 4))
+            FROM bank_transfers t
+            JOIN bank_accounts td ON td.id = t.cuenta_destino_id
+            UNION ALL
+            SELECT 'TRANSFERENCIA_INTERNA', t.id, t.created_at,
+                   'ENTRADA', 'TRANSFERENCIA_INTERNA', t.monto,
+                   t.cuenta_destino_id, NULL,
+                   NULL, NULL,
+                   t.registrado_por, CONCAT('Transferencia de ', tor.banco, ' ••••', RIGHT(tor.numero_cuenta, 4))
+            FROM bank_transfers t
+            JOIN bank_accounts tor ON tor.id = t.cuenta_origen_id
             """;
 
     @PersistenceContext
@@ -141,7 +159,7 @@ public class BankLedgerQuery {
                 JOIN bank_accounts b ON b.id = mov.bank_account_id
                 LEFT JOIN users u ON u.id = mov.usuario_id
                 %s
-                ORDER BY mov.fecha DESC, mov.origen ASC, mov.source_id DESC
+                ORDER BY mov.fecha DESC, mov.origen ASC, mov.source_id DESC, mov.direccion DESC
                 """.formatted(UNION, where);
 
         Query query = em.createNativeQuery(sql);
@@ -193,7 +211,9 @@ public class BankLedgerQuery {
                     COALESCE(SUM(CASE WHEN mov.origen = 'PAGO' AND mov.tipo = 'CHEQUE'        THEN mov.monto ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN mov.origen = 'RETORNO'      THEN mov.monto ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN mov.origen = 'CAJA_GENERAL' THEN mov.monto ELSE 0 END), 0),
-                    COALESCE(SUM(CASE WHEN mov.origen = 'COMISION'      THEN mov.monto ELSE 0 END), 0)
+                    COALESCE(SUM(CASE WHEN mov.origen = 'COMISION'      THEN mov.monto ELSE 0 END), 0),
+                    COALESCE(SUM(CASE WHEN mov.origen = 'TRANSFERENCIA_INTERNA' AND mov.direccion = 'ENTRADA' THEN mov.monto ELSE 0 END), 0),
+                    COALESCE(SUM(CASE WHEN mov.origen = 'TRANSFERENCIA_INTERNA' AND mov.direccion = 'SALIDA'  THEN mov.monto ELSE 0 END), 0)
                 FROM (%s) mov
                 WHERE mov.bank_account_id = :bankAccountId
                   AND mov.fecha >= :inicio
@@ -206,7 +226,7 @@ public class BankLedgerQuery {
         query.setParameter("fin", startOfNextDay(fecha));
         Object[] row = (Object[]) query.getSingleResult();
         return new BankLedgerBuckets(money(row[0]), money(row[1]), money(row[2]),
-                money(row[3]), money(row[4]), money(row[5]));
+                money(row[3]), money(row[4]), money(row[5]), money(row[6]), money(row[7]));
     }
 
     private long countAll(BankLedgerFilter filter) {
@@ -256,8 +276,13 @@ public class BankLedgerQuery {
         String tipo = (String) row[4];
         Long operacionId = id(row[11]);
         String concepto = concepto(origen, tipo, operacionId, (String) row[16]);
+        // Una transferencia interna produce dos renglones de la misma fila: la dirección
+        // mantiene el identificador único.
+        String rowId = origen == BankLedgerOrigin.TRANSFERENCIA_INTERNA
+                ? origen.name() + "-" + sourceId + "-" + direccion.name()
+                : origen.name() + "-" + sourceId;
         return new BankLedgerRowDto(
-                origen.name() + "-" + sourceId,
+                rowId,
                 origen,
                 sourceId,
                 timestamp(row[2]),
@@ -288,6 +313,7 @@ public class BankLedgerQuery {
             case RETORNO -> "Retorno " + legible + " · Operación #" + operacionId;
             case CAJA_GENERAL -> "Retiro de banco hacia Caja General";
             case COMISION -> "Comisión a socio comercial · Operación #" + operacionId;
+            case TRANSFERENCIA_INTERNA -> "Transferencia entre cuentas propias";
         };
     }
 

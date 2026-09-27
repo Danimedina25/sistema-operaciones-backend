@@ -91,6 +91,24 @@ public class BankAccountDailyCut {
     )
     private BigDecimal salidasComisiones = BigDecimal.ZERO;
 
+    /** Transferencias recibidas de otra cuenta propia. */
+    @Column(
+            name = "entradas_transferencia_interna",
+            nullable = false,
+            precision = 15,
+            scale = 2
+    )
+    private BigDecimal entradasTransferenciaInterna = BigDecimal.ZERO;
+
+    /** Transferencias enviadas a otra cuenta propia. */
+    @Column(
+            name = "salidas_transferencia_interna",
+            nullable = false,
+            precision = 15,
+            scale = 2
+    )
+    private BigDecimal salidasTransferenciaInterna = BigDecimal.ZERO;
+
     @Column(
             name = "total_entradas",
             nullable = false,
@@ -250,5 +268,21 @@ public class BankAccountDailyCut {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public BigDecimal getEntradasTransferenciaInterna() {
+        return entradasTransferenciaInterna;
+    }
+
+    public void setEntradasTransferenciaInterna(BigDecimal entradasTransferenciaInterna) {
+        this.entradasTransferenciaInterna = entradasTransferenciaInterna;
+    }
+
+    public BigDecimal getSalidasTransferenciaInterna() {
+        return salidasTransferenciaInterna;
+    }
+
+    public void setSalidasTransferenciaInterna(BigDecimal salidasTransferenciaInterna) {
+        this.salidasTransferenciaInterna = salidasTransferenciaInterna;
     }
 }

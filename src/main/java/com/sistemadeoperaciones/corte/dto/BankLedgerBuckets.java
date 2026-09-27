@@ -15,13 +15,17 @@ public record BankLedgerBuckets(
         /** Efectivo retirado del banco hacia la caja: cheque cobrado y retiro sin tarjeta. */
         BigDecimal salidasCajaGeneral,
         /** Comisiones a socios comerciales transferidas desde la cuenta. */
-        BigDecimal salidasComisiones
+        BigDecimal salidasComisiones,
+        /** Transferencias recibidas de otra cuenta propia. */
+        BigDecimal entradasTransferenciaInterna,
+        /** Transferencias enviadas a otra cuenta propia. */
+        BigDecimal salidasTransferenciaInterna
 ) {
     public BigDecimal totalEntradas() {
-        return entradasTransferencia.add(entradasDeposito).add(entradasCheque);
+        return entradasTransferencia.add(entradasDeposito).add(entradasCheque).add(entradasTransferenciaInterna);
     }
 
     public BigDecimal totalSalidas() {
-        return salidasRetornos.add(salidasCajaGeneral).add(salidasComisiones);
+        return salidasRetornos.add(salidasCajaGeneral).add(salidasComisiones).add(salidasTransferenciaInterna);
     }
 }

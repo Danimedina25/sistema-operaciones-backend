@@ -9,5 +9,10 @@ public enum BankLedgerOrigin {
     /** Cheque cobrado o retiro sin tarjeta registrado como entrada en Caja General. */
     CAJA_GENERAL,
     /** Comisión a socio comercial transferida desde la cuenta. */
-    COMISION
+    COMISION,
+    /**
+     * Transferencia entre dos cuentas propias. Produce dos renglones —salida en la origen y
+     * entrada en la destino— a partir de una sola fila de {@code bank_transfers}.
+     */
+    TRANSFERENCIA_INTERNA
 }

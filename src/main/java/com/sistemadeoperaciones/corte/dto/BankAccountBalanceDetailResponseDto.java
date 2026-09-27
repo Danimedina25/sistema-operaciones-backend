@@ -31,6 +31,10 @@ public class BankAccountBalanceDetailResponseDto {
 
     private BigDecimal salidasComisiones;
 
+    private BigDecimal entradasTransferenciaInterna;
+
+    private BigDecimal salidasTransferenciaInterna;
+
     private BigDecimal totalEntradas;
 
     private BigDecimal totalSalidas;
@@ -166,5 +170,21 @@ public class BankAccountBalanceDetailResponseDto {
 
     public void setSaldoFinal(BigDecimal saldoFinal) {
         this.saldoFinal = saldoFinal;
+    }
+
+    public BigDecimal getEntradasTransferenciaInterna() {
+        return entradasTransferenciaInterna;
+    }
+
+    public void setEntradasTransferenciaInterna(BigDecimal entradasTransferenciaInterna) {
+        this.entradasTransferenciaInterna = entradasTransferenciaInterna;
+    }
+
+    public BigDecimal getSalidasTransferenciaInterna() {
+        return salidasTransferenciaInterna;
+    }
+
+    public void setSalidasTransferenciaInterna(BigDecimal salidasTransferenciaInterna) {
+        this.salidasTransferenciaInterna = salidasTransferenciaInterna;
     }
 }
