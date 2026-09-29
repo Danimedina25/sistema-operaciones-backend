@@ -17,7 +17,7 @@ public interface CashGeneralMovementRepository extends JpaRepository<CashGeneral
 
     /**
      * Efectivo retirado del banco hacia la caja en todo el sistema, sin importar la cuenta:
-     * cheques cobrados y retiros sin tarjeta. Lo consume el corte bancario global, al que
+     * cheques cobrados y retiros con o sin tarjeta. Lo consume el corte bancario global, al que
      * sólo le interesa que el dinero salió de algún banco. Incluye los movimientos históricos
      * que sólo guardan el nombre del banco como texto: también sacaron dinero de una cuenta,
      * aunque no se pueda saber de cuál.
@@ -26,7 +26,8 @@ public interface CashGeneralMovementRepository extends JpaRepository<CashGeneral
         select coalesce(sum(m.montoManual), 0)
         from CashGeneralMovement m
         where m.tipo in (com.sistemadeoperaciones.cajageneral.enums.CashMovementConcept.CHEQUE,
-                         com.sistemadeoperaciones.cajageneral.enums.CashMovementConcept.RETIRO_SIN_TARJETA)
+                         com.sistemadeoperaciones.cajageneral.enums.CashMovementConcept.RETIRO_SIN_TARJETA,
+                         com.sistemadeoperaciones.cajageneral.enums.CashMovementConcept.RETIRO_CON_TARJETA)
           and m.direccion = com.sistemadeoperaciones.cajageneral.enums.CashMovementDirection.ENTRADA
           and m.createdAt between :inicio and :fin
         """)

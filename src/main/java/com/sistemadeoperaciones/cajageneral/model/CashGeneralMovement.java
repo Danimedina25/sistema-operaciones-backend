@@ -42,6 +42,15 @@ public class CashGeneralMovement {
     @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "bank_account_id")
     private BankAccount cuentaBancaria;
 
+    // Foto del "Retiro N de M" al confirmar un retiro de banco: el banco agrupado ("SCOTIABANK"
+    // para "SCOTIA NOMINA") y cuántas cuentas activas tenía. Un día pasado se sigue leyendo igual
+    // aunque después se creen o desactiven cuentas.
+    @Column(name = "grupo_banco", length = 60)
+    private String grupoBanco;
+
+    @Column(name = "total_cuentas_banco")
+    private Integer totalCuentasBanco;
+
     @Column(precision = 15, scale = 2)
     private BigDecimal montoManual;
 
@@ -90,6 +99,10 @@ public class CashGeneralMovement {
     public void setBanco(String value) { this.banco = value; }
     public BankAccount getCuentaBancaria() { return cuentaBancaria; }
     public void setCuentaBancaria(BankAccount value) { this.cuentaBancaria = value; }
+    public String getGrupoBanco() { return grupoBanco; }
+    public void setGrupoBanco(String value) { this.grupoBanco = value; }
+    public Integer getTotalCuentasBanco() { return totalCuentasBanco; }
+    public void setTotalCuentasBanco(Integer value) { this.totalCuentasBanco = value; }
     public BigDecimal getMontoManual() { return montoManual; }
     public void setMontoManual(BigDecimal value) { this.montoManual = value; }
     public OperationPayment getPago() { return pago; }

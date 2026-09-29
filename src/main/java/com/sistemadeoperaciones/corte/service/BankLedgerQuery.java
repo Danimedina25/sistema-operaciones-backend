@@ -33,7 +33,7 @@ import java.util.Map;
  *   <li>{@code operation_payments} validados sobre su cuenta destino (ENTRADA).</li>
  *   <li>{@code operation_return_installments} completadas sobre su cuenta origen (SALIDA).</li>
  *   <li>{@code cash_general_movements} que retiran del banco hacia la caja —cheque
- *       cobrado y retiro sin tarjeta— (SALIDA).</li>
+ *       cobrado y retiro con o sin tarjeta— (SALIDA).</li>
  *   <li>{@code bank_transfers} entre cuentas propias: SALIDA en la origen y ENTRADA en la
  *       destino, dos renglones de la misma fila.</li>
  *   <li>{@code commercial_partner_commissions} pagadas, transferidas desde su cuenta
@@ -101,7 +101,7 @@ public class BankLedgerQuery {
                    NULL, m.id,
                    m.creado_por, m.concepto
             FROM cash_general_movements m
-            WHERE m.tipo IN ('CHEQUE', 'RETIRO_SIN_TARJETA')
+            WHERE m.tipo IN ('CHEQUE', 'RETIRO_SIN_TARJETA', 'RETIRO_CON_TARJETA')
               AND m.bank_account_id IS NOT NULL
               AND m.monto_manual IS NOT NULL
             UNION ALL

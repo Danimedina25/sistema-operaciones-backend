@@ -6,5 +6,6 @@ public enum NotificationReferenceType {
     COMMISSION,
     RETURN_PAYMENT,
     RETURN_INSTALLMENT,
+    BANK_CASH_WITHDRAWAL,
     NONE
 }

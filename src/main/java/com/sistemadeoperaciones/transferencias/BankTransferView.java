@@ -5,8 +5,7 @@ import java.time.LocalDateTime;
 
 /**
  * Una transferencia entre cuentas propias. {@code saldoOrigenResultante} sólo se llena al
- * registrarla: sirve para avisar si la cuenta origen quedó en negativo, sin bloquearla,
- * porque el saldo derivado puede no incluir movimientos históricos sin cuenta vinculada.
+ * registrarla: el saldo con el que quedó la cuenta origen.
  */
 public record BankTransferView(
         Long id,

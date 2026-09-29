@@ -8,6 +8,7 @@ import com.sistemadeoperaciones.corte.model.BankAccountDailyCut;
 import com.sistemadeoperaciones.corte.repository.BankAccountDailyCutRepository;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
+import com.sistemadeoperaciones.cuentasbancarias.service.BankNames;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -148,10 +149,18 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
         List<BankAccountBalanceResponseDto> cuentas =
                 calculateBalances(fechaConsulta);
 
+        // "SCOTIABANK PFAE" y "SCOTIA NOMINA" son el mismo banco: se agrupa con la misma regla
+        // que Caja General usa para el "Retiro N de M".
+        BankNames catalog = BankNames.of(
+                bankAccountRepository.findAll().stream().map(BankAccount::getBanco).toList()
+        );
+
         return cuentas.stream()
                 .collect(
                         Collectors.groupingBy(
-                                BankAccountBalanceResponseDto::getBanco
+                                cuenta -> catalog.display(cuenta.getBanco()),
+                                java.util.LinkedHashMap::new,
+                                Collectors.toList()
                         )
                 )
                 .entrySet()

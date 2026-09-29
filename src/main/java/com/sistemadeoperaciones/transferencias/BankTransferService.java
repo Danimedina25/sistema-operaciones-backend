@@ -2,9 +2,9 @@ package com.sistemadeoperaciones.transferencias;
 
 import com.sistemadeoperaciones.cajageneral.repository.CashGeneralRegisterRepository;
 import com.sistemadeoperaciones.corte.repository.BankAccountDailyCutRepository;
-import com.sistemadeoperaciones.corte.service.BankAccountDailyCutService;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
+import com.sistemadeoperaciones.retiroscaja.BankAvailability;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.shared.exception.BadRequestException;
 import com.sistemadeoperaciones.shared.exception.ConflictException;
@@ -13,8 +13,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
+import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 @Service
@@ -26,7 +28,7 @@ public class BankTransferService {
     private final BankTransferRepository transfers;
     private final BankAccountRepository accounts;
     private final BankAccountDailyCutRepository bankCuts;
-    private final BankAccountDailyCutService balances;
+    private final BankAvailability availability;
     // Mismo candado global que el registro de cortes y los cheques: una transferencia no
     // puede colarse entre el cálculo y el guardado de un corte bancario.
     private final CashGeneralRegisterRepository periodLock;
@@ -67,6 +69,15 @@ public class BankTransferService {
                 throw new ConflictException("La cuenta " + label(account) + " ya tiene registrado el corte de hoy");
         }
 
+        // Como en un banco: no se transfiere más de lo disponible, y el efectivo que ya se retiró
+        // hacia Caja General y sigue en tránsito tampoco está disponible.
+        BigDecimal disponible = availability.available(origen.getId());
+        if (disponible.compareTo(amount) < 0) {
+            NumberFormat mxn = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-MX"));
+            throw new BadRequestException("Saldo insuficiente en la cuenta origen: disponible "
+                    + mxn.format(disponible.max(BigDecimal.ZERO)));
+        }
+
         BankTransfer transfer = new BankTransfer();
         transfer.setRequestId(request.requestId().toString());
         transfer.setCuentaOrigen(origen);
@@ -77,8 +88,7 @@ public class BankTransferService {
         transfer.setRegistradoPor(auth.getCurrentUser());
         BankTransfer saved = transfers.saveAndFlush(transfer);
 
-        BigDecimal saldoOrigen = balances.calculateBalance(origen.getId(), hoy).getSaldoFinal();
-        return view(saved, saldoOrigen);
+        return view(saved, availability.balance(origen.getId()));
     }
 
     public List<BankTransferView> list(LocalDate desde, LocalDate hasta) {

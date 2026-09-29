@@ -161,23 +161,21 @@ class CashGeneralConcurrencyTest {
      * Caja General y salida de la cuenta bancaria. Dos reintentos simultáneos con el mismo
      * requestId no pueden duplicar ninguna de las dos.
      */
-    @Test void concurrentChequeRetriesPostOneCashEntryAndOneBankExit() throws Exception {
-        Long accountId = new TransactionTemplate(manager).execute(status -> {
-            BankAccount account = new BankAccount();
-            account.setBanco("BBVA"); account.setTitular("Operaciones SA");
-            account.setNumeroCuenta(UUID.randomUUID().toString().substring(0, 18));
-            account.setClabe(UUID.randomUUID().toString().replaceAll("[^0-9]", "0").substring(0, 18));
-            account.setActivo(true);
-            em.persist(account); return account.getId();
+    @Test void concurrentWithdrawalConfirmationsPostOneCashEntryAndOneBankExit() throws Exception {
+        BankAccount account = new TransactionTemplate(manager).execute(status -> {
+            BankAccount a = new BankAccount();
+            a.setBanco("BBVA"); a.setTitular("Operaciones SA");
+            a.setNumeroCuenta(UUID.randomUUID().toString().substring(0, 18));
+            a.setClabe(UUID.randomUUID().toString().replaceAll("[^0-9]", "0").substring(0, 18));
+            a.setActivo(true);
+            em.persist(a); return a;
         });
+        Long accountId = account.getId();
         var day = service.open(opening());
 
-        UUID requestId = UUID.randomUUID();
-        CreateCashMovementRequest cheque = new CreateCashMovementRequest(requestId, CashMovementDirection.ENTRADA,
-                CashMovementConcept.CHEQUE, "Cheque cobrado", null, accountId,
-                new BigDecimal("100"), null, CashGeneralServiceTest.counts(1, 0), null);
-
-        int applied = parallel(() -> service.createMovement(day.id(), cheque));
+        // Dos confirmaciones del mismo retiro (doble clic o reintento HTTP) al mismo tiempo.
+        int applied = parallel(() -> service.recordBankWithdrawal(77L, account, CashMovementConcept.CHEQUE,
+                new BigDecimal("100"), "Cheque cobrado", null, CashGeneralServiceTest.counts(1, 0), day.id(), "BBVA", 1));
 
         assertThat(applied).isEqualTo(2);              // ambos hilos responden 200
         assertThat(movements.count()).isEqualTo(1);    // pero sólo existe un movimiento

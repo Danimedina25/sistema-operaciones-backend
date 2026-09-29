@@ -8,6 +8,9 @@ import com.sistemadeoperaciones.corte.service.BankAccountDailyCutService;
 import com.sistemadeoperaciones.corte.service.BankAccountDailyCutServiceImpl;
 import com.sistemadeoperaciones.corte.service.BankLedgerQuery;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
+import com.sistemadeoperaciones.retiroscaja.BankAvailability;
+import com.sistemadeoperaciones.retiroscaja.BankCashWithdrawal;
+import com.sistemadeoperaciones.retiroscaja.WithdrawalMethod;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.shared.exception.BadRequestException;
 import com.sistemadeoperaciones.shared.exception.ConflictException;
@@ -31,12 +34,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 /**
- * Transferencias entre cuentas propias: mueven los dos saldos desde una sola fila, son
- * idempotentes y nunca modifican un corte bancario ya registrado.
+ * Transferencias entre cuentas propias: mueven los dos saldos desde una sola fila, nunca dejan
+ * la cuenta origen en negativo, son idempotentes y nunca modifican un corte ya registrado.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({BankTransferService.class, BankAccountDailyCutServiceImpl.class, BankLedgerQuery.class})
+@Import({BankTransferService.class, BankAccountDailyCutServiceImpl.class, BankLedgerQuery.class, BankAvailability.class})
 class BankTransferServiceTest {
 
     @Autowired TestEntityManager em;
@@ -60,6 +63,18 @@ class BankTransferServiceTest {
         when(auth.getCurrentUser()).thenReturn(user);
         origen = account("BBVA", true);
         destino = account("Banorte", true);
+        fund(origen, "1000");
+    }
+
+    /** Saldo de cierre de ayer: el saldo inicial de hoy. */
+    void fund(BankAccount account, String saldo) {
+        BankAccountDailyCut cut = new BankAccountDailyCut();
+        cut.setBankAccount(account);
+        cut.setFecha(HOY.minusDays(1));
+        cut.setSaldoInicial(new BigDecimal(saldo));
+        cut.setSaldoFinal(new BigDecimal(saldo));
+        em.persist(cut);
+        em.flush();
     }
 
     BankAccount account(String banco, boolean activa) {
@@ -83,7 +98,7 @@ class BankTransferServiceTest {
         BankTransferView view = service.create(request(UUID.randomUUID(), origen, destino, "300"));
 
         assertThat(view.monto()).isEqualByComparingTo("300");
-        assertThat(balances.calculateBalance(origen.getId(), HOY).getSaldoFinal()).isEqualByComparingTo("-300");
+        assertThat(balances.calculateBalance(origen.getId(), HOY).getSaldoFinal()).isEqualByComparingTo("700");
         assertThat(balances.calculateBalance(destino.getId(), HOY).getSaldoFinal()).isEqualByComparingTo("300");
 
         var origenHoy = balances.calculateBalance(origen.getId(), HOY);
@@ -112,9 +127,36 @@ class BankTransferServiceTest {
     }
 
     @Test
-    void warnsButDoesNotBlockANegativeResultingBalance() {
-        BankTransferView view = service.create(request(UUID.randomUUID(), origen, destino, "500"));
-        assertThat(view.saldoOrigenResultante()).isEqualByComparingTo("-500");
+    void reportsTheResultingOriginBalance() {
+        BankTransferView view = service.create(request(UUID.randomUUID(), origen, destino, "1000"));
+        assertThat(view.saldoOrigenResultante()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void neverLeavesTheOriginAccountNegative() {
+        assertThatThrownBy(() -> service.create(request(UUID.randomUUID(), origen, destino, "1000.01")))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("Saldo insuficiente");
+        // Una cuenta sin saldo tampoco puede transferir.
+        assertThatThrownBy(() -> service.create(request(UUID.randomUUID(), destino, origen, "1")))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("Saldo insuficiente");
+        assertThat(service.list(HOY, HOY)).isEmpty();
+    }
+
+    @Test
+    void cashInTransitToCajaGeneralIsNotAvailable() {
+        BankCashWithdrawal pending = new BankCashWithdrawal();
+        pending.setRequestId(UUID.randomUUID().toString());
+        pending.setCuentaBancaria(origen);
+        pending.setBancoSnapshot(origen.getBanco());
+        pending.setForma(WithdrawalMethod.RETIRO_SIN_TARJETA);
+        pending.setMonto(new BigDecimal("800"));
+        pending.setRegistradoPor(user);
+        em.persist(pending);
+        em.flush();
+
+        assertThatThrownBy(() -> service.create(request(UUID.randomUUID(), origen, destino, "300")))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("disponible $200.00");
+        assertThat(service.create(request(UUID.randomUUID(), origen, destino, "200")).monto()).isEqualByComparingTo("200");
     }
 
     @Test
