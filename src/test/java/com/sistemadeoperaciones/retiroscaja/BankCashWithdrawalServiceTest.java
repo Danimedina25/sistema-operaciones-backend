@@ -243,6 +243,13 @@ class BankCashWithdrawalServiceTest {
                 .isInstanceOf(BadRequestException.class);
         assertThatThrownBy(() -> register(bbva, WithdrawalMethod.RETIRO_SIN_TARJETA, "10.001"))
                 .isInstanceOf(BadRequestException.class);
+        // La moneda más chica es de 50 centavos: el retiro tiene que poder contarse en efectivo.
+        assertThatThrownBy(() -> register(bbva, WithdrawalMethod.RETIRO_SIN_TARJETA, "100.25"))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("múltiplos de 50");
+        assertThatThrownBy(() -> register(bbva, WithdrawalMethod.RETIRO_SIN_TARJETA, "100.01"))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("múltiplos de 50");
+        assertThat(register(bbva, WithdrawalMethod.RETIRO_SIN_TARJETA, "100.50").monto()).isEqualByComparingTo("100.50");
+        assertThat(register(bbva, WithdrawalMethod.RETIRO_SIN_TARJETA, "100.5").monto()).isEqualByComparingTo("100.50");
         assertThatThrownBy(() -> service.register(new RegisterWithdrawalRequest(UUID.randomUUID(), bbva.getId(), null,
                 BigDecimal.TEN, null, null))).isInstanceOf(BadRequestException.class);
         BankAccount inactive = account("HSBC", "1000");

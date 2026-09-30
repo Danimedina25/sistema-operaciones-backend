@@ -39,6 +39,7 @@ import java.util.Objects;
 @Transactional(readOnly = true)
 public class BankCashWithdrawalService {
     private static final BigDecimal MAX_AMOUNT = new BigDecimal("9999999999999.99");
+    private static final BigDecimal FIFTY_CENTS = new BigDecimal("50");
 
     private final BankCashWithdrawalRepository withdrawals;
     private final BankAccountRepository accounts;
@@ -217,6 +218,10 @@ public class BankCashWithdrawalService {
         if (value == null || value.signum() <= 0) throw new BadRequestException("Captura un monto mayor a cero");
         if (value.stripTrailingZeros().scale() > 2) throw new BadRequestException("El monto admite máximo dos decimales");
         if (value.compareTo(MAX_AMOUNT) > 0) throw new BadRequestException("El monto excede el máximo permitido");
+        // Es efectivo: Cajas lo confirma contando billetes y monedas, y la moneda más chica es de
+        // 50 centavos. Otro importe nunca podría cuadrar con el desglose.
+        if (value.movePointRight(2).remainder(FIFTY_CENTS).signum() != 0)
+            throw new BadRequestException("El efectivo sólo admite centavos en múltiplos de 50: .00 o .50");
         return value.setScale(2);
     }
 
