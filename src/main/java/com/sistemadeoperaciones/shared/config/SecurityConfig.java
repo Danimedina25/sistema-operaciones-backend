@@ -2,6 +2,9 @@ package com.sistemadeoperaciones.shared.config;
 
 import com.sistemadeoperaciones.shared.enums.RoleName;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -22,6 +25,7 @@ import com.sistemadeoperaciones.auth.service.CustomUserDetailsService;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
@@ -30,9 +34,14 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final Environment environment;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+    @Value("${app.frontend.local-origin:}")
+    private String localOrigin;
+
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter, Environment environment) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.environment = environment;
     }
 
     @Bean
@@ -100,12 +109,15 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        //configuration.setAllowedOrigins(List.of("http://localhost:5173")); // Tu frontend
-        configuration.setAllowedOrigins(List.of(
+        List<String> allowedOrigins = new ArrayList<>(List.of(
                 "http://localhost:5173",
                 "https://se-estatus.com",
                 "https://www.se-estatus.com"
         ));
+        if (environment.acceptsProfiles(Profiles.of("local")) && !localOrigin.isBlank()) {
+            allowedOrigins.add(localOrigin);
+        }
+        configuration.setAllowedOrigins(allowedOrigins);
         configuration.setAllowCredentials(true);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));

@@ -1,5 +1,8 @@
 package com.sistemadeoperaciones.shared.config;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
@@ -9,24 +12,36 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final JwtChannelInterceptor jwtChannelInterceptor;
+    private final Environment environment;
 
-    public WebSocketConfig(JwtChannelInterceptor jwtChannelInterceptor) {
+    @Value("${app.frontend.local-origin:}")
+    private String localOrigin;
+
+    public WebSocketConfig(JwtChannelInterceptor jwtChannelInterceptor, Environment environment) {
         this.jwtChannelInterceptor = jwtChannelInterceptor;
+        this.environment = environment;
     }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        List<String> allowedOrigins = new ArrayList<>(List.of(
+                "http://localhost:5173",
+                "https://se-estatus.com",
+                "https://www.se-estatus.com"
+        ));
+        if (environment.acceptsProfiles(Profiles.of("local")) && !localOrigin.isBlank()) {
+            allowedOrigins.add(localOrigin);
+        }
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns(
-                        "http://localhost:5173",
-                        "https://se-estatus.com",
-                        "https://www.se-estatus.com"
-                );
+                .setAllowedOriginPatterns(allowedOrigins.toArray(String[]::new));
     }
 
     @Override
