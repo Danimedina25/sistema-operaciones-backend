@@ -16,7 +16,7 @@ docker compose --env-file .env.local -f docker-compose.local.yml ps
 set -a
 source .env.local
 set +a
-SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
+SPRING_PROFILES_ACTIVE=local mvn spring-boot:run -Dspring-boot.run.jvmArguments=-Duser.timezone=America/Mexico_City
 ```
 
 El backend usa MySQL en `127.0.0.1:3306`, base `db_sistema_operaciones`. Si el puerto 3306 ya está ocupado, detén el otro servicio antes de iniciar este contenedor. Las pruebas usan H2 en memoria y se ejecutan con `mvn test`.
