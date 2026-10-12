@@ -44,6 +44,7 @@ public class PaymentOperationResponseDto {
     private BigDecimal montoRetornado;
     private BigDecimal saldoPendienteRetornar;
     private BigDecimal montoSolicitadoRetorno;
+    private BigDecimal saldoPendientePorSolicitar;
     private long numeroRetornosSolicitados;
     private String observaciones;
     private List<OperationPaymentResponseDto> pagos;
@@ -380,6 +381,14 @@ public class PaymentOperationResponseDto {
 
     public void setMontoSolicitadoRetorno(BigDecimal montoSolicitadoRetorno) {
         this.montoSolicitadoRetorno = montoSolicitadoRetorno;
+    }
+
+    public BigDecimal getSaldoPendientePorSolicitar() {
+        return saldoPendientePorSolicitar;
+    }
+
+    public void setSaldoPendientePorSolicitar(BigDecimal saldoPendientePorSolicitar) {
+        this.saldoPendientePorSolicitar = saldoPendientePorSolicitar;
     }
 
     public long getNumeroRetornosSolicitados() {

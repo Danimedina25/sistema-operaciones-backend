@@ -1342,6 +1342,21 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 .map(this::mapToOperationResponse);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PaymentOperationResponseDto> searchStalledOperations(String search, int thresholdHours, Pageable pageable) {
+        LocalDateTime threshold = LocalDateTime.now().minusHours(thresholdHours);
+
+        Specification<PaymentOperation> specification = Specification
+                .where(PaymentOperationSpecification.matchesActivoFilter("ACTIVE"))
+                .and(PaymentOperationSpecification.hasStatusNotIn(FINAL_OPERATION_STATUSES))
+                .and(PaymentOperationSpecification.updatedAtBefore(threshold))
+                .and(PaymentOperationSpecification.clienteONombreSocioOIdContains(search));
+
+        return paymentOperationRepository.findAll(specification, pageable)
+                .map(this::mapToOperationResponse);
+    }
+
     private LocalDate resolveStartDate(PaymentOperationFilterDto filter) {
         if (filter.getDateFilter() != null) {
             LocalDate today = LocalDate.now();
@@ -1806,6 +1821,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 .setScale(2, RoundingMode.HALF_UP);
 
         dto.setMontoSolicitadoRetorno(montoSolicitadoRetorno);
+        dto.setSaldoPendientePorSolicitar(montoTotalDevolverCliente
+                .subtract(montoSolicitadoRetorno).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP));
         dto.setMontoRetornado(montoRetornado);
         dto.setSaldoPendienteRetornar(saldoPendienteRetornar);
 

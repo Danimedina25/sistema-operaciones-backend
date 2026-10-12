@@ -834,6 +834,8 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         long numeroRetornosSolicitados =
                 operationReturnPaymentRepository.countByOperacionId(operation.getId());
         dto.setMontoSolicitadoRetorno(montoSolicitadoRetorno);
+        dto.setSaldoPendientePorSolicitar(montoTotalDevolverCliente
+                .subtract(montoSolicitadoRetorno).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP));
         dto.setNumeroRetornosSolicitados(numeroRetornosSolicitados);
         dto.setMontoRetornado(montoRetornado);
         dto.setSaldoPendienteRetornar(saldoPendienteRetornar);

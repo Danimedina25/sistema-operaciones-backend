@@ -70,4 +70,7 @@ public interface PaymentOperationService {
      * horas — ordenadas por `updatedAt` ascendente (las más antiguas primero).
      */
     Page<PaymentOperationResponseDto> findStalledOperations(int thresholdHours, Pageable pageable);
+
+    /** Búsqueda global entre las operaciones detenidas, antes de paginar. */
+    Page<PaymentOperationResponseDto> searchStalledOperations(String search, int thresholdHours, Pageable pageable);
 }
