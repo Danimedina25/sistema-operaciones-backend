@@ -31,6 +31,13 @@ public class BankLedgerService {
 
     public Page<BankLedgerRowDto> search(BankLedgerFilter filter, int page, int size) {
         BankLedgerFilter validated = validate(filter);
+        if (page < 0) throw new BadRequestException("Página inválida");
+        if (size < 1 || size > MAX_PAGE_SIZE) throw new BadRequestException("El tamaño de página debe estar entre 1 y " + MAX_PAGE_SIZE);
+        return ledger.search(validated, PageRequest.of(page, size));
+    }
+
+    public Page<BankLedgerRowDto> searchText(BankLedgerFilter filter, String search, int page, int size) {
+        BankLedgerFilter validated = validate(filter);
         if (page < 0) {
             throw new BadRequestException("Página inválida");
         }
@@ -38,11 +45,15 @@ public class BankLedgerService {
             throw new BadRequestException("El tamaño de página debe estar entre 1 y " + MAX_PAGE_SIZE);
         }
         Pageable pageable = PageRequest.of(page, size);
-        return ledger.search(validated, pageable);
+        return ledger.search(validated, search, pageable);
     }
 
     public BankLedgerTotalsDto totals(BankLedgerFilter filter) {
         return ledger.totals(validate(filter));
+    }
+
+    public BankLedgerTotalsDto totalsText(BankLedgerFilter filter, String search) {
+        return ledger.totals(validate(filter), search);
     }
 
     /** Mismo criterio que el libro de Caja General: rango ordenado, no futuro y de máximo un año. */

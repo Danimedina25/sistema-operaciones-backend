@@ -225,6 +225,20 @@ class BankLedgerQueryTest {
     }
 
     @Test
+    void textSearchFiltersBeforePaginationAndTotals() {
+        payment(PaymentType.TRANSFERENCIA, "1000", PaymentStatus.VALIDADA, cuenta, HOY.atTime(9, 0));
+        payment(PaymentType.DEPOSITO, "200", PaymentStatus.VALIDADA, otraCuenta, HOY.atTime(10, 0));
+        em.flush();
+
+        var result = ledger.search(todo(), "BBVA", PageRequest.of(0, 1));
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).cuentaBanco()).isEqualTo("BBVA");
+        assertThat(ledger.totals(todo(), "BBVA").totalEntradas()).isEqualByComparingTo("1000");
+        assertThat(ledger.search(todo(), "depOsito", PageRequest.of(0, 20)).getTotalElements()).isEqualTo(1);
+    }
+
+    @Test
     void reproducesTheAgreedAccountingMatrix() {
         // Entradas bancarias: pago validado por transferencia y por depósito.
         payment(PaymentType.TRANSFERENCIA, "1000", PaymentStatus.VALIDADA, cuenta, HOY.atTime(9, 0));

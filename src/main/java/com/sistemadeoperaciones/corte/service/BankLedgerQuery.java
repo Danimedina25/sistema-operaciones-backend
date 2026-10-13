@@ -147,8 +147,13 @@ public class BankLedgerQuery {
 
     /** Página cronológica de movimientos, del más reciente al más antiguo. */
     public Page<BankLedgerRowDto> search(BankLedgerFilter filter, Pageable pageable) {
+        return search(filter, "", pageable);
+    }
+
+    /** Búsqueda sobre el libro completo antes de paginar. */
+    public Page<BankLedgerRowDto> search(BankLedgerFilter filter, String search, Pageable pageable) {
         Map<String, Object> params = new LinkedHashMap<>();
-        String where = buildWhere(filter, params);
+        String where = buildWhere(filter, params, search);
 
         String sql = """
                 SELECT mov.origen, mov.source_id, mov.fecha, mov.direccion, mov.tipo, mov.monto,
@@ -173,13 +178,17 @@ public class BankLedgerQuery {
         for (Object[] row : rows) {
             content.add(mapRow(row));
         }
-        return new PageImpl<>(content, pageable, countAll(filter));
+        return new PageImpl<>(content, pageable, countAll(filter, search));
     }
 
     /** Totales sobre todo el filtro, no sobre la página. */
     public BankLedgerTotalsDto totals(BankLedgerFilter filter) {
+        return totals(filter, "");
+    }
+
+    public BankLedgerTotalsDto totals(BankLedgerFilter filter, String search) {
         Map<String, Object> params = new LinkedHashMap<>();
-        String where = buildWhere(filter, params);
+        String where = buildWhere(filter, params, search);
 
         String sql = """
                 SELECT
@@ -230,8 +239,12 @@ public class BankLedgerQuery {
     }
 
     private long countAll(BankLedgerFilter filter) {
+        return countAll(filter, "");
+    }
+
+    private long countAll(BankLedgerFilter filter, String search) {
         Map<String, Object> params = new LinkedHashMap<>();
-        String where = buildWhere(filter, params);
+        String where = buildWhere(filter, params, search);
         String sql = """
                 SELECT COUNT(*)
                 FROM (%s) mov
@@ -244,6 +257,10 @@ public class BankLedgerQuery {
     }
 
     private String buildWhere(BankLedgerFilter filter, Map<String, Object> params) {
+        return buildWhere(filter, params, "");
+    }
+
+    private String buildWhere(BankLedgerFilter filter, Map<String, Object> params, String search) {
         List<String> clauses = new ArrayList<>();
         clauses.add("mov.fecha >= :inicio");
         params.put("inicio", startOfDay(filter.desde()));
@@ -265,6 +282,13 @@ public class BankLedgerQuery {
         if (filter.tipo() != null && !filter.tipo().isBlank()) {
             clauses.add("mov.tipo = :tipo");
             params.put("tipo", filter.tipo().trim());
+        }
+        if (search != null && !search.isBlank()) {
+            clauses.add("(LOWER(COALESCE(mov.concepto, '')) LIKE :search OR LOWER(b.titular) LIKE :search " +
+                    "OR LOWER(b.banco) LIKE :search OR LOWER(mov.origen) LIKE :search " +
+                    "OR LOWER(mov.tipo) LIKE :search OR CAST(mov.operacion_id AS CHAR) LIKE :search " +
+                    "OR CAST(mov.source_id AS CHAR) LIKE :search)");
+            params.put("search", "%" + search.trim().toLowerCase(java.util.Locale.ROOT) + "%");
         }
         return "WHERE " + String.join("\n  AND ", clauses);
     }
