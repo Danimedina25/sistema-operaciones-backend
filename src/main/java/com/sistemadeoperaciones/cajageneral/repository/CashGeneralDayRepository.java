@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.*;
 public interface CashGeneralDayRepository extends JpaRepository<CashGeneralDay, Long> {
     Optional<CashGeneralDay> findFirstByOrderByFechaDesc();
+    Optional<CashGeneralDay> findFirstByFechaLessThanEqualOrderByFechaDesc(LocalDate fecha);
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     Optional<CashGeneralDay> findTopByOrderByFechaDesc();
     List<CashGeneralDay> findByFechaBetweenOrderByFechaAsc(LocalDate start, LocalDate end);
