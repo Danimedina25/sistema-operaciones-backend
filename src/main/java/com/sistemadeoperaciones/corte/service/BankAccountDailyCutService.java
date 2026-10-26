@@ -35,4 +35,12 @@ public interface BankAccountDailyCutService {
             Long bankAccountId,
             LocalDate fecha
     );
+
+    /**
+     * Regenera los cortes ya registrados de todas las cuentas desde una fecha en adelante.
+     * Repara cortes que omitieron movimientos de días sin corte; nunca crea cortes nuevos.
+     */
+    int recalculateAllFrom(
+            LocalDate fecha
+    );
 }

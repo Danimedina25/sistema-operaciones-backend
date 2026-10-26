@@ -187,10 +187,44 @@ class BankAccountDailyCutServiceTest {
     }
 
     @Test
-    void aMissingHistoricalCutIsReportedInsteadOfGuessed() {
+    void anAccountCreatedAfterTheRequestedDateContributesZero() {
+        var balance = service.calculateBalance(cuenta.getId(), ANTEAYER);
+        assertThat(balance.getBankAccountId()).isEqualTo(cuenta.getId());
+        assertThat(balance.getSaldoInicial()).isEqualByComparingTo("0");
+        assertThat(balance.getSaldoFinal()).isEqualByComparingTo("0");
+        assertInvariant(balance);
+    }
+
+    @Test
+    void aMissingHistoricalCutAfterAccountCreationIsReportedInsteadOfGuessed() {
+        em.flush();
+        em.getEntityManager().createNativeQuery("update bank_accounts set created_at = :created where id = :id")
+                .setParameter("created", ANTEAYER.minusDays(1).atStartOfDay())
+                .setParameter("id", cuenta.getId())
+                .executeUpdate();
+        em.clear();
         assertThatThrownBy(() -> service.calculateBalance(cuenta.getId(), ANTEAYER))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("No existe corte registrado");
+    }
+
+    @Test
+    void liveBalanceIncludesMovementsSinceTheLastRegisteredCutExactlyOnce() {
+        LocalDate lastCutDate = HOY.minusDays(4);
+        payment("1000", lastCutDate.atTime(9, 0));
+        em.flush();
+        service.registerDailyCut(lastCutDate);
+
+        payment("200", ANTEAYER.atTime(9, 0));
+        chequeCobrado("100", AYER);
+        payment("50", HOY.atTime(9, 0));
+        em.flush();
+
+        var balance = service.calculateBalance(cuenta.getId(), HOY);
+        assertThat(balance.getSaldoInicial()).isEqualByComparingTo("1100");
+        assertThat(balance.getEntradasTransferencia()).isEqualByComparingTo("50");
+        assertThat(balance.getSaldoFinal()).isEqualByComparingTo("1150");
+        assertInvariant(balance);
     }
 
     @Test
@@ -244,6 +278,42 @@ class BankAccountDailyCutServiceTest {
         assertThat(ayer.getSaldoFinal()).isEqualByComparingTo("1000");
         assertInvariant(anteayer);
         assertInvariant(ayer);
+    }
+
+    @Test
+    void recalculatingAllAccountsRepairsCutsThatSkippedAnUncutDay() {
+        LocalDate primerCorte = HOY.minusDays(4);
+        LocalDate diaSinCorte = HOY.minusDays(3);
+        BankAccount otra = account(false);
+        payment("1000", primerCorte.atTime(9, 0));
+        em.flush();
+        service.registerDailyCut(primerCorte);
+        service.registerDailyCut(AYER);
+
+        // Un pago en un día sin corte que el corte de AYER ya guardado no contempla.
+        payment("300", diaSinCorte.atTime(9, 0));
+        em.flush();
+        em.clear();
+        assertThat(service.calculateBalance(cuenta.getId(), AYER).getSaldoFinal()).isEqualByComparingTo("1000");
+
+        int recalculados = service.recalculateAllFrom(primerCorte);
+        em.clear();
+
+        // Dos cortes por cuenta, sin crear el del día que nunca tuvo corte.
+        assertThat(recalculados).isEqualTo(4);
+        assertThat(cuts.findByBankAccountIdAndFecha(cuenta.getId(), diaSinCorte)).isEmpty();
+        var ayer = service.calculateBalance(cuenta.getId(), AYER);
+        assertThat(ayer.getSaldoInicial()).isEqualByComparingTo("1300");
+        assertThat(ayer.getSaldoFinal()).isEqualByComparingTo("1300");
+        assertInvariant(ayer);
+        assertThat(service.calculateBalance(otra.getId(), AYER).getSaldoFinal()).isEqualByComparingTo("0");
+        // El saldo de hoy cuenta el pago una sola vez.
+        assertThat(service.calculateBalance(cuenta.getId(), HOY).getSaldoFinal()).isEqualByComparingTo("1300");
+    }
+
+    @Test
+    void recalculatingAllAccountsRejectsTodayAndTheFuture() {
+        assertThatThrownBy(() -> service.recalculateAllFrom(HOY)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

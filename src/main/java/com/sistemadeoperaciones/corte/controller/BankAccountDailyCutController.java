@@ -119,4 +119,27 @@ public class BankAccountDailyCutController {
                 )
         );
     }
+
+    /**
+     * Rehace los cortes bancarios ya registrados desde una fecha en adelante, en todas las
+     * cuentas. Reescribe filas financieras cerradas, así que queda restringido a Administración.
+     */
+    @PostMapping("/recalculate")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Integer>>
+    recalculateFrom(
+            @RequestParam LocalDate desde
+    ) {
+
+        int recalculados = bankAccountDailyCutService.recalculateAllFrom(desde);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Cortes bancarios recalculados: " + recalculados,
+                        recalculados,
+                        null
+                )
+        );
+    }
 }

@@ -4,6 +4,7 @@ import com.sistemadeoperaciones.corte.dto.BankAccountBalanceDetailResponseDto;
 import com.sistemadeoperaciones.corte.dto.BankAccountBalanceResponseDto;
 import com.sistemadeoperaciones.corte.dto.BankGroupBalanceResponseDto;
 import com.sistemadeoperaciones.corte.dto.BankLedgerBuckets;
+import com.sistemadeoperaciones.corte.dto.BankLedgerFilter;
 import com.sistemadeoperaciones.corte.model.BankAccountDailyCut;
 import com.sistemadeoperaciones.corte.repository.BankAccountDailyCutRepository;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
@@ -73,20 +74,13 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
          */
         if (fecha.isBefore(LocalDate.now())) {
 
-            BankAccountDailyCut cut =
-                    bankAccountDailyCutRepository
-                            .findByBankAccountIdAndFecha(
-                                    bankAccountId,
-                                    fecha
-                            )
-                            .orElseThrow(() ->
-                                    new ResourceNotFoundException(
-                                            "No existe corte registrado para la fecha "
-                                                    + fecha
-                                    )
-                            );
-
-            return mapToDetailResponse(cut);
+            var cut = bankAccountDailyCutRepository.findByBankAccountIdAndFecha(bankAccountId, fecha);
+            if (cut.isPresent()) return mapToDetailResponse(cut.get());
+            // Una cuenta todavía inexistente aporta cero al saldo inicial de un periodo anterior.
+            if (fecha.isBefore(account.getCreatedAt().toLocalDate())) {
+                return emptyBalance(account, fecha);
+            }
+            throw new ResourceNotFoundException("No existe corte registrado para la fecha " + fecha);
         }
 
         /*
@@ -276,6 +270,21 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
         return fechas.size();
     }
 
+    @Override
+    @Transactional
+    public int recalculateAllFrom(LocalDate fecha) {
+        if (fecha == null || !fecha.isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException("La fecha debe ser anterior a hoy");
+        }
+
+        // findAll: una cuenta desactivada también conserva su cadena de cortes.
+        int total = 0;
+        for (BankAccount account : bankAccountRepository.findAll()) {
+            total += recalculateFrom(account.getId(), fecha);
+        }
+        return total;
+    }
+
     private void persistCut(BankAccount account, LocalDate fecha) {
 
         BankAccountBalanceDetailResponseDto calculado =
@@ -311,18 +320,19 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
             LocalDate fecha
     ) {
 
-        BigDecimal saldoInicial =
-                obtenerSaldoInicialCuenta(
-                        account.getId(),
-                        fecha
-                );
+        BigDecimal saldoInicial = obtenerSaldoInicialCuenta(account, fecha);
+        BankLedgerBuckets buckets = ledger.bucketsForAccount(account.getId(), fecha);
+        return mapLiveBalance(account, fecha, saldoInicial, buckets);
+    }
 
-        BankLedgerBuckets buckets =
-                ledger.bucketsForAccount(
-                        account.getId(),
-                        fecha
-                );
+    private BankAccountBalanceDetailResponseDto emptyBalance(BankAccount account, LocalDate fecha) {
+        BigDecimal zero = BigDecimal.ZERO;
+        return mapLiveBalance(account, fecha, zero,
+                new BankLedgerBuckets(zero, zero, zero, zero, zero, zero, zero, zero));
+    }
 
+    private BankAccountBalanceDetailResponseDto mapLiveBalance(
+            BankAccount account, LocalDate fecha, BigDecimal saldoInicial, BankLedgerBuckets buckets) {
         BigDecimal totalEntradas = buckets.totalEntradas();
 
         BigDecimal totalSalidas = buckets.totalSalidas();
@@ -386,17 +396,18 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
         return dto;
     }
 
-    private BigDecimal obtenerSaldoInicialCuenta(
-            Long bankAccountId,
-            LocalDate fecha
-    ) {
+    private BigDecimal obtenerSaldoInicialCuenta(BankAccount account, LocalDate fecha) {
+        var previous = bankAccountDailyCutRepository
+                .findTopByBankAccountIdAndFechaBeforeOrderByFechaDesc(account.getId(), fecha);
+        BigDecimal initial = previous.map(BankAccountDailyCut::getSaldoFinal).orElse(BigDecimal.ZERO);
+        LocalDate gapStart = previous.map(cut -> cut.getFecha().plusDays(1))
+                .orElse(account.getCreatedAt().toLocalDate());
+        LocalDate gapEnd = fecha.minusDays(1);
+        if (gapStart.isAfter(gapEnd)) return initial;
 
-        return bankAccountDailyCutRepository
-                .findTopByBankAccountIdAndFechaBeforeOrderByFechaDesc(
-                        bankAccountId,
-                        fecha
-                )
-                .map(BankAccountDailyCut::getSaldoFinal)
-                .orElse(BigDecimal.ZERO);
+        // Conserva el último corte y agrega solo movimientos de los días aún sin corte.
+        BigDecimal uncutChange = ledger.totals(new BankLedgerFilter(
+                gapStart, gapEnd, account.getId(), null, null, null)).variacionNeta();
+        return initial.add(uncutChange);
     }
 }

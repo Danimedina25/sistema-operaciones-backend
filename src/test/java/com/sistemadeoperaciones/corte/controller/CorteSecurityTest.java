@@ -86,6 +86,7 @@ class CorteSecurityTest {
                 // Administración: reescribir cortes ya cerrados
                 allowedIf(administra, () -> cortes.recalculateFrom(hoy));
                 allowedIf(administra, () -> cortes.rebuildRange(hoy, hoy, BigDecimal.ZERO));
+                allowedIf(administra, () -> bancos.recalculateFrom(hoy.minusDays(1)));
             }
         } finally {
             SecurityContextHolder.clearContext();
