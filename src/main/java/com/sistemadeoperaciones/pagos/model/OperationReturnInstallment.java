@@ -21,6 +21,18 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "operation_return_installments")
 public class OperationReturnInstallment {
+    /** Nuevo flujo: código entregado al cliente, sin efectivo en oficina. */
+    private Boolean codigoParaCliente;
+    private java.time.LocalDateTime fechaCobroBancario;
+    public Boolean getCodigoParaCliente() { return codigoParaCliente; }
+    public void setCodigoParaCliente(Boolean value) { codigoParaCliente = value; }
+    public java.time.LocalDateTime getFechaCobroBancario() { return fechaCobroBancario; }
+    public void setFechaCobroBancario(java.time.LocalDateTime value) { fechaCobroBancario = value; }
+
+    /** Marca el descuento bancario nuevo; NULL conserva el tratamiento histórico. */
+    private LocalDateTime fechaPreparacionBancaria;
+    public LocalDateTime getFechaPreparacionBancaria() { return fechaPreparacionBancaria; }
+    public void setFechaPreparacionBancaria(LocalDateTime value) { fechaPreparacionBancaria = value; }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

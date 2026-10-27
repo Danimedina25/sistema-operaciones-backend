@@ -48,6 +48,7 @@ class PaymentOperationDeleteConcurrencyTest {
     // La validación de un pago en efectivo entra a Caja General; estas pruebas son de
     // eliminación y no la ejercitan.
     @MockBean CashGeneralService cashGeneralService;
+    @MockBean com.sistemadeoperaciones.shared.audit.service.BusinessAuditService businessAuditService;
     @MockBean AuthenticatedUserService authenticatedUserService;
     @MockBean NotificationService notificationService;
     @MockBean CommercialPartnerCommissionService commercialPartnerCommissionService;

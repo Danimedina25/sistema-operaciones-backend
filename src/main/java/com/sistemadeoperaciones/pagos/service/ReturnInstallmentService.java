@@ -24,6 +24,9 @@ import java.util.List;
  * concurrentes.
  */
 public interface ReturnInstallmentService {
+    ReturnInstallmentResponseDto editCardlessCode(Long id, CreateReturnInstallmentRequestDto request);
+    List<com.sistemadeoperaciones.cuentasbancarias.dto.BankAccountResponseDto> eligibleCardlessAccounts(Long requestId, Long editingId);
+    ReturnInstallmentResponseDto confirmCardlessBank(Long id, String proof);
 
     ReturnInstallmentResponseDto createInstallment(
             Long returnRequestId,

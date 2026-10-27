@@ -9,6 +9,10 @@ import com.sistemadeoperaciones.clientes.model.Clientes;
 import com.sistemadeoperaciones.comisionessocioscomerciales.service.CommercialPartnerCommissionService;
 import com.sistemadeoperaciones.configuraciones.service.ConfiguracionGeneralService;
 import com.sistemadeoperaciones.corte.dto.BankLedgerFilter;
+import com.sistemadeoperaciones.envioscaja.CashBankDepositService;
+import com.sistemadeoperaciones.envioscaja.CashBankDepositRepository;
+import com.sistemadeoperaciones.envioscaja.CashBankDepositRequests;
+import com.sistemadeoperaciones.envioscaja.CashBankDepositStatus;
 import com.sistemadeoperaciones.corte.service.*;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.notifications.service.NotificationService;
@@ -18,6 +22,7 @@ import com.sistemadeoperaciones.pagos.model.*;
 import com.sistemadeoperaciones.pagos.repository.*;
 import com.sistemadeoperaciones.pagos.service.PaymentOperationServiceImpl;
 import com.sistemadeoperaciones.shared.audit.service.DeletionAuditService;
+import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.shared.enums.RoleName;
 import com.sistemadeoperaciones.shared.exception.*;
@@ -50,7 +55,7 @@ import static org.mockito.Mockito.*;
 @DataJpaTest(showSql=false)
 @AutoConfigureTestDatabase(replace=AutoConfigureTestDatabase.Replace.NONE)
 @Import({ChequeService.class, ChequeNotifications.class, ChequeIntegrationTest.JsonConfig.class, PaymentOperationServiceImpl.class,
-        CashGeneralService.class, BankLedgerQuery.class, DeletionAuditService.class})
+        CashGeneralService.class, BankLedgerQuery.class, DeletionAuditService.class, CashBankDepositService.class})
 @Transactional(propagation=Propagation.NOT_SUPPORTED)
 class ChequeIntegrationTest {
     @TestConfiguration static class JsonConfig { @Bean ObjectMapper chequeMapper() { return new ObjectMapper().findAndRegisterModules(); } }
@@ -66,6 +71,8 @@ class ChequeIntegrationTest {
         }
     }
     @Autowired ChequeService service;
+    @Autowired CashBankDepositService depositsService;
+    @Autowired CashBankDepositRepository deposits;
     @Autowired PaymentOperationServiceImpl payments;
     @Autowired CashGeneralService cash;
     @Autowired CashGeneralMovementRepository movements;
@@ -80,6 +87,7 @@ class ChequeIntegrationTest {
     @MockBean CommercialPartnerCommissionService commissions;
     @MockBean ConfiguracionGeneralService configuration;
     @MockBean BankAccountDailyCutService bankCuts;
+    @MockBean BusinessAuditService businessAuditService;
     User actor; Long operationId; Long bankId;
     <T> T tx(Supplier<T> work) { return new TransactionTemplate(transactions).execute(s -> work.get()); }
     void run(Runnable work) { tx(() -> { work.run(); return null; }); }
@@ -100,6 +108,11 @@ class ChequeIntegrationTest {
     }
     ChequeView received() { return service.byPayment(payments.addPayment(request()).getId()); }
     ChequeCommand command(ChequeView p, ChequeAction action) { return new ChequeCommand(UUID.randomUUID(), p.version(), action, LocalDate.now(), (action==ChequeAction.DEPOSITAR || action==ChequeAction.COBRAR_BANCO) ? bankId : null, proof(), "Motivo", null, null); }
+    Long depositId(Long paymentId) { return deposits.findByChequePaymentIdOrderByIdDesc(paymentId).get(0).getId(); }
+    ChequeView confirmCheque(ChequeView cheque) {
+        depositsService.confirm(depositId(cheque.id()), new CashBankDepositRequests.Confirm(proof()));
+        return service.byPayment(cheque.id());
+    }
     long bankRows() { return tx(() -> ledger.search(new BankLedgerFilter(LocalDate.now(),LocalDate.now(),bankId,null,null,null), PageRequest.of(0,20)).getTotalElements()); }
     Map<CashDenomination,Integer> counts(int hundreds) { var m = new EnumMap<CashDenomination,Integer>(CashDenomination.class); for (var d:CashDenomination.values()) m.put(d,0); m.put(CashDenomination.D100,hundreds); return m; }
     @Test void receiptAndDepositDoNotRecognizeMoney() {
@@ -108,17 +121,65 @@ class ChequeIntegrationTest {
         assertThat(tx(() -> paymentRepository.findById(p.id()).orElseThrow().getEstatus())).isEqualTo(PaymentStatus.PENDIENTE_VALIDACION);
         verifyNoInteractions(commissions);
     }
-    @Test void directBankCollectionReplaysExactlyAndRejectsChangedBody() {
-        var p=received(); var c=command(p,ChequeAction.COBRAR_BANCO); var collected=service.act(p.id(),c);
-        assertThat(service.act(p.id(),c)).isEqualTo(collected); assertThat(bankRows()).isEqualTo(1);
-        verify(commissions,times(1)).generateCommissionsForOperation(operationId);
-        assertThatThrownBy(() -> service.act(p.id(),new ChequeCommand(c.requestId(),c.version(),ChequeAction.DEPOSITAR,c.fecha(),bankId,proof(),"Motivo",null,null))).isInstanceOf(ConflictException.class);
+    @Test void depositReplaysExactlyAndRejectsChangedBody() {
+        var p=received(); var c=command(p,ChequeAction.DEPOSITAR); var deposited=service.act(p.id(),c);
+        assertThat(service.act(p.id(),c)).isEqualTo(deposited);
+        assertThat(deposits.findByChequePaymentIdOrderByIdDesc(p.id())).hasSize(1);
+        assertThat(bankRows()).isZero();
+        assertThatThrownBy(() -> service.act(p.id(),new ChequeCommand(c.requestId(),c.version(),ChequeAction.COBRAR_BANCO,c.fecha(),bankId,proof(),"Motivo",null,null))).isInstanceOf(ConflictException.class);
+    }
+    @Test void onlyLegacyDepositedChequeCanUseDirectBankCollection() {
+        var received=received();
+        assertThatThrownBy(() -> service.act(received.id(),command(received,ChequeAction.COBRAR_BANCO)))
+                .isInstanceOf(ConflictException.class);
+        run(() -> {
+            var p=paymentRepository.findById(received.id()).orElseThrow();
+            p.setChequeEstado("DEPOSITADO"); p.setChequeFechaDeposito(LocalDate.now().atStartOfDay());
+            p.setCuentaDestino(em.getReference(BankAccount.class,bankId)); p.setChequeVersion(p.getChequeVersion()+1);
+        });
+        var legacy=service.byPayment(received.id());
+        assertThat(legacy.depositoCompartido()).isFalse();
+        var confirmed=service.act(legacy.id(),command(legacy,ChequeAction.COBRAR_BANCO));
+        assertThat(confirmed.estado()).isEqualTo("COBRADO");
+        assertThat(bankRows()).isEqualTo(1);
     }
     @Test void depositedThenCollectedHasOneBankEntryAndTotalsIgnoreStateFilter() {
-        var p=received(); p=service.act(p.id(),command(p,ChequeAction.DEPOSITAR)); p=service.act(p.id(),command(p,ChequeAction.COBRAR_BANCO));
+        var p=received(); p=service.act(p.id(),command(p,ChequeAction.DEPOSITAR));
+        assertThat(p.depositoCompartido()).isTrue();
+        var pending=p;
+        assertThatThrownBy(() -> service.act(pending.id(),command(pending,ChequeAction.COBRAR_BANCO))).isInstanceOf(ConflictException.class);
+        p=confirmCheque(p);
         assertThat(p.estado()).isEqualTo("COBRADO"); assertThat(bankRows()).isEqualTo(1);
+        assertThat(depositsService.confirm(depositId(p.id()), new CashBankDepositRequests.Confirm(proof())).estatus())
+                .isEqualTo(CashBankDepositStatus.CONFIRMADO);
+        assertThat(bankRows()).isEqualTo(1);
+        assertThat(movements.findByPagoId(p.id())).isEmpty();
         var page=service.list("POR_COBRAR","","",operationId,"",null,null,0);
         assertThat(page.content()).isEmpty(); assertThat(page.totales().get(0).cobrados()).isEqualByComparingTo("100");
+    }
+    @Test void cashHeadValidatesReceivedChequeWithCountInOneStep() {
+        var day=cash.open(new OpenCashDayRequest(LocalDate.now(),BigDecimal.ZERO,counts(0)));
+        var p=received(); var cashRole=new Role(); cashRole.setName(RoleName.JEFA_CAJAS);
+        actor.setRoles(Set.of(cashRole));
+        var decision=new ChequeCommand(UUID.randomUUID(),p.version(),ChequeAction.CONFIRMAR_COBRO_EFECTIVO,
+                LocalDate.now(),null,proof(),null,day.id(),counts(1));
+        var result=service.act(p.id(),decision);
+        assertThat(result.estado()).isEqualTo("COBRADO");
+        assertThat(result.destinoCobro()).isEqualTo("EFECTIVO");
+        assertThat(cash.latest().saldoActual()).isEqualByComparingTo("100");
+        assertThat(bankRows()).isZero();
+        assertThat(deposits.findByChequePaymentIdOrderByIdDesc(p.id())).isEmpty();
+    }
+    @Test void concurrentBankConfirmationsCreditChequeOnlyOnce() throws Exception {
+        var received=received(); var pending=service.act(received.id(),command(received,ChequeAction.DEPOSITAR));
+        Long id=depositId(pending.id());
+        var results=parallel(() -> depositsService.confirm(id,new CashBankDepositRequests.Confirm(proof())),
+                () -> depositsService.confirm(id,new CashBankDepositRequests.Confirm(proof())));
+        assertThat(results).allMatch(com.sistemadeoperaciones.envioscaja.CashBankDepositView.class::isInstance);
+        assertThat(bankRows()).isEqualTo(1);
+        assertThat(service.byPayment(pending.id()).estado()).isEqualTo("COBRADO");
+        assertThat(movements.findByPagoId(pending.id())).isEmpty();
+        verify(commissions,times(1)).generateCommissionsForOperation(operationId);
     }
     @Test void cashCollectionCreatesOnlyCashEntry() {
         var day=cash.open(new OpenCashDayRequest(LocalDate.now(),BigDecimal.ZERO,counts(0))); var received=received();
@@ -129,14 +190,13 @@ class ChequeIntegrationTest {
         var movement=tx(() -> movements.findByPagoId(p.id()).orElseThrow()); assertThat(movement.getTipo()).isEqualTo(CashMovementConcept.COBRO_CHEQUE_CLIENTE); assertThat(movement.getCuentaBancaria()).isNull();
         assertThat(cash.latest().saldoActual()).isEqualByComparingTo("100");
     }
-    @Test void accountsHandsTheChequeToCashAndCashCanReturnItWithoutRejectingThePayment() {
+    @Test void cashAssignsTheChequeAndCanReturnItWithoutRejectingThePayment() {
         var p=received();
-        var accountsRole=new Role(); accountsRole.setName(RoleName.JEFA_CUENTAS); actor.setRoles(Set.of(accountsRole));
+        var cashRole=new Role(); cashRole.setName(RoleName.JEFA_CAJAS); actor.setRoles(Set.of(cashRole));
         var assigned=service.act(p.id(),new ChequeCommand(UUID.randomUUID(),p.version(),ChequeAction.ASIGNAR_COBRO_EFECTIVO,
                 LocalDate.now(),null,null,"Cobrar en ventanilla",null,null));
         assertThat(assigned.estado()).isEqualTo("PENDIENTE_COBRO_EFECTIVO");
         assertThat(tx(() -> paymentRepository.findById(p.id()).orElseThrow().getEstatus())).isEqualTo(PaymentStatus.PENDIENTE_VALIDACION);
-        var cashRole=new Role(); cashRole.setName(RoleName.JEFA_CAJAS); actor.setRoles(Set.of(cashRole));
         var returned=service.act(p.id(),new ChequeCommand(UUID.randomUUID(),assigned.version(),ChequeAction.DEVOLVER_A_CUENTAS,
                 LocalDate.now(),null,null,"Solo permite abono en cuenta",null,null));
         assertThat(returned.estado()).isEqualTo("POR_COBRAR");
@@ -152,13 +212,25 @@ class ChequeIntegrationTest {
         assertThat(service.byPayment(p.id()).estado()).isEqualTo("PENDIENTE_COBRO_EFECTIVO"); assertThat(audits.findByRequestId(c.requestId().toString())).isEmpty(); verifyNoInteractions(commissions);
     }
     @Test void downstreamFailureRollsBackCollection() {
-        var p=received(); clearInvocations(notifications); doThrow(new IllegalStateException("commission failure")).when(commissions).generateCommissionsForOperation(operationId);
-        var c=command(p,ChequeAction.COBRAR_BANCO); assertThatThrownBy(() -> service.act(p.id(),c)).isInstanceOf(IllegalStateException.class);
-        assertThat(service.byPayment(p.id()).estado()).isEqualTo("POR_COBRAR"); assertThat(bankRows()).isZero(); assertThat(audits.findByRequestId(c.requestId().toString())).isEmpty(); verifyNoInteractions(notifications);
+        var p=received(); p=service.act(p.id(),command(p,ChequeAction.DEPOSITAR));
+        clearInvocations(notifications); doThrow(new IllegalStateException("commission failure")).when(commissions).generateCommissionsForOperation(operationId);
+        Long id=depositId(p.id());
+        assertThatThrownBy(() -> depositsService.confirm(id,new CashBankDepositRequests.Confirm(proof()))).isInstanceOf(IllegalStateException.class);
+        assertThat(service.byPayment(p.id()).estado()).isEqualTo("DEPOSITADO");
+        assertThat(deposits.findById(id).orElseThrow().getEstatus()).isEqualTo(CashBankDepositStatus.PENDIENTE);
+        assertThat(bankRows()).isZero(); verifyNoInteractions(notifications);
     }
     @Test void rejectionReleasesReservationForReplacement() {
-        var p=received(); var deposited=service.act(p.id(),command(p,ChequeAction.DEPOSITAR)); service.act(p.id(),command(deposited,ChequeAction.DEVOLVER));
-        assertThat(payments.addPayment(request()).getId()).isNotEqualTo(p.id()); assertThat(bankRows()).isZero();
+        var p=received(); var deposited=service.act(p.id(),command(p,ChequeAction.DEPOSITAR));
+        var rejected=depositsService.reject(depositId(p.id()),new CashBankDepositRequests.Reject("No acreditado"));
+        assertThat(rejected.estatus()).isEqualTo(CashBankDepositStatus.CANCELADO);
+        assertThatThrownBy(() -> depositsService.confirmReturn(rejected.id(),
+                new CashBankDepositRequests.ConfirmReturn(counts(1)))).isInstanceOf(BadRequestException.class);
+        assertThat(service.byPayment(p.id()).estado()).isEqualTo("POR_COBRAR");
+        assertThat(bankRows()).isZero();
+        var retry=service.act(p.id(),command(service.byPayment(p.id()),ChequeAction.DEPOSITAR));
+        assertThat(retry.estado()).isEqualTo("DEPOSITADO");
+        assertThat(deposits.findByChequePaymentIdOrderByIdDesc(p.id())).hasSize(2);
     }
     @Test void legacyValidationRemainsInLedgerButCannotBeCollectedAgain() {
         var p=received(); run(() -> { var entity=paymentRepository.findById(p.id()).orElseThrow(); entity.setChequeEstado(null); entity.setEstatus(PaymentStatus.VALIDADA); entity.setCuentaDestino(em.getReference(BankAccount.class,bankId)); entity.setFechaValidacion(LocalDateTime.now()); });
@@ -172,14 +244,37 @@ class ChequeIntegrationTest {
         var edit=new UpdateOperationPaymentRequestDto(); edit.setComprobanteUrl(proof()); edit.setTipoPago(PaymentType.CHEQUE); edit.setMonto(new BigDecimal("100"));
         assertThatThrownBy(() -> payments.updatePayment(p.id(),edit)).isInstanceOf(ConflictException.class);
     }
+    @Test void bankValidationUsesAccountsRoleAndRecordsBeforeAndAfter() {
+        var capture = new CreateOperationPaymentRequestDto();
+        capture.setOperacionId(operationId);
+        capture.setMonto(new BigDecimal("100.00"));
+        capture.setTipoPago(PaymentType.TRANSFERENCIA);
+        capture.setCuentaDestinoId(bankId);
+        capture.setComprobanteUrl(proof());
+        capture.setFechaComprobante(LocalDateTime.now());
+        var paymentId = payments.addPayment(capture).getId();
+        var decision = new UpdatePaymentStatusRequestDto();
+        decision.setComprobanteValidacionUrl(proof());
+
+        var manager = new Role(); manager.setName(RoleName.GERENTE); actor.setRoles(Set.of(manager));
+        assertThatThrownBy(() -> payments.validatePayment(paymentId, decision)).isInstanceOf(BusinessException.class);
+        assertThat(tx(() -> paymentRepository.findById(paymentId).orElseThrow().getEstatus())).isEqualTo(PaymentStatus.PENDIENTE_VALIDACION);
+
+        var accounts = new Role(); accounts.setName(RoleName.JEFA_CUENTAS); actor.setRoles(Set.of(accounts));
+        payments.validatePayment(paymentId, decision);
+        assertThat(tx(() -> paymentRepository.findById(paymentId).orElseThrow().getEstatus())).isEqualTo(PaymentStatus.VALIDADA);
+        verify(businessAuditService).record(eq(actor.getId()), eq("PAYMENT_VALIDATE"), eq("OPERATION_PAYMENT"), eq(paymentId),
+                argThat(before -> ((Map<?, ?>) before).get("estatus") == PaymentStatus.PENDIENTE_VALIDACION),
+                argThat(after -> ((Map<?, ?>) after).get("estatus") == PaymentStatus.VALIDADA));
+    }
     @Test void inactiveAccountFailsWithoutEffects() {
         var p=received(); run(() -> em.find(BankAccount.class,bankId).setActivo(false));
-        assertThatThrownBy(() -> service.act(p.id(),command(p,ChequeAction.COBRAR_BANCO))).isInstanceOf(BusinessException.class); assertThat(bankRows()).isZero();
+        assertThatThrownBy(() -> service.act(p.id(),command(p,ChequeAction.DEPOSITAR))).isInstanceOf(BusinessException.class); assertThat(bankRows()).isZero();
     }
-    @ParameterizedTest @EnumSource(value=RoleName.class,names={"SOCIO_COMERCIAL","GERENTE","DIRECCION","JEFA_CAJAS","AUXILIAR_CUENTAS"})
+    @ParameterizedTest @EnumSource(value=RoleName.class,names={"SOCIO_COMERCIAL","GERENTE","DIRECCION","JEFA_CUENTAS","AUXILIAR_CUENTAS"})
     void unauthorizedBankActionsAreRejected(RoleName role) {
         var p=received(); var r=new Role(); r.setName(role); actor.setRoles(Set.of(r));
-        assertThatThrownBy(() -> service.act(p.id(),command(p,ChequeAction.COBRAR_BANCO))).isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        assertThatThrownBy(() -> service.act(p.id(),command(p,ChequeAction.DEPOSITAR))).isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
     }
     @Test void captureRejectsDestinationAndRetainsMetadataOnEdit() {
         var request=request(); request.setCuentaDestinoId(bankId);
@@ -194,17 +289,17 @@ class ChequeIntegrationTest {
         assertThatThrownBy(() -> json.readValue("{\"denominaciones\":{\"D100\":1.5}}",ChequeCommand.class)).isInstanceOf(com.fasterxml.jackson.core.JsonProcessingException.class);
     }
     @Test void wrongProofAndDatesCannotCreateFinancialEntries() {
-        var p=received(); var c=command(p,ChequeAction.COBRAR_BANCO);
+        var p=received(); var c=command(p,ChequeAction.DEPOSITAR);
         assertThatThrownBy(() -> service.act(p.id(),new ChequeCommand(c.requestId(),p.version(),c.accion(),c.fecha(),bankId,"https://example.com/proof",null,null,null))).isInstanceOf(BusinessException.class);
         assertThatThrownBy(() -> service.act(p.id(),new ChequeCommand(c.requestId(),p.version(),c.accion(),LocalDate.now().plusDays(1),bankId,proof(),null,null,null))).isInstanceOf(BusinessException.class);
         assertThat(bankRows()).isZero();
     }
-    @Test void closedPeriodRejectsCollectionButStillAllowsRecordingADeposit() {
+    @Test void closedPeriodRejectsChequeDispatchAndCollection() {
         var p=received();
         Long cutId=tx(() -> { var cut=new com.sistemadeoperaciones.corte.model.DailyCashCut(); cut.setFecha(LocalDate.now()); cut.setEstatus(com.sistemadeoperaciones.corte.enums.DailyCashCutStatus.CERRADO); em.persist(cut); return cut.getId(); });
         try {
-            assertThatThrownBy(() -> service.act(p.id(),command(p,ChequeAction.COBRAR_BANCO))).isInstanceOf(ConflictException.class);
-            assertThat(service.act(p.id(),command(p,ChequeAction.DEPOSITAR)).estado()).isEqualTo("DEPOSITADO");
+            assertThatThrownBy(() -> service.act(p.id(),command(p,ChequeAction.DEPOSITAR))).isInstanceOf(ConflictException.class);
+            assertThat(service.byPayment(p.id()).estado()).isEqualTo("POR_COBRAR");
         } finally { run(() -> em.remove(em.find(com.sistemadeoperaciones.corte.model.DailyCashCut.class,cutId))); }
     }
     @Test void closedCashAndIncorrectDenominationsLeaveTheChequePending() {
@@ -223,9 +318,11 @@ class ChequeIntegrationTest {
         assertThatThrownBy(() -> service.act(p.id(),command(p,ChequeAction.CONFIRMAR_COBRO_EFECTIVO))).isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
     }
     @Test void concurrentDistinctRequestsCollectOnce() throws Exception {
-        var p=received(); var c1=command(p,ChequeAction.COBRAR_BANCO); var c2=command(p,ChequeAction.COBRAR_BANCO);
+        var p=received(); var c1=command(p,ChequeAction.DEPOSITAR); var c2=command(p,ChequeAction.DEPOSITAR);
         List<Object> results=parallel(() -> service.act(p.id(),c1), () -> service.act(p.id(),c2));
-        assertThat(results.stream().filter(ChequeView.class::isInstance).count()).isEqualTo(1); assertThat(bankRows()).isEqualTo(1); verify(commissions,times(1)).generateCommissionsForOperation(operationId);
+        assertThat(results.stream().filter(ChequeView.class::isInstance).count()).isEqualTo(1);
+        assertThat(deposits.findByChequePaymentIdOrderByIdDesc(p.id())).hasSize(1);
+        assertThat(bankRows()).isZero();
     }
     @Test void cashCloseRacingCollectionHasExactlyOneWinner() throws Exception {
         var day=cash.open(new OpenCashDayRequest(LocalDate.now(),BigDecimal.ZERO,counts(0))); var received=received();
@@ -238,29 +335,35 @@ class ChequeIntegrationTest {
         } else { assertThat(cash.latest().closedAt()).isNotNull(); assertThat(cash.latest().saldoActual()).isEqualByComparingTo("0"); }
     }
     @Test void distinctOperationsDoNotDeadlockOnMissingIdempotencyKeys() throws Exception {
-        var p1=received(); var c1=command(p1,ChequeAction.COBRAR_BANCO);
+        var p1=received(); var c1=command(p1,ChequeAction.DEPOSITAR);
         operationId=tx(() -> {
             var original=em.find(PaymentOperation.class,operationId);
             var op=new PaymentOperation(); op.setCliente(original.getCliente()); op.setSocioComercial(original.getSocioComercial());
             op.setMontoTotal(new BigDecimal("100")); op.setMontoValidado(BigDecimal.ZERO); op.setPorcentajeComisionOficina(BigDecimal.ZERO); op.setPorcentajeComisionSocio(BigDecimal.ZERO); op.setEstatus(OperationStatus.PENDIENTE_VALIDACION); em.persist(op); return op.getId();
         });
-        var p2=received(); var c2=command(p2,ChequeAction.COBRAR_BANCO);
+        var p2=received(); var c2=command(p2,ChequeAction.DEPOSITAR);
         var results=parallel(() -> service.act(p1.id(),c1), () -> service.act(p2.id(),c2));
-        assertThat(results).allMatch(ChequeView.class::isInstance); assertThat(bankRows()).isEqualTo(2);
+        assertThat(results).allMatch(ChequeView.class::isInstance); assertThat(bankRows()).isZero();
+        assertThat(deposits.findByChequePaymentIdOrderByIdDesc(p1.id())).hasSize(1);
+        assertThat(deposits.findByChequePaymentIdOrderByIdDesc(p2.id())).hasSize(1);
     }
     @Test void concurrentPartialChequesRecalculateTheSameOperationUsingCurrentRows() throws Exception {
         var r1=request(); r1.setMonto(new BigDecimal("50")); r1.setComprobanteUrl(proof()+"&part=1");
         var r2=request(); r2.setMonto(new BigDecimal("50")); r2.setComprobanteUrl(proof()+"&part=2");
         var p1=service.byPayment(payments.addPayment(r1).getId()); var p2=service.byPayment(payments.addPayment(r2).getId());
-        var results=parallel(() -> service.act(p1.id(),command(p1,ChequeAction.COBRAR_BANCO)), () -> service.act(p2.id(),command(p2,ChequeAction.COBRAR_BANCO)));
-        assertThat(results).allMatch(ChequeView.class::isInstance);
+        var d1=service.act(p1.id(),command(p1,ChequeAction.DEPOSITAR));
+        var d2=service.act(p2.id(),command(p2,ChequeAction.DEPOSITAR));
+        var results=parallel(() -> depositsService.confirm(depositId(d1.id()),new CashBankDepositRequests.Confirm(proof())),
+                () -> depositsService.confirm(depositId(d2.id()),new CashBankDepositRequests.Confirm(proof())));
+        assertThat(results).allMatch(com.sistemadeoperaciones.envioscaja.CashBankDepositView.class::isInstance);
         assertThat(tx(() -> em.find(PaymentOperation.class,operationId).getMontoValidado())).isEqualByComparingTo("100");
         verify(commissions,times(1)).generateCommissionsForOperation(operationId);
     }
     @Test void concurrentSameRequestReturnsSameResult() throws Exception {
-        var p=received(); var c=command(p,ChequeAction.COBRAR_BANCO);
+        var p=received(); var c=command(p,ChequeAction.DEPOSITAR);
         List<Object> results=parallel(() -> service.act(p.id(),c), () -> service.act(p.id(),c));
-        assertThat(results.get(0)).isInstanceOf(ChequeView.class).isEqualTo(results.get(1)); assertThat(bankRows()).isEqualTo(1);
+        assertThat(results.get(0)).isInstanceOf(ChequeView.class).isEqualTo(results.get(1));
+        assertThat(deposits.findByChequePaymentIdOrderByIdDesc(p.id())).hasSize(1); assertThat(bankRows()).isZero();
     }
     List<Object> parallel(Callable<?> first, Callable<?> second) throws Exception {
         var pool=Executors.newFixedThreadPool(2); var start=new CountDownLatch(1);

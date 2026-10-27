@@ -83,16 +83,17 @@ public class BankLedgerQuery {
               AND p.cuenta_destino_id IS NOT NULL
               AND p.fecha_validacion IS NOT NULL
             UNION ALL
-            SELECT 'RETORNO', i.id, i.fecha_realizacion,
+            SELECT 'RETORNO', i.id, COALESCE(i.fecha_cobro_bancario, i.fecha_preparacion_bancaria, i.fecha_realizacion),
                    'SALIDA', i.tipo_pago, i.monto,
                    i.cuenta_origen_id, s.operacion_id,
                    i.id, NULL,
-                   i.realizado_por, NULL
+                   CASE WHEN i.codigo_para_cliente = TRUE THEN i.entregado_por ELSE COALESCE(i.realizado_por, i.creado_por) END, NULL
             FROM operation_return_installments i
             JOIN operation_return_payments s ON s.id = i.solicitud_id
-            WHERE i.estatus = 'COMPLETADA'
+            WHERE ((i.codigo_para_cliente = TRUE AND i.fecha_cobro_bancario IS NOT NULL)
+                    OR (i.tipo_pago = 'RETIRO_SIN_TARJETA' AND i.fecha_preparacion_bancaria IS NOT NULL)
+                    OR (COALESCE(i.codigo_para_cliente, FALSE) = FALSE AND i.fecha_preparacion_bancaria IS NULL AND i.estatus = 'COMPLETADA' AND i.fecha_realizacion IS NOT NULL))
               AND i.cuenta_origen_id IS NOT NULL
-              AND i.fecha_realizacion IS NOT NULL
               AND i.tipo_pago <> 'EFECTIVO'
             UNION ALL
             SELECT 'CAJA_GENERAL', m.id, m.created_at,
@@ -102,6 +103,17 @@ public class BankLedgerQuery {
                    m.creado_por, m.concepto
             FROM cash_general_movements m
             WHERE m.tipo IN ('CHEQUE', 'RETIRO_SIN_TARJETA', 'RETIRO_CON_TARJETA')
+              AND m.bank_account_id IS NOT NULL
+              AND m.monto_manual IS NOT NULL
+            UNION ALL
+            SELECT 'CAJA_GENERAL', m.id, m.created_at,
+                   'ENTRADA', 'DEPOSITO', m.monto_manual,
+                   m.bank_account_id, NULL,
+                   NULL, m.id,
+                   m.creado_por, m.concepto
+            FROM cash_general_movements m
+            WHERE m.tipo = 'ENVIO_A_CUENTA'
+              AND m.direccion = 'SALIDA'
               AND m.bank_account_id IS NOT NULL
               AND m.monto_manual IS NOT NULL
             UNION ALL
@@ -216,10 +228,10 @@ public class BankLedgerQuery {
         String sql = """
                 SELECT
                     COALESCE(SUM(CASE WHEN mov.origen = 'PAGO' AND mov.tipo = 'TRANSFERENCIA' THEN mov.monto ELSE 0 END), 0),
-                    COALESCE(SUM(CASE WHEN mov.origen = 'PAGO' AND mov.tipo = 'DEPOSITO'      THEN mov.monto ELSE 0 END), 0),
+                    COALESCE(SUM(CASE WHEN (mov.origen = 'PAGO' AND mov.tipo = 'DEPOSITO') OR (mov.origen = 'CAJA_GENERAL' AND mov.direccion = 'ENTRADA') THEN mov.monto ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN mov.origen = 'PAGO' AND mov.tipo = 'CHEQUE'        THEN mov.monto ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN mov.origen = 'RETORNO'      THEN mov.monto ELSE 0 END), 0),
-                    COALESCE(SUM(CASE WHEN mov.origen = 'CAJA_GENERAL' THEN mov.monto ELSE 0 END), 0),
+                    COALESCE(SUM(CASE WHEN mov.origen = 'CAJA_GENERAL' AND mov.direccion = 'SALIDA' THEN mov.monto ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN mov.origen = 'COMISION'      THEN mov.monto ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN mov.origen = 'TRANSFERENCIA_INTERNA' AND mov.direccion = 'ENTRADA' THEN mov.monto ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN mov.origen = 'TRANSFERENCIA_INTERNA' AND mov.direccion = 'SALIDA'  THEN mov.monto ELSE 0 END), 0)

@@ -56,6 +56,7 @@ class BankCashWithdrawalSecurityTest {
                 check(reader, controller::pending);
                 check(reader, () -> controller.list(hoy, hoy));
                 check(cuentas, () -> controller.register(null));
+                check(cuentas, () -> controller.edit(1L, null));
                 check(cuentas, () -> controller.cancel(1L, null));
                 check(cajas, () -> controller.confirm(1L, null));
                 check(cajas, () -> controller.reject(1L, null));

@@ -1,5 +1,6 @@
 package com.sistemadeoperaciones.pagos.controller;
 
+import com.sistemadeoperaciones.envioscaja.CashBankDepositRepository;
 import com.sistemadeoperaciones.pagos.dto.retornos.ReturnPaymentResponseDto;
 import com.sistemadeoperaciones.pagos.enums.PaymentStatus;
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
@@ -28,17 +29,21 @@ import java.util.function.Function;
 @PreAuthorize("hasAnyRole('ADMIN', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS', 'GERENTE', 'DIRECCION')")
 @Transactional(readOnly = true)
 public class BankWorkController {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository codeInstallments;
     private final OperationPaymentRepository payments;
+    private final CashBankDepositRepository deposits;
     private final OperationReturnPaymentRepository returns;
     private final ReturnPaymentDtoMapper returnMapper;
     private final BankCashWithdrawalRepository withdrawals;
 
     public BankWorkController(OperationPaymentRepository payments, OperationReturnPaymentRepository returns,
-                              ReturnPaymentDtoMapper returnMapper, BankCashWithdrawalRepository withdrawals) {
+                              ReturnPaymentDtoMapper returnMapper, BankCashWithdrawalRepository withdrawals, CashBankDepositRepository deposits) {
         this.payments = payments;
         this.returns = returns;
         this.returnMapper = returnMapper;
         this.withdrawals = withdrawals;
+        this.deposits = deposits;
     }
 
     public record WorkTotal(long count, BigDecimal amount, LocalDateTime oldest) {}
@@ -54,8 +59,10 @@ public class BankWorkController {
                         root.get("estatus").in(PaymentStatus.PENDIENTE_VALIDACION, PaymentStatus.EN_PROCESO),
                         cb.or(root.get("tipoPago").in(PaymentType.TRANSFERENCIA, PaymentType.DEPOSITO),
                                 cb.and(cb.equal(root.get("tipoPago"), PaymentType.CHEQUE),
-                                        root.get("chequeEstado").in("POR_COBRAR", "DEPOSITADO")))))
-                .stream().map(this::incomeRow)
+                                        cb.equal(root.get("chequeEstado"), "DEPOSITADO")))))
+                .stream().filter(p -> p.getTipoPago() != PaymentType.CHEQUE
+                        || deposits.findByChequePaymentIdOrderByIdDesc(p.getId()).isEmpty())
+                .map(this::incomeRow)
                 .sorted(Comparator.comparing(IncomeRow::fechaPago, Comparator.nullsLast(Comparator.naturalOrder()))
                         .thenComparing(IncomeRow::id).reversed()).toList();
     }
@@ -72,13 +79,22 @@ public class BankWorkController {
     private List<ReturnPaymentResponseDto> outflowRows() {
         return returns.findAll((root, query, cb) -> cb.and(
                         cb.isTrue(root.get("operacion").get("activo")),
-                        cb.equal(root.get("tipoPago"), PaymentType.TRANSFERENCIA),
+                        cb.or(cb.equal(root.get("tipoPago"), PaymentType.TRANSFERENCIA),
+                              cb.equal(root.get("tipoPago"), PaymentType.RETIRO_SIN_TARJETA)),
                         cb.notEqual(root.get("estatus"), ReturnPaymentStatus.RETORNADO)))
                 .stream().map(returnMapper::toDto)
-                .filter(item -> amount(item.getMontoDisponible()).signum() > 0)
+                .filter(item -> item.getTipoPago() != PaymentType.RETIRO_SIN_TARJETA || (codeInstallments == null ? item.getNumeroParcialidades() == 0 : !codeInstallments.existsBySolicitudIdAndCodigoParaClienteIsNull(item.getId()) || codeInstallments.existsBySolicitudIdAndCodigoParaClienteTrue(item.getId())))
+                .filter(item -> item.getTipoPago() != PaymentType.RETIRO_SIN_TARJETA || canViewCardlessAssignments())
+                .filter(item -> amount(item.getMontoDisponible()).signum() > 0 || item.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA && codeInstallments != null && codeInstallments.existsBySolicitudIdAndCodigoParaClienteTrueAndFechaCobroBancarioIsNullAndEstatusNot(item.getId(), com.sistemadeoperaciones.pagos.enums.ReturnInstallmentStatus.CANCELADA))
                 .sorted(Comparator.comparing(ReturnPaymentResponseDto::getFechaSolicitud,
                         Comparator.nullsLast(Comparator.naturalOrder())).thenComparing(ReturnPaymentResponseDto::getId).reversed())
                 .toList();
+    }
+
+    private boolean canViewCardlessAssignments() {
+        var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        return authentication != null && authentication.getAuthorities().stream().anyMatch(a ->
+                java.util.Set.of("ROLE_JEFA_CUENTAS", "ROLE_AUXILIAR_CUENTAS", "ROLE_ADMIN", "ROLE_GERENTE", "ROLE_DIRECCION").contains(a.getAuthority()));
     }
 
     @GetMapping("/summary")

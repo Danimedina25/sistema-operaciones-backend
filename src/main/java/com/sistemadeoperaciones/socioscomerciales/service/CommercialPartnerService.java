@@ -3,6 +3,7 @@ package com.sistemadeoperaciones.socioscomerciales.service;
 import com.sistemadeoperaciones.socioscomerciales.dto.CommercialPartnerRequestDTO;
 import com.sistemadeoperaciones.socioscomerciales.dto.CommercialPartnerResponseDto;
 import org.springframework.data.domain.Page;
+import java.math.BigDecimal;
 
 public interface CommercialPartnerService {
 
@@ -26,6 +27,8 @@ public interface CommercialPartnerService {
             Long id,
             CommercialPartnerRequestDTO request
     );
+
+    CommercialPartnerResponseDto configureCommission(Long id, BigDecimal percentage);
 
     CommercialPartnerResponseDto activate(Long id);
 

@@ -1,6 +1,8 @@
 package com.sistemadeoperaciones.pagos.controller;
 
 import com.sistemadeoperaciones.clientes.model.Clientes;
+import com.sistemadeoperaciones.envioscaja.CashBankDepositRepository;
+import com.sistemadeoperaciones.envioscaja.CashBankDeposit;
 import com.sistemadeoperaciones.pagos.dto.retornos.ReturnPaymentResponseDto;
 import com.sistemadeoperaciones.pagos.enums.PaymentStatus;
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
@@ -31,12 +33,13 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class BankWorkControllerTest {
     @Mock OperationPaymentRepository payments;
+    @Mock CashBankDepositRepository deposits;
     @Mock OperationReturnPaymentRepository returns;
     @Mock ReturnPaymentDtoMapper mapper;
     @Mock BankCashWithdrawalRepository withdrawals;
     BankWorkController controller;
 
-    @BeforeEach void setup() { controller = new BankWorkController(payments, returns, mapper, withdrawals); }
+    @BeforeEach void setup() { controller = new BankWorkController(payments, returns, mapper, withdrawals, deposits); }
 
     @SuppressWarnings("unchecked")
     @Test void countsPaymentsAndReturnRequestsOnceAndUsesAvailableAmount() {
@@ -65,6 +68,38 @@ class BankWorkControllerTest {
         assertEquals(1, controller.income(0, 20, "", "DEPOSITO").getData().totalElements());
         assertEquals(2, controller.outflow(0, 20, "42").getData().totalElements());
         assertEquals(0, controller.outflow(0, 20, "desconocido").getData().totalElements());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test void chequeInSharedDepositQueueIsNotCountedTwice() {
+        var operation = new PaymentOperation(); operation.setId(42L);
+        var client = new Clientes(); client.setNombre("Cliente Norte"); operation.setCliente(client);
+        var partner = new User(); partner.setNombre("Socio Uno"); operation.setSocioComercial(partner);
+        var linked = payment(10L, operation, PaymentType.CHEQUE, "100.00"); linked.setChequeEstado("DEPOSITADO");
+        var legacy = payment(11L, operation, PaymentType.CHEQUE, "200.00"); legacy.setChequeEstado("DEPOSITADO");
+        when(payments.findAll(any(Specification.class))).thenReturn(List.of(linked, legacy));
+        when(deposits.findByChequePaymentIdOrderByIdDesc(10L)).thenReturn(List.of(new CashBankDeposit()));
+        when(deposits.findByChequePaymentIdOrderByIdDesc(11L)).thenReturn(List.of());
+        assertEquals(1, controller.summary().getData().income().count());
+        assertEquals(new BigDecimal("200.00"), controller.summary().getData().income().amount());
+        assertEquals(1, controller.income(0, 20, "", "CHEQUE").getData().totalElements());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test void cardlessAssignmentBelongsOnlyToAccountsHeadQueue() {
+        var entity = new OperationReturnPayment();
+        var dto = request(39L, "300.00"); dto.setTipoPago(PaymentType.RETIRO_SIN_TARJETA);
+        when(returns.findAll(any(Specification.class))).thenReturn(List.of(entity));
+        when(mapper.toDto(entity)).thenReturn(dto);
+        var context = org.springframework.security.core.context.SecurityContextHolder.getContext();
+        try {
+            context.setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("aux", "", List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_AUXILIAR_CUENTAS"))));
+            assertEquals(1, controller.outflow(0,20,"").getData().totalElements());
+            context.setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("head", "", List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_JEFA_CUENTAS"))));
+            assertEquals(1, controller.outflow(0,20,"").getData().totalElements());
+            dto.setNumeroParcialidades(1);
+            assertEquals(0, controller.outflow(0,20,"").getData().totalElements());
+        } finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
     }
 
     private OperationPayment payment(Long id, PaymentOperation operation, PaymentType type, String amount) {

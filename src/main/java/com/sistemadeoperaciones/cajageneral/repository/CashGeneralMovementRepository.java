@@ -33,6 +33,16 @@ public interface CashGeneralMovementRepository extends JpaRepository<CashGeneral
         """)
     BigDecimal sumRetiradoHaciaCajaBetween(@Param("inicio") LocalDateTime inicio,
                                            @Param("fin") LocalDateTime fin);
+    /** Depósitos de efectivo de Caja ya confirmados como entradas a cuentas bancarias. */
+    @Query("""
+        select coalesce(sum(m.montoManual), 0)
+        from CashGeneralMovement m
+        where m.tipo = com.sistemadeoperaciones.cajageneral.enums.CashMovementConcept.ENVIO_A_CUENTA
+          and m.direccion = com.sistemadeoperaciones.cajageneral.enums.CashMovementDirection.SALIDA
+          and m.createdAt between :inicio and :fin
+        """)
+    BigDecimal sumEnviadoDesdeCajaBetween(@Param("inicio") LocalDateTime inicio,
+                                          @Param("fin") LocalDateTime fin);
     List<CashGeneralMovement> findByDiaIdOrderByIdAsc(Long dayId);
     @EntityGraph(attributePaths = {"parcialidad", "pago", "dia", "creadoPor", "cuentaBancaria"})
     List<CashGeneralMovement> findByDiaFechaBetweenOrderByIdAsc(LocalDate start, LocalDate end);

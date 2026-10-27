@@ -20,6 +20,7 @@ public class CommercialPartnerResponseDto {
     private String socioComercialNombre;
 
     private BigDecimal porcentajeComision;
+    private Boolean commissionConfigured;
 
     public CommercialPartnerResponseDto() {
     }
@@ -107,4 +108,7 @@ public class CommercialPartnerResponseDto {
     public void setPorcentajeComision(BigDecimal porcentajeComision) {
         this.porcentajeComision = porcentajeComision;
     }
+
+    public Boolean getCommissionConfigured() { return commissionConfigured; }
+    public void setCommissionConfigured(Boolean commissionConfigured) { this.commissionConfigured = commissionConfigured; }
 }

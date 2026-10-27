@@ -359,4 +359,43 @@ class BankLedgerQueryTest {
         assertThat(row.cuentaBanco()).isEqualTo("BBVA");
         assertThat(row.cuentaTitular()).isEqualTo("Operaciones SA");
     }
+
+    @Test void cardlessPreparationDebitsOnceAndKeepsTheOriginalDateAfterDeliveryAndConfirmation() {
+        var row = installment(PaymentType.RETIRO_SIN_TARJETA, "300", ReturnInstallmentStatus.PROGRAMADA, cuenta, null);
+        row.setFechaPreparacionBancaria(HOY.atTime(10, 0));
+        em.flush();
+        assertThat(ledger.totals(todo()).totalSalidas()).isEqualByComparingTo("300");
+        assertThat(ledger.totals(todo()).totalMovimientos()).isEqualTo(1);
+        row.setFechaEntrega(HOY.plusDays(1).atTime(10, 0));
+        row.setEstatus(ReturnInstallmentStatus.COMPLETADA);
+        row.setFechaRealizacion(HOY.plusDays(2).atTime(10, 0));
+        em.flush();
+        assertThat(ledger.totals(todo()).totalSalidas()).isEqualByComparingTo("300");
+        assertThat(ledger.totals(new BankLedgerFilter(HOY.plusDays(2), HOY.plusDays(2), null, null, null, null)).totalSalidas()).isEqualByComparingTo("0");
+        var repo = org.mockito.Mockito.mock(com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository.class);
+        org.mockito.Mockito.when(repo.findByFechaPreparacionBancariaIsNotNull()).thenReturn(java.util.List.of(row));
+        var custody = new ReturnCustodyQuery(repo);
+        assertThat(custody.read(HOY, HOY).balance()).isEqualByComparingTo("300");
+        var delivered = custody.read(HOY.plusDays(1), HOY.plusDays(1));
+        assertThat(delivered.initial()).isEqualByComparingTo("300");
+        assertThat(delivered.delivered()).isEqualByComparingTo("300");
+        assertThat(delivered.balance()).isEqualByComparingTo("0");
+    }
+    @Test void clientCodeIsReservedUntilBankConfirmationAndDebitsOnlyOnceRegardlessOfSocio() {
+        var row = installment(PaymentType.RETIRO_SIN_TARJETA, "300", ReturnInstallmentStatus.PROGRAMADA, cuenta, null);
+        row.setCodigoParaCliente(true); em.flush();
+        var query = em.getEntityManager().createQuery("select coalesce(sum(i.monto),0) from OperationReturnInstallment i where i.codigoParaCliente=true and i.fechaCobroBancario is null and i.estatus <> com.sistemadeoperaciones.pagos.enums.ReturnInstallmentStatus.CANCELADA", BigDecimal.class);
+        assertThat(query.getSingleResult()).isEqualByComparingTo("300");
+        assertThat(ledger.totals(todo()).totalSalidas()).isEqualByComparingTo("0");
+        row.setFechaConfirmacion(HOY.atTime(10,0)); row.setEstatus(ReturnInstallmentStatus.ENTREGADA); em.flush();
+        assertThat(ledger.totals(todo()).totalSalidas()).isEqualByComparingTo("0");
+        row.setFechaCobroBancario(HOY.atTime(11,0)); row.setFechaEntrega(HOY.atTime(11,0)); em.flush();
+        assertThat(query.getSingleResult()).isEqualByComparingTo("0");
+        assertThat(ledger.totals(todo()).totalSalidas()).isEqualByComparingTo("300");
+        row.setFechaRealizacion(HOY.plusDays(1).atTime(12,0)); row.setEstatus(ReturnInstallmentStatus.COMPLETADA); em.flush();
+        assertThat(ledger.totals(todo()).totalSalidas()).isEqualByComparingTo("300");
+        var repository = org.mockito.Mockito.mock(com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository.class);
+        org.mockito.Mockito.when(repository.findByFechaPreparacionBancariaIsNotNull()).thenReturn(java.util.List.of());
+        assertThat(new ReturnCustodyQuery(repository).read(HOY, HOY).balance()).isEqualByComparingTo("0");
+    }
 }

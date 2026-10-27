@@ -16,6 +16,17 @@ import java.util.List;
 public interface OperationReturnInstallmentRepository
         extends JpaRepository<OperationReturnInstallment, Long>,
         JpaSpecificationExecutor<OperationReturnInstallment> {
+    @Query("SELECT COALESCE(SUM(i.monto),0) FROM OperationReturnInstallment i WHERE i.cuentaOrigen.id = :accountId AND i.codigoParaCliente = true AND i.fechaCobroBancario IS NULL AND i.estatus <> com.sistemadeoperaciones.pagos.enums.ReturnInstallmentStatus.CANCELADA")
+    BigDecimal sumReservedCodes(@Param("accountId") Long accountId);
+    @Query("SELECT COUNT(i)>0 FROM OperationReturnInstallment i WHERE i.cuentaOrigen.id=:accountId AND i.codigoRetiroSinTarjeta=:code AND i.codigoParaCliente=true AND i.estatus<>com.sistemadeoperaciones.pagos.enums.ReturnInstallmentStatus.CANCELADA AND (i.solicitud.id=:requestId OR i.fechaCobroBancario IS NULL)")
+    boolean duplicateClientCode(@Param("accountId") Long accountId,@Param("code") String code,@Param("requestId") Long requestId);
+    @Query("SELECT COUNT(i)>0 FROM OperationReturnInstallment i WHERE i.id<>:excludeId AND i.cuentaOrigen.id=:accountId AND i.codigoRetiroSinTarjeta=:code AND i.codigoParaCliente=true AND i.estatus<>com.sistemadeoperaciones.pagos.enums.ReturnInstallmentStatus.CANCELADA AND (i.solicitud.id=:requestId OR i.fechaCobroBancario IS NULL)")
+    boolean duplicateOtherClientCode(@Param("accountId") Long accountId, @Param("code") String code, @Param("requestId") Long requestId, @Param("excludeId") Long excludeId);
+    List<OperationReturnInstallment> findByCodigoParaClienteTrueAndFechaCobroBancarioIsNullAndEstatusNot(com.sistemadeoperaciones.pagos.enums.ReturnInstallmentStatus status);
+    boolean existsBySolicitudIdAndCodigoParaClienteTrue(Long id);
+    boolean existsBySolicitudIdAndCodigoParaClienteIsNull(Long id);
+    boolean existsBySolicitudIdAndCodigoParaClienteTrueAndFechaCobroBancarioIsNullAndEstatusNot(Long id, ReturnInstallmentStatus status);
+    List<OperationReturnInstallment> findByFechaPreparacionBancariaIsNotNull();
 
     List<OperationReturnInstallment> findBySolicitudIdOrderByCreatedAtAsc(Long solicitudId);
 

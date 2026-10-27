@@ -142,6 +142,22 @@ public final class PaymentOperationSpecification {
         };
     }
 
+    /**
+     * Operaciones cuyo monto total supera lo registrado en pagos no rechazados: la misma regla
+     * con la que se acepta un pago nuevo. No depende de que algún pago ya esté validado.
+     */
+    public static Specification<PaymentOperation> hasMissingIncome(Boolean missingIncome) {
+        return (root, query, cb) -> {
+            if (!Boolean.TRUE.equals(missingIncome)) return cb.conjunction();
+            var registered = query.subquery(java.math.BigDecimal.class);
+            var payment = registered.from(com.sistemadeoperaciones.pagos.model.OperationPayment.class);
+            registered.select(cb.coalesce(cb.sum(payment.<java.math.BigDecimal>get("monto")), java.math.BigDecimal.ZERO));
+            registered.where(cb.equal(payment.get("operacion"), root),
+                    cb.notEqual(payment.get("estatus"), PaymentStatus.RECHAZADA));
+            return cb.greaterThan(root.<java.math.BigDecimal>get("montoTotal"), registered);
+        };
+    }
+
     /** A request must still have amount available for a new installment (reserved cash is excluded). */
     public static Specification<PaymentOperation> hasReturnToPrepare(List<PaymentType> types) {
         return hasReturnToPrepare(types, null);

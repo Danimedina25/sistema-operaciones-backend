@@ -65,6 +65,8 @@ class CashWorkControllerTest {
         anotherDto.setClienteNombre("Cliente Norte"); anotherDto.setTipoPago(PaymentType.RETIRO_SIN_TARJETA);
         anotherDto.setFechaSolicitud(LocalDateTime.of(2026, 10, 2, 10, 0));
         anotherDto.setMontoPendiente(new BigDecimal("35.00"));
+        anotherDto.setCuentaAsignadaEn(LocalDateTime.now());
+        anotherDto.setNumeroParcialidades(1);
         when(returns.findAll(any(Specification.class))).thenReturn(List.of(request, anotherRequest));
         when(mapper.toDto(request)).thenReturn(dto);
         when(mapper.toDto(anotherRequest)).thenReturn(anotherDto);

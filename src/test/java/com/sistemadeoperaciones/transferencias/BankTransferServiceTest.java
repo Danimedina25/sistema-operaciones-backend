@@ -12,6 +12,7 @@ import com.sistemadeoperaciones.retiroscaja.BankAvailability;
 import com.sistemadeoperaciones.retiroscaja.BankCashWithdrawal;
 import com.sistemadeoperaciones.retiroscaja.WithdrawalMethod;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
+import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
 import com.sistemadeoperaciones.shared.exception.BadRequestException;
 import com.sistemadeoperaciones.shared.exception.ConflictException;
 import com.sistemadeoperaciones.usuarios.model.User;
@@ -32,6 +33,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.ArgumentMatchers.*;
 
 /**
  * Transferencias entre cuentas propias: mueven los dos saldos desde una sola fila, nunca dejan
@@ -47,6 +51,7 @@ class BankTransferServiceTest {
     @Autowired BankAccountDailyCutService balances;
     @Autowired BankLedgerQuery ledger;
     @MockBean AuthenticatedUserService auth;
+    @MockBean BusinessAuditService businessAuditService;
 
     static final LocalDate HOY = LocalDate.now();
 
@@ -167,6 +172,8 @@ class BankTransferServiceTest {
 
         assertThat(retry.id()).isEqualTo(first.id());
         assertThat(balances.calculateBalance(destino.getId(), HOY).getSaldoFinal()).isEqualByComparingTo("300");
+        verify(businessAuditService, times(1)).record(eq(user.getId()), eq("BANK_TRANSFER_CREATE"),
+                eq("BANK_TRANSFER"), eq(first.id()), isNull(), any());
     }
 
     @Test

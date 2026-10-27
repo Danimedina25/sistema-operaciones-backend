@@ -21,6 +21,7 @@ import com.sistemadeoperaciones.pagos.enums.OperationStatus;
 import com.sistemadeoperaciones.pagos.model.PaymentOperation;
 import com.sistemadeoperaciones.pagos.repository.PaymentOperationRepository;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
+import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
 import com.sistemadeoperaciones.usuarios.model.User;
 import com.sistemadeoperaciones.usuarios.repository.CommercialPartnerSettingsRepository;
@@ -34,6 +35,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
@@ -50,6 +52,8 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
     private final AuthenticatedUserService authenticatedUserService;
     private final NotificationService notificationService;
     private final BankAccountRepository bankAccountRepository;
+    private final BusinessAuditService businessAuditService;
+    private final com.sistemadeoperaciones.retiroscaja.BankReservationGuard reservationGuard;
 
     public CommercialPartnerCommissionServiceImpl(
             CommercialPartnerCommissionRepository commissionRepository,
@@ -57,7 +61,9 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
             CommercialPartnerSettingsRepository commercialPartnerSettingsRepository,
             AuthenticatedUserService authenticatedUserService,
             NotificationService notificationService,
-            BankAccountRepository bankAccountRepository
+            BankAccountRepository bankAccountRepository,
+            BusinessAuditService businessAuditService,
+            com.sistemadeoperaciones.retiroscaja.BankReservationGuard reservationGuard
     ) {
         this.commissionRepository = commissionRepository;
         this.operationRepository = operationRepository;
@@ -65,6 +71,8 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
         this.authenticatedUserService = authenticatedUserService;
         this.notificationService = notificationService;
         this.bankAccountRepository = bankAccountRepository;
+        this.businessAuditService = businessAuditService;
+        this.reservationGuard = reservationGuard;
     }
 
 
@@ -978,7 +986,7 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                 )
         );
 
-        commissionRepository.save(commission);
+        saveGeneratedCommission(commission);
     }
 
     private void generateCommissionLevel2(
@@ -1015,7 +1023,7 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                 )
         );
 
-        commissionRepository.save(commission);
+        saveGeneratedCommission(commission);
     }
 
     private void generateCommissionLevel3(
@@ -1052,7 +1060,32 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                 )
         );
 
-        commissionRepository.save(commission);
+        saveGeneratedCommission(commission);
+    }
+
+    private void saveGeneratedCommission(CommercialPartnerCommission commission) {
+        CommercialPartnerCommission saved = commissionRepository.save(commission);
+        auditCommission("COMMISSION_GENERATE", saved, null, commissionAuditSnapshot(saved));
+    }
+
+    private Map<String, Object> commissionAuditSnapshot(CommercialPartnerCommission commission) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("operationId", commission.getOperation() == null ? null : commission.getOperation().getId());
+        snapshot.put("beneficiaryUserId", commission.getUser() == null ? null : commission.getUser().getId());
+        snapshot.put("beneficiaryPartnerId", commission.getCommercialPartner() == null ? null : commission.getCommercialPartner().getId());
+        snapshot.put("level", commission.getNivel());
+        snapshot.put("amount", commission.getCommissionAmount());
+        snapshot.put("percentage", commission.getCommissionPercentage());
+        snapshot.put("status", commission.getStatus());
+        snapshot.put("originAccountId", commission.getCuentaOrigen() == null ? null : commission.getCuentaOrigen().getId());
+        snapshot.put("paidAt", commission.getPaidAt());
+        return snapshot;
+    }
+
+    private void auditCommission(String action, CommercialPartnerCommission commission,
+                                 Map<String, Object> before, Map<String, Object> after) {
+        businessAuditService.record(authenticatedUserService.getCurrentUser().getId(),
+                action, "COMMISSION", commission.getId(), before, after);
     }
 
     @Override
@@ -1115,7 +1148,7 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public CommercialPartnerCommissionResponseDto markAsPaid(
             Long commissionId,
             PayCommissionRequestDto request
@@ -1149,6 +1182,8 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
             throw new CommissionProofRequiredException();
         }
 
+        reservationGuard.protect(request.getCuentaOrigenId(), commission.getCommissionAmount());
+        Map<String, Object> beforeAudit = commissionAuditSnapshot(commission);
         commission.setStatus(
                 CommissionStatus.PAGADA
         );
@@ -1166,6 +1201,7 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
         );
 
         CommercialPartnerCommission saved = commissionRepository.save(commission);
+        auditCommission("COMMISSION_PAY", saved, beforeAudit, commissionAuditSnapshot(saved));
 
         notifyCommissionPaid(saved.getUser(), saved.getCommissionAmount(), saved.getId());
 
@@ -1195,7 +1231,7 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void markBatchAsPaid(
             PayCommissionBatchRequestDto request
     ) {
@@ -1237,10 +1273,12 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
         BankAccount cuentaOrigen =
                 requireActiveBankAccount(request.getCuentaOrigenId());
 
+        reservationGuard.protect(cuentaOrigen.getId(), commissions.stream().filter(c -> c.getStatus() != CommissionStatus.PAGADA).map(c -> c.getCommissionAmount()).reduce(BigDecimal.ZERO, BigDecimal::add));
         LocalDateTime paidAt =
                 LocalDateTime.now();
 
         List<CommercialPartnerCommission> newlyPaid = new ArrayList<>();
+        Map<Long, Map<String, Object>> beforeAudit = new LinkedHashMap<>();
 
         for (
                 CommercialPartnerCommission commission
@@ -1254,6 +1292,7 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                 continue;
             }
 
+            beforeAudit.put(commission.getId(), commissionAuditSnapshot(commission));
             commission.setStatus(
                     CommissionStatus.PAGADA
             );
@@ -1276,6 +1315,11 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
         commissionRepository.saveAll(
                 commissions
         );
+
+        for (CommercialPartnerCommission commission : newlyPaid) {
+            auditCommission("COMMISSION_PAY", commission,
+                    beforeAudit.get(commission.getId()), commissionAuditSnapshot(commission));
+        }
 
         notifyCommissionsBatchPaid(newlyPaid);
     }
@@ -1344,6 +1388,10 @@ public class CommercialPartnerCommissionServiceImpl implements CommercialPartner
                         CommissionStatus.GENERADA
                 );
 
+        for (CommercialPartnerCommission commission : generated) {
+            auditCommission("COMMISSION_REGENERATE_REMOVE", commission,
+                    commissionAuditSnapshot(commission), null);
+        }
         commissionRepository.deleteAll(generated);
 
         validateOperationNetwork(operation);

@@ -50,6 +50,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.argThat;
 
 /**
  * Reglas de negocio del borrado físico de operaciones contra H2.
@@ -73,6 +77,7 @@ class PaymentOperationDeleteTest {
     // La validación de un pago en efectivo entra a Caja General; estas pruebas son de
     // eliminación y no la ejercitan.
     @MockBean CashGeneralService cashGeneralService;
+    @MockBean com.sistemadeoperaciones.shared.audit.service.BusinessAuditService businessAuditService;
     @MockBean AuthenticatedUserService authenticatedUserService;
     @MockBean NotificationService notificationService;
     @MockBean CommercialPartnerCommissionService commercialPartnerCommissionService;
@@ -246,6 +251,10 @@ class PaymentOperationDeleteTest {
                 .contains("PENDIENTE_VALIDACION")
                 .contains("Comprobantes eliminados: 1");
         assertThat(log.getEntityLabel().length()).isLessThanOrEqualTo(255);
+        verify(businessAuditService).record(eq(actor.getId()), eq("OPERATION_DELETE"),
+                eq("PAYMENT_OPERATION"), eq(operationId),
+                argThat(before -> ((java.util.Map<?, ?>) before).get("estatus") == OperationStatus.PENDIENTE_VALIDACION),
+                isNull());
     }
 
     // ==========================================================

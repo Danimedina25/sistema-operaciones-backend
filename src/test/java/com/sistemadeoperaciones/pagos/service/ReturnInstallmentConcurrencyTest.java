@@ -13,6 +13,10 @@ import com.sistemadeoperaciones.pagos.model.OperationReturnPayment;
 import com.sistemadeoperaciones.pagos.model.PaymentOperation;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
+import com.sistemadeoperaciones.shared.config.RolePermissionPolicy;
+import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
+import com.sistemadeoperaciones.shared.enums.RoleName;
+import com.sistemadeoperaciones.usuarios.model.Role;
 import com.sistemadeoperaciones.usuarios.model.User;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -55,9 +60,12 @@ class ReturnInstallmentConcurrencyTest {
     @Autowired PlatformTransactionManager txManager;
     @Autowired org.springframework.orm.jpa.JpaTransactionManager jpaTxManager;
 
+    @MockBean CardlessReturnFlow cardlessReturnFlow;
     @MockBean NotificationService notificationService;
     @MockBean AuthenticatedUserService authenticatedUserService;
     @MockBean CashGeneralService cashGeneralService;
+    @MockBean BusinessAuditService businessAuditService;
+    @MockBean RolePermissionPolicy rolePermissionPolicy;
 
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED) // sin transacción de test: los hilos usan las suyas
@@ -117,7 +125,11 @@ class ReturnInstallmentConcurrencyTest {
         Long cuentaOrigenId = ids[1];
         User actor = new User();
         actor.setId(ids[2]);
+        Role role = new Role();
+        role.setName(RoleName.JEFA_CUENTAS);
+        actor.setRoles(Set.of(role));
         when(authenticatedUserService.getCurrentUser()).thenReturn(actor);
+        when(rolePermissionPolicy.allows(actor, RolePermissionPolicy.Action.RETURN_BANK_PAY)).thenReturn(true);
 
         // --- Dos hilos, cada uno con su transacción vía el @Transactional del servicio ---
         ExecutorService pool = Executors.newFixedThreadPool(2);

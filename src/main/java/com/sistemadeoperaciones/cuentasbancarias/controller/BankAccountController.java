@@ -23,7 +23,7 @@ public class BankAccountController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CUENTAS')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'BANK_ACCOUNT_CREATE')")
     public ResponseEntity<ApiResponse<BankAccountResponseDto>> createBankAccount(
             @Valid @RequestBody BankAccountRequestDto request
     ) {
@@ -55,7 +55,7 @@ public class BankAccountController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'BANK_ACCOUNT_EDIT')")
     public ResponseEntity<ApiResponse<BankAccountResponseDto>> updateBankAccount(
             @PathVariable Long id,
             @Valid @RequestBody BankAccountRequestDto request
@@ -68,7 +68,7 @@ public class BankAccountController {
     }
 
     @PatchMapping("/{id}/deactivate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'BANK_ACCOUNT_EDIT')")
     public ResponseEntity<ApiResponse<BankAccountResponseDto>> deactivateBankAccount(@PathVariable Long id) {
         BankAccountResponseDto response = bankAccountService.deactivate(id);
 
@@ -78,7 +78,7 @@ public class BankAccountController {
     }
 
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'BANK_ACCOUNT_EDIT')")
     public ResponseEntity<ApiResponse<BankAccountResponseDto>> activateBankAccount(@PathVariable Long id) {
         BankAccountResponseDto response = bankAccountService.activate(id);
 
@@ -88,7 +88,7 @@ public class BankAccountController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'DIRECCION')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'CATALOG_DELETE')")
     public ResponseEntity<ApiResponse<Void>> deleteBankAccount(@PathVariable Long id) {
         bankAccountService.delete(id);
 

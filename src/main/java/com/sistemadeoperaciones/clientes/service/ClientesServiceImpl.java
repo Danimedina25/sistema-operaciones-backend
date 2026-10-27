@@ -10,6 +10,7 @@ import com.sistemadeoperaciones.clientes.model.Clientes;
 import com.sistemadeoperaciones.clientes.repository.ClientesRepository;
 import com.sistemadeoperaciones.pagos.repository.PaymentOperationRepository;
 import com.sistemadeoperaciones.shared.audit.service.DeletionAuditService;
+import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.shared.enums.RoleName;
 import com.sistemadeoperaciones.shared.exception.BadRequestException;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Service
@@ -32,19 +34,22 @@ public class ClientesServiceImpl implements ClientesService {
     private final AuthenticatedUserService authenticatedUserService;
     private final PaymentOperationRepository paymentOperationRepository;
     private final DeletionAuditService deletionAuditService;
+    private final BusinessAuditService businessAuditService;
 
     public ClientesServiceImpl(
             ClientesRepository clientesRepository,
             UserRepository userRepository,
             AuthenticatedUserService authenticatedUserService,
             PaymentOperationRepository paymentOperationRepository,
-            DeletionAuditService deletionAuditService
+            DeletionAuditService deletionAuditService,
+            BusinessAuditService businessAuditService
     ) {
         this.clientesRepository = clientesRepository;
         this.userRepository = userRepository;
         this.authenticatedUserService = authenticatedUserService;
         this.paymentOperationRepository = paymentOperationRepository;
         this.deletionAuditService = deletionAuditService;
+        this.businessAuditService = businessAuditService;
     }
 
     @Override
@@ -78,6 +83,7 @@ public class ClientesServiceImpl implements ClientesService {
         cliente.setNivelesRedComercial(request.getNivelesRedComercial());
 
         Clientes saved = clientesRepository.save(cliente);
+        audit("CLIENT_CREATE", saved, null, auditSnapshot(saved));
 
         return mapToResponse(saved);
     }
@@ -140,6 +146,28 @@ public class ClientesServiceImpl implements ClientesService {
     @Transactional
     public ClienteResponseDto update(Long id, UpdateClienteRequestDto request) {
         Clientes cliente = findClienteById(id);
+        validateCanEdit(cliente);
+        Map<String, Object> beforeAudit = auditSnapshot(cliente);
+
+        if (request.getNombre() == null || request.getNombre().trim().isEmpty()) {
+            throw new ClienteNameRequiredException();
+        }
+
+        if (clientesRepository.existsByNombreIgnoreCaseAndIdNot(request.getNombre().trim(), id)) {
+            throw new ClienteAlreadyExistsException(request.getNombre());
+        }
+
+        cliente.setNombre(request.getNombre().trim());
+        cliente.setActivo(request.getActivo());
+        cliente.setNivelesRedComercial(request.getNivelesRedComercial());
+
+        Clientes updated = clientesRepository.save(cliente);
+        audit("CLIENT_UPDATE", updated, beforeAudit, auditSnapshot(updated));
+
+        return mapToResponse(updated);
+    }
+
+    private void validateCanEdit(Clientes cliente) {
 
         User currentUser = authenticatedUserService.getCurrentUser();
 
@@ -161,30 +189,18 @@ public class ClientesServiceImpl implements ClientesService {
             }
         }
 
-        if (request.getNombre() == null || request.getNombre().trim().isEmpty()) {
-            throw new ClienteNameRequiredException();
-        }
-
-        if (clientesRepository.existsByNombreIgnoreCaseAndIdNot(request.getNombre().trim(), id)) {
-            throw new ClienteAlreadyExistsException(request.getNombre());
-        }
-
-        cliente.setNombre(request.getNombre().trim());
-        cliente.setActivo(request.getActivo());
-        cliente.setNivelesRedComercial(request.getNivelesRedComercial());
-
-        Clientes updated = clientesRepository.save(cliente);
-
-        return mapToResponse(updated);
     }
 
     @Override
     @Transactional
     public ClienteResponseDto deactivate(Long id) {
         Clientes cliente = findClienteById(id);
+        validateCanEdit(cliente);
+        Map<String, Object> beforeAudit = auditSnapshot(cliente);
         cliente.setActivo(false);
 
         Clientes updated = clientesRepository.save(cliente);
+        audit("CLIENT_DEACTIVATE", updated, beforeAudit, auditSnapshot(updated));
 
         return mapToResponse(updated);
     }
@@ -193,9 +209,12 @@ public class ClientesServiceImpl implements ClientesService {
     @Transactional
     public ClienteResponseDto activate(Long id) {
         Clientes cliente = findClienteById(id);
+        validateCanEdit(cliente);
+        Map<String, Object> beforeAudit = auditSnapshot(cliente);
         cliente.setActivo(true);
 
         Clientes updated = clientesRepository.save(cliente);
+        audit("CLIENT_ACTIVATE", updated, beforeAudit, auditSnapshot(updated));
 
         return mapToResponse(updated);
     }
@@ -204,6 +223,7 @@ public class ClientesServiceImpl implements ClientesService {
     @Transactional
     public void delete(Long id) {
         Clientes cliente = findClienteById(id);
+        Map<String, Object> beforeAudit = auditSnapshot(cliente);
 
         long operaciones = paymentOperationRepository.countByClienteId(id);
         if (operaciones > 0) {
@@ -219,9 +239,24 @@ public class ClientesServiceImpl implements ClientesService {
         try {
             clientesRepository.delete(cliente);
             clientesRepository.flush();
+            audit("CLIENT_DELETE", cliente, beforeAudit, null);
         } catch (DataIntegrityViolationException e) {
             throw new BadRequestException("No se puede eliminar el cliente porque tiene información relacionada");
         }
+    }
+
+    private Map<String, Object> auditSnapshot(Clientes cliente) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("name", cliente.getNombre());
+        snapshot.put("ownerUserId", cliente.getUser() == null ? null : cliente.getUser().getId());
+        snapshot.put("networkLevels", cliente.getNivelesRedComercial());
+        snapshot.put("active", cliente.getActivo());
+        return snapshot;
+    }
+
+    private void audit(String action, Clientes cliente, Map<String, Object> before, Map<String, Object> after) {
+        businessAuditService.record(authenticatedUserService.getCurrentUser().getId(), action,
+                "CLIENT", cliente.getId(), before, after);
     }
 
     private Clientes findClienteById(Long id) {

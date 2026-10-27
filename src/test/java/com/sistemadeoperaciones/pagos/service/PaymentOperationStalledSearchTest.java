@@ -34,6 +34,7 @@ class PaymentOperationStalledSearchTest {
     @PersistenceContext EntityManager em;
 
     @MockBean CashGeneralService cashGeneralService;
+    @MockBean com.sistemadeoperaciones.shared.audit.service.BusinessAuditService businessAuditService;
     @MockBean AuthenticatedUserService authenticatedUserService;
     @MockBean NotificationService notificationService;
     @MockBean CommercialPartnerCommissionService commercialPartnerCommissionService;

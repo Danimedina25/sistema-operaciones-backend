@@ -27,7 +27,7 @@ public class CommercialPartnerCommissionController {
     }
 
     @PostMapping("/generate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'COMMISSION_GENERATE')")
     public ResponseEntity<ApiResponse<Void>> generatePendingCommissions() {
 
         commissionService.generatePendingCommissions();
@@ -210,7 +210,7 @@ public class CommercialPartnerCommissionController {
     }
 
     @PostMapping("/operations/{operationId}/regenerate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'COMMISSION_GENERATE')")
     public ResponseEntity<ApiResponse<Void>>
     regenerateOperationCommissions(
             @PathVariable Long operationId

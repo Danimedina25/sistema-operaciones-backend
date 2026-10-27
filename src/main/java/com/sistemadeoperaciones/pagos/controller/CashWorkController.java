@@ -32,6 +32,8 @@ import java.util.function.Function;
 @PreAuthorize("hasAnyRole('ADMIN', 'JEFA_CAJAS', 'GERENTE', 'DIRECCION')")
 @Transactional(readOnly = true)
 public class CashWorkController {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository codeInstallments;
     private final OperationPaymentRepository payments;
     private final OperationReturnPaymentRepository returns;
     private final BankCashWithdrawalRepository withdrawals;
@@ -83,6 +85,7 @@ public class CashWorkController {
                         root.get("tipoPago").in(PaymentType.EFECTIVO, PaymentType.RETIRO_SIN_TARJETA),
                         cb.notEqual(root.get("estatus"), ReturnPaymentStatus.RETORNADO)))
                 .stream().map(returnMapper::toDto)
+                .filter(item -> item.getTipoPago() != PaymentType.RETIRO_SIN_TARJETA || item.getNumeroParcialidades() > 0 && (codeInstallments == null || codeInstallments.existsBySolicitudIdAndCodigoParaClienteIsNull(item.getId())))
                 .filter(item -> amount(item.getMontoPendiente()).signum() > 0)
                 .sorted(Comparator.comparing(ReturnPaymentResponseDto::getFechaSolicitud,
                         Comparator.nullsLast(Comparator.naturalOrder())).thenComparing(ReturnPaymentResponseDto::getId).reversed())

@@ -8,6 +8,7 @@ import com.sistemadeoperaciones.corte.service.BankAccountDailyCutService;
 import com.sistemadeoperaciones.corte.service.BankLedgerQuery;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
+import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
 import com.sistemadeoperaciones.usuarios.model.User;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.*;
@@ -45,6 +46,7 @@ class CashGeneralConcurrencyTest {
     // El corte bancario se recalcula sólo al eliminar un día; aquí no se ejercita.
     @MockBean BankAccountDailyCutService bankCuts;
     @MockBean AuthenticatedUserService auth;
+    @MockBean BusinessAuditService businessAuditService;
     @BeforeEach void setup() {
         User user = new TransactionTemplate(manager).execute(status -> {
             User u = new User(); u.setNombre("Jefa Caja"); u.setCorreo(UUID.randomUUID()+"@example.com"); em.persist(u); return u;

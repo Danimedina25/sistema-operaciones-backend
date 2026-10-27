@@ -3,6 +3,8 @@ package com.sistemadeoperaciones.cheques;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sistemadeoperaciones.cajageneral.repository.CashGeneralRegisterRepository;
 import com.sistemadeoperaciones.cajageneral.service.CashGeneralService;
+import com.sistemadeoperaciones.envioscaja.CashBankDepositService;
+import com.sistemadeoperaciones.envioscaja.CashBankDepositRepository;
 import com.sistemadeoperaciones.corte.repository.DailyCashCutRepository;
 import com.sistemadeoperaciones.corte.enums.DailyCashCutStatus;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
@@ -36,6 +38,8 @@ public class ChequeService {
     private final PaymentOperationRepository operations;
     private final ChequeAuditRepository audits;
     private final CashGeneralService cash;
+    private final CashBankDepositService bankDeposits;
+    private final CashBankDepositRepository depositRepository;
     private final CashGeneralRegisterRepository register;
     private final DailyCashCutRepository cuts;
     private final com.sistemadeoperaciones.corte.repository.BankAccountDailyCutRepository bankCuts;
@@ -57,8 +61,8 @@ public class ChequeService {
     }
     private void authorizeAction(User user, ChequeAction action) {
         boolean allowed = switch (action) {
-            case DEPOSITAR -> has(user, RoleName.ADMIN, RoleName.JEFA_CUENTAS, RoleName.AUXILIAR_CUENTAS);
-            case COBRAR_BANCO, ASIGNAR_COBRO_EFECTIVO, DEVOLVER, CANCELAR, RETIRAR_COBRO_EFECTIVO ->
+            case DEPOSITAR, ASIGNAR_COBRO_EFECTIVO, CANCELAR -> has(user, RoleName.ADMIN, RoleName.JEFA_CAJAS);
+            case COBRAR_BANCO, DEVOLVER, RETIRAR_COBRO_EFECTIVO ->
                     has(user, RoleName.ADMIN, RoleName.JEFA_CUENTAS);
             case CONFIRMAR_COBRO_EFECTIVO, DEVOLVER_A_CUENTAS ->
                     has(user, RoleName.ADMIN, RoleName.JEFA_CAJAS);
@@ -101,6 +105,10 @@ public class ChequeService {
         if (p.getEstatus() != PaymentStatus.PENDIENTE_VALIDACION && p.getEstatus() != PaymentStatus.EN_PROCESO)
             throw new ConflictException("El pago no está pendiente");
         validateTransition(p.getChequeEstado(), command.accion());
+        if (p.getChequeEstado().equals("DEPOSITADO")
+                && (command.accion() == ChequeAction.COBRAR_BANCO || command.accion() == ChequeAction.DEVOLVER)
+                && !depositRepository.findByChequePaymentIdOrderByIdDesc(id).isEmpty())
+            throw new ConflictException("Confirma o rechaza este cheque desde Envíos desde Caja General");
         if (command.fecha() == null || command.fecha().isAfter(LocalDate.now()) || command.fecha().isBefore(p.getCreatedAt().toLocalDate()))
             throw new BusinessException("Fecha efectiva inválida para el cheque");
         if (p.getChequeFechaDeposito() != null && command.fecha().isBefore(p.getChequeFechaDeposito().toLocalDate()))
@@ -150,6 +158,8 @@ public class ChequeService {
         }
         p.setEnProcesoPor(null); p.setFechaEnProceso(null); p.setChequeVersion(p.getChequeVersion() + 1);
         payments.saveAndFlush(p);
+        if (command.accion() == ChequeAction.DEPOSITAR)
+            bankDeposits.registerCheque(p, command.requestId(), user, command.comprobanteUrl());
         paymentService.recalculateAfterCheque(p);
         ChequeAudit audit = new ChequeAudit(); audit.setPagoId(id); audit.setRequestId(command.requestId().toString());
         audit.setCommandHash(hash); audit.setAccion(command.accion().name()); audit.setFecha(command.fecha().atStartOfDay());
@@ -166,8 +176,8 @@ public class ChequeService {
     static void validateTransition(String state, ChequeAction action) {
         boolean allowed = switch (state) {
             case "POR_COBRAR" -> action == ChequeAction.DEPOSITAR
-                    || action == ChequeAction.COBRAR_BANCO
                     || action == ChequeAction.ASIGNAR_COBRO_EFECTIVO
+                    || action == ChequeAction.CONFIRMAR_COBRO_EFECTIVO
                     || action == ChequeAction.CANCELAR;
             case "DEPOSITADO" -> action == ChequeAction.COBRAR_BANCO || action == ChequeAction.DEVOLVER;
             case "PENDIENTE_COBRO_EFECTIVO" -> action == ChequeAction.CONFIRMAR_COBRO_EFECTIVO
@@ -194,7 +204,7 @@ public class ChequeService {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.writeValueAsBytes(c)));
         } catch (Exception e) { throw new IllegalStateException(e); }
     }
-    static String snapshot(OperationPayment p) {
+    public static String snapshot(OperationPayment p) {
         return "estado=" + p.getChequeEstado() + ", monto=" + p.getMonto() + ", cuenta=" + (p.getCuentaDestino() == null ? null : p.getCuentaDestino().getId())
                 + ", numero=" + p.getNumeroCheque() + ", banco=" + p.getBancoEmisor() + ", emisor=" + p.getEmisor() + ", beneficiario=" + p.getBeneficiario();
     }
@@ -203,7 +213,8 @@ public class ChequeService {
         return new ChequeView(p.getId(), p.getId(), p.getOperacion().getId(), p.getOperacion().getCliente().getNombre(),
                 p.getNumeroCheque(), p.getBancoEmisor(), p.getEmisor(), p.getBeneficiario(), p.getMonto(), "MXN", p.getChequeEstado(), p.getChequeEstado() == null,
                 p.getChequeVersion(), p.getCreatedAt(), b == null ? null : b.getId(), b == null ? null : b.getTitular()+" — "+b.getBanco()+" — "+b.getNumeroCuenta(),
-                p.getChequeDestinoCobro(), p.getComprobanteUrl(), history.stream().map(a -> new ChequeView.History(a.getId(), a.getAccion(), a.getFecha(), a.getUsuarioNombre(), a.getMotivo(), a.getComprobanteUrl())).toList());
+                p.getChequeDestinoCobro(), p.getComprobanteUrl(),
+                "DEPOSITADO".equals(p.getChequeEstado()) && !depositRepository.findByChequePaymentIdOrderByIdDesc(p.getId()).isEmpty(), history.stream().map(a -> new ChequeView.History(a.getId(), a.getAccion(), a.getFecha(), a.getUsuarioNombre(), a.getMotivo(), a.getComprobanteUrl())).toList());
     }
     @Transactional(readOnly=true)
     public ChequeView.Page list(String states, String search, String customer, Long operationId, String bank, LocalDate from, LocalDate to, int page) {

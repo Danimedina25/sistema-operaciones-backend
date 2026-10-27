@@ -11,6 +11,7 @@ import com.sistemadeoperaciones.corte.service.BankAccountDailyCutServiceImpl;
 import com.sistemadeoperaciones.corte.service.BankLedgerQuery;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
+import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
 import com.sistemadeoperaciones.shared.exception.BadRequestException;
 import com.sistemadeoperaciones.shared.exception.ConflictException;
 import com.sistemadeoperaciones.usuarios.model.User;
@@ -32,6 +33,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
+import static org.mockito.ArgumentMatchers.*;
 
 /**
  * El retiro de una cuenta hacia Caja General de punta a punta: Cuentas lo registra (el saldo
@@ -50,6 +54,7 @@ class BankCashWithdrawalServiceTest {
     @Autowired CashGeneralService cash;
     @Autowired BankLedgerQuery ledger;
     @MockBean AuthenticatedUserService auth;
+    @MockBean BusinessAuditService businessAuditService;
 
     static final LocalDate HOY = LocalDate.now();
 
@@ -117,6 +122,39 @@ class BankCashWithdrawalServiceTest {
     }
 
     @Test
+    void editingPendingWithdrawalReplacesReservationAndConfirmationUsesEditedAmount() {
+        var day = openCash();
+        var original = register(bbva, WithdrawalMethod.RETIRO_SIN_TARJETA, "300");
+        var edited = service.edit(original.id(), new EditWithdrawalRequest(original.version(), bbva.getId(),
+                WithdrawalMethod.RETIRO_CON_TARJETA, new BigDecimal("500"), "REF-2", null));
+        assertThat(edited.version()).isGreaterThan(original.version());
+        assertThat(availability.available(bbva.getId())).isEqualByComparingTo("500");
+        assertThat(availability.balance(bbva.getId())).isEqualByComparingTo("1000");
+        service.confirm(edited.id(), new ConfirmWithdrawalRequest(day.id(), hundreds(5)));
+        assertThat(availability.balance(bbva.getId())).isEqualByComparingTo("500");
+        assertThat(cash.latest().saldoActual()).isEqualByComparingTo("600");
+        verify(businessAuditService).record(eq(user.getId()), eq("BANK_WITHDRAWAL_EDIT"),
+                eq("BANK_WITHDRAWAL"), eq(original.id()), any(), any());
+    }
+
+    @Test
+    void editingWithdrawalRejectsInsufficientFundsStaleVersionAndResolvedStatus() {
+        var original = register(bbva, WithdrawalMethod.RETIRO_SIN_TARJETA, "300");
+        assertThatThrownBy(() -> service.edit(original.id(), new EditWithdrawalRequest(original.version(),
+                bbva.getId(), WithdrawalMethod.RETIRO_CON_TARJETA, new BigDecimal("1100"), null, null)))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("Saldo insuficiente");
+        var edited = service.edit(original.id(), new EditWithdrawalRequest(original.version(),
+                bbva.getId(), WithdrawalMethod.RETIRO_CON_TARJETA, new BigDecimal("200"), null, null));
+        assertThatThrownBy(() -> service.edit(original.id(), new EditWithdrawalRequest(original.version(),
+                bbva.getId(), WithdrawalMethod.RETIRO_CON_TARJETA, new BigDecimal("100"), null, null)))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("cambió");
+        service.cancel(edited.id(), new ResolveWithdrawalRequest("Corrección"));
+        assertThatThrownBy(() -> service.edit(original.id(), new EditWithdrawalRequest(edited.version(),
+                bbva.getId(), WithdrawalMethod.RETIRO_CON_TARJETA, new BigDecimal("100"), null, null)))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("pendiente");
+    }
+
+    @Test
     void cannotWithdrawMoreThanIsAvailable() {
         register(bbva, WithdrawalMethod.RETIRO_SIN_TARJETA, "800");
         assertThatThrownBy(() -> register(bbva, WithdrawalMethod.RETIRO_CON_TARJETA, "300"))
@@ -157,6 +195,8 @@ class BankCashWithdrawalServiceTest {
 
         assertThat(again.cashMovementId()).isEqualTo(first.cashMovementId());
         assertThat(cash.latest().saldoActual()).isEqualByComparingTo("400");
+        verify(businessAuditService, times(1)).record(eq(user.getId()), eq("BANK_WITHDRAWAL_CONFIRM"),
+                eq("BANK_WITHDRAWAL"), eq(w.id()), any(), any());
     }
 
     @Test
@@ -231,6 +271,8 @@ class BankCashWithdrawalServiceTest {
         var first = service.register(request);
         assertThat(service.register(request).id()).isEqualTo(first.id());
         assertThat(availability.inTransit(bbva.getId())).isEqualByComparingTo("300");
+        verify(businessAuditService, times(1)).record(eq(user.getId()), eq("BANK_WITHDRAWAL_REGISTER"),
+                eq("BANK_WITHDRAWAL"), eq(first.id()), isNull(), any());
 
         var changed = new RegisterWithdrawalRequest(id, bbva.getId(), WithdrawalMethod.COBRO_CHEQUE,
                 new BigDecimal("301"), "Cheque 123", null);

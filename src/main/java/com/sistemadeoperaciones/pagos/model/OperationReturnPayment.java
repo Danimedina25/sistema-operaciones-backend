@@ -14,6 +14,12 @@ import java.util.List;
 @Entity
 @Table(name = "operation_return_payments")
 public class OperationReturnPayment {
+    private LocalDateTime cuentaAsignadaEn;
+    private Long cuentaAsignadaPor;
+    public LocalDateTime getCuentaAsignadaEn() { return cuentaAsignadaEn; }
+    public void setCuentaAsignadaEn(LocalDateTime value) { cuentaAsignadaEn = value; }
+    public Long getCuentaAsignadaPor() { return cuentaAsignadaPor; }
+    public void setCuentaAsignadaPor(Long value) { cuentaAsignadaPor = value; }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

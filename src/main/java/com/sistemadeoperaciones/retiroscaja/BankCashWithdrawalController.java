@@ -35,6 +35,12 @@ public class BankCashWithdrawalController {
         return ok(service.register(request));
     }
 
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'JEFA_CUENTAS')")
+    public ApiResponse<BankCashWithdrawalView> edit(@PathVariable Long id, @RequestBody EditWithdrawalRequest request) {
+        return ok(service.edit(id, request));
+    }
+
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasAnyRole('ADMIN', 'JEFA_CUENTAS')")
     public ApiResponse<BankCashWithdrawalView> cancel(@PathVariable Long id, @RequestBody ResolveWithdrawalRequest request) {

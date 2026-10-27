@@ -34,6 +34,10 @@ public class CommercialPartner {
     @Column(name = "porcentaje_comision", nullable = false, precision = 5, scale = 2)
     private BigDecimal porcentajeComision = BigDecimal.ZERO;
 
+    @Column(name = "commission_configured", nullable = false)
+    private Boolean commissionConfigured = true;
+
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User socioComercial;
@@ -136,4 +140,7 @@ public class CommercialPartner {
     public void setPorcentajeComision(BigDecimal porcentajeComision) {
         this.porcentajeComision = porcentajeComision;
     }
+
+    public Boolean getCommissionConfigured() { return commissionConfigured; }
+    public void setCommissionConfigured(Boolean commissionConfigured) { this.commissionConfigured = commissionConfigured; }
 }

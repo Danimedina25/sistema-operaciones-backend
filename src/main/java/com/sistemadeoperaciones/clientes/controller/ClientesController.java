@@ -24,7 +24,7 @@ public class ClientesController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'CATALOG_CREATE')")
     public ResponseEntity<ApiResponse<ClienteResponseDto>> create(
             @Valid @RequestBody CreateClienteRequestDto request
     ) {
@@ -88,7 +88,7 @@ public class ClientesController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'CATALOG_EDIT')")
     public ResponseEntity<ApiResponse<ClienteResponseDto>> update(
             @PathVariable Long id,
             @Valid @RequestBody UpdateClienteRequestDto request
@@ -101,7 +101,7 @@ public class ClientesController {
     }
 
     @PatchMapping("/{id}/deactivate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'CATALOG_STATUS')")
     public ResponseEntity<ApiResponse<ClienteResponseDto>> deactivate(@PathVariable Long id) {
         ClienteResponseDto response = clientesService.deactivate(id);
 
@@ -111,7 +111,7 @@ public class ClientesController {
     }
 
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'CATALOG_STATUS')")
     public ResponseEntity<ApiResponse<ClienteResponseDto>> activate(@PathVariable Long id) {
         ClienteResponseDto response = clientesService.activate(id);
 
@@ -121,7 +121,7 @@ public class ClientesController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'DIRECCION')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'CATALOG_DELETE')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         clientesService.delete(id);
 

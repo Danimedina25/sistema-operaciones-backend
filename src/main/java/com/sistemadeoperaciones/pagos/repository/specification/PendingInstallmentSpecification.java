@@ -10,6 +10,7 @@ public final class PendingInstallmentSpecification {
     public static Specification<OperationReturnInstallment> pending(boolean confirmation, LocalDate today, List<PaymentType> types) {
         return (root, query, cb) -> cb.and(
             root.get("tipoPago").in(types),
+            cb.or(cb.isNull(root.get("codigoParaCliente")), cb.isFalse(root.get("codigoParaCliente"))),
             cb.isTrue(root.get("solicitud").get("operacion").get("activo")),
             root.get("estatus").in(ReturnInstallmentStatus.PROGRAMADA, ReturnInstallmentStatus.ENTREGADA),
             cb.isNull(root.get("fechaEntrega")),

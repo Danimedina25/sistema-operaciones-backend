@@ -11,6 +11,7 @@ import com.sistemadeoperaciones.pagos.repository.OperationPaymentRepository;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
 import com.sistemadeoperaciones.shared.audit.service.DeletionAuditService;
+import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.shared.crypto.CryptoService;
 import com.sistemadeoperaciones.shared.exception.BadRequestException;
@@ -39,6 +40,7 @@ public class BankAccountServiceImpl implements BankAccountService {
     private final BankAccountDailyCutRepository bankAccountDailyCutRepository;
     private final AuthenticatedUserService authenticatedUserService;
     private final DeletionAuditService deletionAuditService;
+    private final BusinessAuditService businessAuditService;
     // Se inyecta el repositorio y no CashGeneralService: así no hay ciclo de beans
     // (cajageneral ya depende de cuentasbancarias).
     private final CashGeneralMovementRepository cashGeneralMovementRepository;
@@ -51,7 +53,8 @@ public class BankAccountServiceImpl implements BankAccountService {
                                   BankAccountDailyCutRepository bankAccountDailyCutRepository,
                                   AuthenticatedUserService authenticatedUserService,
                                   DeletionAuditService deletionAuditService,
-                                  CashGeneralMovementRepository cashGeneralMovementRepository) {
+                                  CashGeneralMovementRepository cashGeneralMovementRepository,
+                                  BusinessAuditService businessAuditService) {
         this.bankAccountRepository = bankAccountRepository;
         this.cryptoService = cryptoService;
         this.operationPaymentRepository = operationPaymentRepository;
@@ -61,9 +64,11 @@ public class BankAccountServiceImpl implements BankAccountService {
         this.authenticatedUserService = authenticatedUserService;
         this.deletionAuditService = deletionAuditService;
         this.cashGeneralMovementRepository = cashGeneralMovementRepository;
+        this.businessAuditService = businessAuditService;
     }
 
     @Override
+    @Transactional
     public BankAccountResponseDto create(BankAccountRequestDto request) {
         validateUniqueFields(request, null);
 
@@ -75,6 +80,7 @@ public class BankAccountServiceImpl implements BankAccountService {
         bankAccount.setActivo(request.getActivo() != null ? request.getActivo() : true);
 
         BankAccount saved = bankAccountRepository.save(bankAccount);
+        audit("BANK_ACCOUNT_CREATE", saved, null, auditSnapshot(saved));
         return mapToResponseFull(saved);
     }
 
@@ -98,9 +104,11 @@ public class BankAccountServiceImpl implements BankAccountService {
     }
 
     @Override
+    @Transactional
     public BankAccountResponseDto update(Long id, BankAccountRequestDto request) {
         BankAccount bankAccount = bankAccountRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Cuenta bancaria no encontrada con id: " + id));
+        Map<String, Object> beforeAudit = auditSnapshot(bankAccount);
 
         validateUniqueFields(request, id);
 
@@ -114,10 +122,12 @@ public class BankAccountServiceImpl implements BankAccountService {
         }
 
         BankAccount updated = bankAccountRepository.save(bankAccount);
+        audit("BANK_ACCOUNT_UPDATE", updated, beforeAudit, auditSnapshot(updated));
         return mapToResponseFull(updated);
     }
 
     @Override
+    @Transactional
     public BankAccountResponseDto deactivate(Long id) {
         BankAccount bankAccount = bankAccountRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Cuenta bancaria no encontrada con id: " + id));
@@ -126,13 +136,16 @@ public class BankAccountServiceImpl implements BankAccountService {
             throw new BadRequestException("La cuenta bancaria ya se encuentra inactiva");
         }
 
+        Map<String, Object> beforeAudit = auditSnapshot(bankAccount);
         bankAccount.setActivo(false);
 
         BankAccount updated = bankAccountRepository.save(bankAccount);
+        audit("BANK_ACCOUNT_DEACTIVATE", updated, beforeAudit, auditSnapshot(updated));
         return mapToResponseMasked(updated);
     }
 
     @Override
+    @Transactional
     public BankAccountResponseDto activate(Long id) {
         BankAccount bankAccount = bankAccountRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Cuenta bancaria no encontrada con id: " + id));
@@ -141,9 +154,11 @@ public class BankAccountServiceImpl implements BankAccountService {
             throw new BadRequestException("La cuenta bancaria ya se encuentra activa");
         }
 
+        Map<String, Object> beforeAudit = auditSnapshot(bankAccount);
         bankAccount.setActivo(true);
 
         BankAccount updated = bankAccountRepository.save(bankAccount);
+        audit("BANK_ACCOUNT_ACTIVATE", updated, beforeAudit, auditSnapshot(updated));
         return mapToResponseMasked(updated);
     }
 
@@ -175,15 +190,37 @@ public class BankAccountServiceImpl implements BankAccountService {
             );
         }
 
+        Map<String, Object> beforeAudit = auditSnapshot(bankAccount);
         User currentUser = authenticatedUserService.getCurrentUser();
         deletionAuditService.record("BANK_ACCOUNT", bankAccount.getId(), bankAccount.getBanco() + " - " + bankAccount.getTitular(), currentUser);
 
         try {
             bankAccountRepository.delete(bankAccount);
             bankAccountRepository.flush();
+            businessAuditService.record(currentUser.getId(), "BANK_ACCOUNT_DELETE", "BANK_ACCOUNT",
+                    bankAccount.getId(), beforeAudit, null);
         } catch (DataIntegrityViolationException e) {
             throw new BadRequestException("No se puede eliminar la cuenta bancaria porque tiene información relacionada");
         }
+    }
+
+    private Map<String, Object> auditSnapshot(BankAccount account) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("bank", account.getBanco());
+        snapshot.put("holder", account.getTitular());
+        snapshot.put("accountLast4", last4(account.getNumeroCuenta()));
+        snapshot.put("clabeLast4", last4(account.getClabe()));
+        snapshot.put("active", account.getActivo());
+        return snapshot;
+    }
+
+    private String last4(String value) {
+        return value == null ? null : value.substring(Math.max(0, value.length() - 4));
+    }
+
+    private void audit(String action, BankAccount account, Map<String, Object> before, Map<String, Object> after) {
+        businessAuditService.record(authenticatedUserService.getCurrentUser().getId(), action,
+                "BANK_ACCOUNT", account.getId(), before, after);
     }
 
     private void validateUniqueFields(BankAccountRequestDto request, Long id) {
@@ -226,8 +263,8 @@ public class BankAccountServiceImpl implements BankAccountService {
     }
 
     private BankAccountResponseDto mapToResponseMasked(BankAccount bankAccount) {
-        String numeroCuenta = bankAccount.getNumeroCuenta();
-        String clabe = bankAccount.getClabe();
+        String numeroCuenta = maskAccountNumber(bankAccount.getNumeroCuenta());
+        String clabe = maskClabe(bankAccount.getClabe());
 
         return new BankAccountResponseDto(
                 bankAccount.getId(),

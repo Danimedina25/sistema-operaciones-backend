@@ -16,6 +16,7 @@ import java.time.LocalDate;
 public class BankAvailability {
     private final BankAccountDailyCutService balances;
     private final BankCashWithdrawalRepository withdrawals;
+    private final com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository returnInstallments;
 
     public BigDecimal balance(Long accountId) {
         return balances.calculateBalance(accountId, LocalDate.now()).getSaldoFinal();
@@ -26,6 +27,6 @@ public class BankAvailability {
     }
 
     public BigDecimal available(Long accountId) {
-        return balance(accountId).subtract(inTransit(accountId));
+        return balance(accountId).subtract(inTransit(accountId)).subtract(java.util.Objects.requireNonNullElse(returnInstallments.sumReservedCodes(accountId), BigDecimal.ZERO));
     }
 }

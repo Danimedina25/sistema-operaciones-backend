@@ -20,12 +20,14 @@ import com.sistemadeoperaciones.pagos.repository.PaymentOperationRepository;
 import com.sistemadeoperaciones.pagos.repository.specification.OperationReturnPaymentSpecification;
 import com.sistemadeoperaciones.pagos.repository.specification.PaymentOperationSpecification;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
+import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
 import com.sistemadeoperaciones.shared.enums.RoleName;
 import com.sistemadeoperaciones.usuarios.model.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
@@ -49,6 +51,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
     private final NotificationService notificationService;
     private final ReturnInstallmentService returnInstallmentService;
     private final ReturnPaymentDtoMapper returnPaymentDtoMapper;
+    private final BusinessAuditService businessAuditService;
 
     public ReturnsOperationServiceImpl(
             PaymentOperationRepository paymentOperationRepository,
@@ -58,7 +61,8 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             BankAccountRepository bankAccountRepository,
             NotificationService notificationService,
             ReturnInstallmentService returnInstallmentService,
-            ReturnPaymentDtoMapper returnPaymentDtoMapper
+            ReturnPaymentDtoMapper returnPaymentDtoMapper,
+            BusinessAuditService businessAuditService
     ) {
         this.paymentOperationRepository = paymentOperationRepository;
         this.operationReturnPaymentRepository = operationReturnPaymentRepository;
@@ -68,6 +72,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         this.notificationService = notificationService;
         this.returnInstallmentService = returnInstallmentService;
         this.returnPaymentDtoMapper = returnPaymentDtoMapper;
+        this.businessAuditService = businessAuditService;
     }
 
     @Override
@@ -78,6 +83,8 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
     ) {
         PaymentOperation operation = paymentOperationRepository.findById(operationId)
                 .orElseThrow(() -> new IllegalArgumentException("Operación no encontrada"));
+        User currentUser = authenticatedUserService.getCurrentUser();
+        assertOwnOperation(operation, currentUser);
 
         validateOperationCanReceiveReturn(operation);
         validateReturnBatchRequest(request);
@@ -99,8 +106,6 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         if (newTotalRequested.compareTo(amountToReturn) > 0) {
             throw new ReturnAmountExceedsPendingBalanceException();
         }
-
-        User currentUser = authenticatedUserService.getCurrentUser();
 
         List<OperationReturnPayment> returnPayments = request.getPagos()
                 .stream()
@@ -139,6 +144,10 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         List<OperationReturnPayment> savedReturns =
                 operationReturnPaymentRepository.saveAll(returnPayments);
 
+        for (OperationReturnPayment savedReturn : savedReturns) {
+            businessAuditService.record(currentUser.getId(), "RETURN_REQUEST", "RETURN_REQUEST", savedReturn.getId(), null, returnAuditSnapshot(savedReturn));
+        }
+
         if (
                 operation.getEstatus() == OperationStatus.VALIDADA ||
                         operation.getEstatus() == OperationStatus.RETORNO_PARCIAL_SOLICITADO
@@ -170,6 +179,8 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         OperationReturnPayment returnPayment =
                 operationReturnPaymentRepository.findById(returnPaymentId)
                         .orElseThrow(ReturnPaymentNotFoundException::new);
+        assertOwnOperation(returnPayment.getOperacion(), authenticatedUserService.getCurrentUser());
+        var beforeAudit = returnAuditSnapshot(returnPayment);
 
         validateReturnCanBeEdited(returnPayment);
 
@@ -205,6 +216,9 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             throw new ReturnAmountExceedsPendingBalanceException();
         }
 
+        if (returnPayment.getCuentaAsignadaEn() != null && request.getTipoPago() != returnPayment.getTipoPago()) {
+            throw new com.sistemadeoperaciones.shared.exception.BadRequestException("No puedes cambiar el método después de que Cuentas asignó la cuenta origen");
+        }
         returnPayment.setMonto(request.getMonto());
         returnPayment.setTipoPago(request.getTipoPago());
         returnPayment.setObservaciones(
@@ -251,6 +265,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 operationReturnPaymentRepository.save(
                         returnPayment
                 );
+        businessAuditService.record(authenticatedUserService.getCurrentUser().getId(), "RETURN_REQUEST_UPDATE", "RETURN_REQUEST", updated.getId(), beforeAudit, returnAuditSnapshot(updated));
 
         if (
                 operation.getEstatus() == OperationStatus.VALIDADA ||
@@ -285,6 +300,32 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
             throw new ReturnPaymentCannotBeEditedException();
         }
+    }
+
+    private void assertOwnOperation(PaymentOperation operation, User currentUser) {
+        boolean admin = currentUser.getRoles().stream().anyMatch(role -> role.getName() == RoleName.ADMIN);
+        if (admin) return;
+        boolean owner = operation.getSocioComercial() != null
+                && operation.getSocioComercial().getId().equals(currentUser.getId());
+        if (!owner) throw new AccessDeniedException("No tienes permisos para solicitar retornos de esta operación");
+    }
+
+    private java.util.Map<String, Object> returnAuditSnapshot(OperationReturnPayment request) {
+        java.util.Map<String, Object> snapshot = new java.util.LinkedHashMap<>();
+        snapshot.put("operacionId", request.getOperacion() == null ? null : request.getOperacion().getId());
+        snapshot.put("monto", request.getMonto());
+        snapshot.put("tipoPago", request.getTipoPago());
+        snapshot.put("estatus", request.getEstatus());
+        snapshot.put("bancoDestino", request.getCuentaDestinoBanco());
+        snapshot.put("cuentaDestinoUltimos4", lastFour(request.getCuentaDestinoCliente()));
+        snapshot.put("clabeDestinoUltimos4", lastFour(request.getCuentaClabeCliente()));
+        snapshot.put("tieneArchivoNomina", request.getArchivoNominaUrl() != null && !request.getArchivoNominaUrl().isBlank());
+        snapshot.put("observaciones", request.getObservaciones());
+        return snapshot;
+    }
+
+    private String lastFour(String value) {
+        return value == null || value.isBlank() ? null : value.substring(Math.max(0, value.length() - 4));
     }
 
 
@@ -597,7 +638,7 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
             return List.of(RoleName.JEFA_CUENTAS, RoleName.AUXILIAR_CUENTAS, RoleName.ADMIN);
         }
 
-        return List.of(RoleName.JEFA_CAJAS, RoleName.ADMIN);
+        return tipoPago == PaymentType.RETIRO_SIN_TARJETA ? List.of(RoleName.JEFA_CUENTAS, RoleName.AUXILIAR_CUENTAS, RoleName.ADMIN) : List.of(RoleName.JEFA_CAJAS, RoleName.ADMIN);
     }
 
     private void notifyReturnRequested(
@@ -614,7 +655,6 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
         List<OperationReturnPayment> cashPayments = returnPayments.stream()
                 .filter(payment ->
                         payment.getTipoPago() == PaymentType.EFECTIVO
-                                || payment.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA
                 )
                 .toList();
 
@@ -628,6 +668,13 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
 
         if (!cashPayments.isEmpty()) {
             sendCashReturnRequestedNotification(operation, cashPayments);
+        }
+        for (var payment : returnPayments) {
+            if (payment.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA)
+                notificationService.createForRoles(List.of(RoleName.JEFA_CUENTAS, RoleName.AUXILIAR_CUENTAS), "Retiro sin tarjeta por registrar código",
+                    "Registra cuenta origen, monto y código para el cliente de la solicitud #" + payment.getId(), NotificationType.CASH_RETURN_REQUESTED,
+                    NotificationModule.PAGOS, NotificationReferenceType.RETURN_PAYMENT, payment.getId(),
+                    "/operaciones/" + operation.getId() + "?action=manage-return&returnRequestId=" + payment.getId() + "&scrollToReturns=true", NotificationPriority.HIGH);
         }
     }
 
@@ -712,7 +759,8 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 returnPayment.getOperacion();
 
         notificationService.createForRoles(
-                resolveReturnNotificationRoles(returnPayment.getTipoPago()),
+                returnPayment.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA && returnPayment.getCuentaAsignadaEn() == null
+                        ? List.of(RoleName.JEFA_CUENTAS, RoleName.AUXILIAR_CUENTAS, RoleName.ADMIN) : resolveReturnNotificationRoles(returnPayment.getTipoPago()),
                 "Solicitud de retorno actualizada",
                 "Se actualizó la solicitud de retorno por $"
                         + returnPayment.getMonto()

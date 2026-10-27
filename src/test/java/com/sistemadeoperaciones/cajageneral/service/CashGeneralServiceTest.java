@@ -13,8 +13,10 @@ import com.sistemadeoperaciones.pagos.enums.*;
 import com.sistemadeoperaciones.pagos.model.*;
 import com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
+import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
 import com.sistemadeoperaciones.usuarios.model.User;
 import com.sistemadeoperaciones.retiroscaja.*;
+import com.sistemadeoperaciones.envioscaja.CashBankDepositRepository;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -37,6 +39,8 @@ class CashGeneralServiceTest {
     @Mock BankAccountRepository bankAccounts;
     @Mock BankAccountDailyCutService bankCuts;
     @Mock BankCashWithdrawalRepository withdrawals;
+    @Mock BusinessAuditService businessAuditService;
+    @Mock CashBankDepositRepository cashBankDeposits;
     @InjectMocks CashGeneralService service;
     CashGeneralDay day;
     User user;
@@ -56,6 +60,7 @@ class CashGeneralServiceTest {
         lenient().when(days.findById(1L)).thenReturn(Optional.of(day));
         lenient().when(days.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
         lenient().when(movements.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
+        lenient().when(cashBankDeposits.sumReservedCash()).thenReturn(BigDecimal.ZERO);
     }
     CreateCashMovementRequest request(CashMovementDirection direction, BigDecimal amount, Long reference, int hundreds) {
         return new CreateCashMovementRequest(UUID.randomUUID(), direction, CashMovementConcept.EFECTIVO,
@@ -153,6 +158,8 @@ class CashGeneralServiceTest {
         assertThat(capture.getValue().getParcialidad()).isSameAs(installment);
         assertThat(capture.getValue().getComprobanteUrl()).isEqualTo("https://example.com/entrega.jpg");
         assertThat(day.getSaldoActual()).isEqualByComparingTo("0");
+        verify(businessAuditService).record(eq(7L), eq("CASH_MOVEMENT_CREATE"), eq("CASH_MOVEMENT"),
+                isNull(), isNull(), any());
     }
     @Test void automaticCashDeliveryRequiresTodayOpenCashExactBreakdownAndBalance() {
         var installment = completed();
@@ -193,6 +200,8 @@ class CashGeneralServiceTest {
         var result = service.close(1L,new CloseCashDayRequest(money("99.50"),0L,counts(0,199),"Faltante contado"));
         assertThat(result.diferencia()).isEqualByComparingTo("-0.50");
         assertThat(result.saldoActual()).isEqualByComparingTo("100"); assertThat(result.closedAt()).isNotNull();
+        verify(businessAuditService).record(eq(7L), eq("CASH_DAY_CLOSE"), eq("CASH_DAY"),
+                eq(1L), any(), any());
     }
     @Test void exactCloseAndStaleVersion() {
         assertThatThrownBy(() -> service.close(1L,new CloseCashDayRequest(money("100"),2L,counts(1,0),null))).hasMessageContaining("cambió");
@@ -226,6 +235,8 @@ class CashGeneralServiceTest {
         assertThatThrownBy(() -> service.open(request)).hasMessageContaining("contado");
         var result = service.open(new OpenCashDayRequest(LocalDate.now(),money("99.50"),counts(0,199)));
         assertThat(result.saldoInicial()).isEqualByComparingTo("99.50");
+        verify(businessAuditService).record(eq(7L), eq("CASH_DAY_OPEN"), eq("CASH_DAY"),
+                isNull(), isNull(), any());
     }
     @Test void retryIsIdempotentEvenAfterClosingButChangedPayloadConflicts() {
         var r = request(CashMovementDirection.ENTRADA,money("100"),null,1);
@@ -235,6 +246,8 @@ class CashGeneralServiceTest {
         day.setClosedAt(LocalDateTime.now());
         assertThat(service.createMovement(1L,r).saldoAcumulado()).isEqualByComparingTo("200");
         verify(movements,times(1)).saveAndFlush(any());
+        verify(businessAuditService,times(1)).record(eq(7L), eq("CASH_MOVEMENT_CREATE"),
+                eq("CASH_MOVEMENT"), isNull(), isNull(), any());
         var changed = new CreateCashMovementRequest(r.requestId(),r.direccion(),r.tipo(),"Otro",null,null,r.monto(),null,r.denominaciones(),null);
         assertThatThrownBy(() -> service.createMovement(1L,changed)).hasMessageContaining("otros datos");
     }
@@ -336,6 +349,8 @@ class CashGeneralServiceTest {
         verify(movements).flush();
         verify(days).delete(day);
         verify(days).flush();
+        verify(businessAuditService).record(eq(7L), eq("CASH_DAY_DELETE"), eq("CASH_DAY"),
+                eq(1L), any(), isNull());
     }
     @Test void deletingADayWithChequesRebuildsTheAffectedBankCuts() {
         BankAccount account = activeAccount();

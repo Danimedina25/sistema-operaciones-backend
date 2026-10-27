@@ -18,6 +18,8 @@ import com.sistemadeoperaciones.retiroscaja.BankCashWithdrawal;
 import com.sistemadeoperaciones.retiroscaja.BankCashWithdrawalRepository;
 import com.sistemadeoperaciones.retiroscaja.WithdrawalStatus;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
+import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
+import com.sistemadeoperaciones.envioscaja.CashBankDepositRepository;
 import com.sistemadeoperaciones.shared.exception.ConflictException;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
 import org.springframework.data.domain.PageRequest;
@@ -39,6 +41,8 @@ public class CashGeneralService {
     private final BankAccountDailyCutService bankCuts;
     private final AuthenticatedUserService auth;
     private final BankCashWithdrawalRepository withdrawals;
+    private final BusinessAuditService businessAuditService;
+    private final CashBankDepositRepository cashBankDeposits;
     // TODO: confirmar con negocio PDF descargable o impresión del navegador para los tres formatos (Fase 2).
     // TODO: confirmar con negocio historial completo de asignaciones de tarjetas o sólo estado actual (Fase 2).
     /**
@@ -57,17 +61,59 @@ public class CashGeneralService {
             CashGeneralMovementRepository movements, OperationReturnInstallmentRepository installments,
             AuthenticatedUserService auth, CashGeneralDeletionAuditRepository deletionAudits,
             BankAccountRepository bankAccounts, BankAccountDailyCutService bankCuts,
-            BankCashWithdrawalRepository withdrawals) {
+            BankCashWithdrawalRepository withdrawals, BusinessAuditService businessAuditService,
+            CashBankDepositRepository cashBankDeposits) {
         this.register = register; this.days = days; this.movements = movements;
         this.installments = installments; this.auth = auth;
         this.deletionAudits = deletionAudits;
         this.bankAccounts = bankAccounts; this.bankCuts = bankCuts;
         this.withdrawals = withdrawals;
+        this.businessAuditService = businessAuditService;
+        this.cashBankDeposits = cashBankDeposits;
     }
 
     // Orden único para TODAS las escrituras: registro global -> día -> movimiento.
     // El lock también protege la ausencia de un día en la primera apertura y entre fechas distintas.
     private void lock() { register.ensureRegister(); register.lockRegister(); }
+
+    private void requireUnreserved(BigDecimal resultingBalance) {
+        if (resultingBalance.compareTo(cashBankDeposits.sumReservedCash()) < 0)
+            throw new InvalidCashGeneralException("Saldo disponible insuficiente: hay efectivo reservado en envíos a cuentas");
+    }
+
+    private CashMovementResponse saveMovement(CashGeneralMovement movement) {
+        CashGeneralMovement saved = movements.saveAndFlush(movement);
+        businessAuditService.record(saved.getCreadoPor().getId(), "CASH_MOVEMENT_CREATE", "CASH_MOVEMENT",
+                saved.getId(), null, movementAuditSnapshot(saved));
+        return movementDto(saved);
+    }
+
+    private Map<String, Object> movementAuditSnapshot(CashGeneralMovement movement) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("dayId", movement.getDia().getId());
+        snapshot.put("direction", movement.getDireccion());
+        snapshot.put("type", movement.getTipo());
+        snapshot.put("amount", movement.importe());
+        snapshot.put("balanceAfter", movement.getSaldoAcumulado());
+        snapshot.put("denominations", new LinkedHashMap<>(movement.getDenominaciones()));
+        snapshot.put("bankAccountId", movement.getCuentaBancaria() == null ? null : movement.getCuentaBancaria().getId());
+        snapshot.put("paymentId", movement.getPago() == null ? null : movement.getPago().getId());
+        snapshot.put("installmentId", movement.getParcialidad() == null ? null : movement.getParcialidad().getId());
+        return snapshot;
+    }
+
+    private Map<String, Object> dayAuditSnapshot(CashGeneralDay day) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("date", day.getFecha());
+        snapshot.put("openingBalance", day.getSaldoInicial());
+        snapshot.put("currentBalance", day.getSaldoActual());
+        snapshot.put("countedBalance", day.getSaldoContado());
+        snapshot.put("difference", day.getDiferencia());
+        snapshot.put("openingCounts", new LinkedHashMap<>(day.getApertura()));
+        snapshot.put("closingCounts", new LinkedHashMap<>(day.getCierre()));
+        snapshot.put("closedAt", day.getClosedAt());
+        return snapshot;
+    }
 
     public CashDayResponse latest() { return days.findFirstByOrderByFechaDesc().map(this::dayDto).orElse(null); }
 
@@ -97,6 +143,7 @@ public class CashGeneralService {
         BigDecimal amount = CashGeneralAmounts.money(installment.getMonto(), true);
         CashGeneralAmounts.requireTotal(denominations, amount);
         BigDecimal balance = CashGeneralAmounts.balance(day.getSaldoActual(), BigDecimal.ZERO, amount);
+        requireUnreserved(balance);
 
         CashGeneralMovement movement = new CashGeneralMovement();
         movement.setDia(day);
@@ -114,7 +161,43 @@ public class CashGeneralService {
         movement.setCreadoPor(auth.getCurrentUser());
         day.setSaldoActual(balance);
         days.saveAndFlush(day);
-        return movementDto(movements.saveAndFlush(movement));
+        return saveMovement(movement);
+    }
+
+    /** Salida física y entrada bancaria del mismo envío confirmado, en una transacción. */
+    @Transactional
+    public CashMovementResponse recordBankDeposit(Long depositId, BankAccount account, BigDecimal amount,
+            Map<CashDenomination, Integer> denominations, String outgoingProof) {
+        lock();
+        String requestId = UUID.nameUUIDFromBytes(
+                ("cash-bank-deposit:" + depositId).getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
+        Optional<CashGeneralMovement> existing = movements.findByRequestId(requestId);
+        if (existing.isPresent()) return movementDto(existing.get());
+        CashGeneralDay day = days.findFirstByOrderByFechaDesc()
+                .orElseThrow(() -> new InvalidCashGeneralException("Abre la Caja General antes de confirmar el envío"));
+        if (day.getClosedAt() != null || !day.getFecha().equals(LocalDate.now()))
+            throw new InvalidCashGeneralException("Debe existir una Caja General abierta para el día de hoy");
+        BigDecimal value = CashGeneralAmounts.money(amount, true);
+        CashGeneralAmounts.requireTotal(denominations, value);
+        BigDecimal balance = CashGeneralAmounts.balance(day.getSaldoActual(), BigDecimal.ZERO, value);
+        // Este envío aún integra la reserva; se libera al confirmar en la misma transacción.
+        BigDecimal otherReservations = cashBankDeposits.sumReservedCash().subtract(value);
+        if (balance.compareTo(otherReservations) < 0)
+            throw new InvalidCashGeneralException("Saldo insuficiente, considerando otros envíos en tránsito");
+        CashGeneralMovement movement = new CashGeneralMovement();
+        movement.setDia(day); movement.setRequestId(requestId);
+        movement.setDireccion(CashMovementDirection.SALIDA);
+        movement.setTipo(CashMovementConcept.ENVIO_A_CUENTA);
+        movement.setConcepto("Envío de efectivo a " + account.getBanco() + " ••••"
+                + account.getNumeroCuenta().substring(Math.max(0, account.getNumeroCuenta().length() - 4)));
+        movement.setBanco(account.getBanco()); movement.setCuentaBancaria(account);
+        movement.setMontoManual(value); movement.setSaldoAcumulado(balance);
+        movement.setDenominaciones(new EnumMap<>(denominations));
+        movement.setComprobanteUrl(outgoingProof);
+        movement.setCreadoPor(auth.getCurrentUser());
+        day.setSaldoActual(balance);
+        days.saveAndFlush(day);
+        return saveMovement(movement);
     }
 
     /**
@@ -165,7 +248,7 @@ public class CashGeneralService {
         movement.setCreadoPor(auth.getCurrentUser());
         day.setSaldoActual(balance);
         days.saveAndFlush(day);
-        return movementDto(movements.saveAndFlush(movement));
+        return saveMovement(movement);
     }
 
     /**
@@ -219,7 +302,7 @@ public class CashGeneralService {
         movement.setCreadoPor(auth.getCurrentUser());
         day.setSaldoActual(balance);
         days.saveAndFlush(day);
-        return movementDto(movements.saveAndFlush(movement));
+        return saveMovement(movement);
     }
 
     @Transactional
@@ -262,7 +345,7 @@ public class CashGeneralService {
         movement.setCreadoPor(auth.getCurrentUser());
         day.setSaldoActual(balance);
         days.saveAndFlush(day);
-        return movementDto(movements.saveAndFlush(movement));
+        return saveMovement(movement);
     }
 
     @Transactional
@@ -284,7 +367,10 @@ public class CashGeneralService {
         day.setFecha(request.fecha()); day.setSaldoInicial(amount); day.setSaldoActual(amount);
         day.setApertura(new EnumMap<>(request.denominaciones())); day.setCierre(new EnumMap<>(CashDenomination.class));
         day.setAbiertoPor(auth.getCurrentUser());
-        return dayDto(days.saveAndFlush(day));
+        CashGeneralDay saved = days.saveAndFlush(day);
+        businessAuditService.record(saved.getAbiertoPor().getId(), "CASH_DAY_OPEN", "CASH_DAY",
+                saved.getId(), null, dayAuditSnapshot(saved));
+        return dayDto(saved);
     }
 
     @Transactional
@@ -333,6 +419,7 @@ public class CashGeneralService {
         boolean incoming = request.direccion() == CashMovementDirection.ENTRADA;
         BigDecimal balance = CashGeneralAmounts.balance(day.getSaldoActual(), incoming ? amount : BigDecimal.ZERO,
                 incoming ? BigDecimal.ZERO : amount);
+        if (!incoming) requireUnreserved(balance);
         CashGeneralMovement movement = new CashGeneralMovement();
         movement.setDia(day); movement.setRequestId(request.requestId().toString());
         movement.setDireccion(request.direccion()); movement.setTipo(request.tipo()); movement.setConcepto(concept);
@@ -342,13 +429,14 @@ public class CashGeneralService {
         movement.setDenominaciones(new EnumMap<>(request.denominaciones())); movement.setComprobanteUrl(proof);
         movement.setCreadoPor(auth.getCurrentUser()); day.setSaldoActual(balance);
         days.saveAndFlush(day);
-        return movementDto(movements.saveAndFlush(movement));
+        return saveMovement(movement);
     }
 
     @Transactional
     public CashDayResponse close(Long dayId, CloseCashDayRequest request) {
         lock();
         CashGeneralDay day = openDayForClose(dayId);
+        Map<String, Object> beforeAudit = dayAuditSnapshot(day);
         if (!Objects.equals(day.getVersion(), request.version()))
             throw new ConflictException("La caja cambió durante el conteo. Actualiza y revisa el cierre");
         BigDecimal counted = CashGeneralAmounts.money(request.saldoContado(), false);
@@ -360,7 +448,10 @@ public class CashGeneralService {
         day.setSaldoContado(counted); day.setDiferencia(difference);
         day.setCierre(new EnumMap<>(request.denominaciones())); day.setObservacionesCierre(note);
         day.setCerradoPor(auth.getCurrentUser()); day.setClosedAt(LocalDateTime.now());
-        return dayDto(days.saveAndFlush(day));
+        CashGeneralDay saved = days.saveAndFlush(day);
+        businessAuditService.record(saved.getCerradoPor().getId(), "CASH_DAY_CLOSE", "CASH_DAY",
+                saved.getId(), beforeAudit, dayAuditSnapshot(saved));
+        return dayDto(saved);
     }
 
     public CashLedgerResponse ledger(LocalDate start, LocalDate end) {
@@ -440,6 +531,9 @@ public class CashGeneralService {
         String reason = requiredText(request.motivo(), 500, "el motivo de eliminación");
         CashGeneralDay day = days.findById(dayId)
                 .orElseThrow(() -> new ResourceNotFoundException("Corte de Caja General no encontrado"));
+        if (cashBankDeposits.existsByMovimientoCajaDiaId(dayId))
+            throw new ConflictException("El día tiene envíos confirmados a bancos y no puede eliminarse sin reversión auditada");
+        Map<String, Object> beforeAudit = dayAuditSnapshot(day);
         if (!Objects.equals(day.getVersion(), request.version())) {
             throw new ConflictException("El corte cambió. Actualiza la página antes de eliminarlo");
         }
@@ -483,6 +577,8 @@ public class CashGeneralService {
         }
         audit.setCortesBancariosRecalculados(recalculated);
         deletionAudits.save(audit);
+        businessAuditService.record(audit.getDeletedBy().getId(), "CASH_DAY_DELETE", "CASH_DAY",
+                day.getId(), beforeAudit, null);
     }
 
     /** Para capturar movimientos: sólo la caja de hoy, o quedarían fechados en otro día. */

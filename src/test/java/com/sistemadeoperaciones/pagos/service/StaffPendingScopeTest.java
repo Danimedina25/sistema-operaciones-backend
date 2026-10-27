@@ -14,7 +14,8 @@ class StaffPendingScopeTest {
         assertThatThrownBy(() -> StaffPendingScope.types(user(RoleName.AUXILIAR_CUENTAS),"CASH_RETURNS",false)).isInstanceOf(AccessDeniedException.class);
     }
     @Test void accountsRolesHaveSameScopeAndMultiRoleUnionsWithoutDuplicates() {
-        assertThat(StaffPendingScope.types(user(RoleName.JEFA_CUENTAS),"BANK_RETURNS",false)).isEqualTo(StaffPendingScope.types(user(RoleName.AUXILIAR_CUENTAS),"BANK_RETURNS",false));
+        assertThat(StaffPendingScope.types(user(RoleName.JEFA_CUENTAS),"BANK_RETURNS",false)).doesNotContain(PaymentType.RETIRO_SIN_TARJETA);
+        assertThat(StaffPendingScope.types(user(RoleName.AUXILIAR_CUENTAS),"BANK_RETURNS",false)).doesNotContain(PaymentType.RETIRO_SIN_TARJETA);
         assertThat(StaffPendingScope.returnTypes(user(RoleName.JEFA_CAJAS,RoleName.JEFA_CUENTAS,RoleName.AUXILIAR_CUENTAS),null))
             .containsExactlyInAnyOrder(PaymentType.EFECTIVO,PaymentType.RETIRO_SIN_TARJETA,PaymentType.TRANSFERENCIA,PaymentType.DEPOSITO,PaymentType.CHEQUE);
     }

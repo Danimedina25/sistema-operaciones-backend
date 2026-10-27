@@ -4,4 +4,4 @@ package com.sistemadeoperaciones.cajageneral.enums;
 // RETIRO_CON_TARJETA entran al confirmar un retiro que registró Cuentas, siempre con la cuenta
 // de la que salió el dinero. COBRO_CHEQUE_CLIENTE lo registra el módulo de cheques.
 // TRANSFERENCIA y DEPOSITO describen pagos bancarios y nunca entran a la caja.
-public enum CashMovementConcept { COBRO_CHEQUE_CLIENTE, EFECTIVO, CHEQUE, TRANSFERENCIA, DEPOSITO, RETIRO_CON_TARJETA, RETIRO_SIN_TARJETA }
+public enum CashMovementConcept { COBRO_CHEQUE_CLIENTE, EFECTIVO, CHEQUE, TRANSFERENCIA, DEPOSITO, RETIRO_CON_TARJETA, RETIRO_SIN_TARJETA, ENVIO_A_CUENTA }

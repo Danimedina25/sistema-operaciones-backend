@@ -69,7 +69,7 @@ public class ReturnsOperationController {
     }
 
     @PostMapping("/{operationId}/request")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'RETURN_REQUEST')")
     public ResponseEntity<ApiResponse<List<ReturnPaymentResponseDto>>> requestReturnPayment(
             @PathVariable Long operationId,
             @Valid @RequestBody CreateReturnPaymentBatchRequestDto request
@@ -88,7 +88,7 @@ public class ReturnsOperationController {
     }
 
     @PutMapping("/{returnPaymentId}/update")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'RETURN_REQUEST')")
     public ResponseEntity<ApiResponse<ReturnPaymentResponseDto>>
     updateRequestReturnPayment(
             @PathVariable Long returnPaymentId,
@@ -111,7 +111,7 @@ public class ReturnsOperationController {
     }
 
     @PatchMapping("/payments/{returnPaymentId}/realize")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'AUXILIAR_CUENTAS', 'JEFA_CAJAS', 'JEFA_CUENTAS')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'RETURN_BANK_PAY')")
     public ResponseEntity<ApiResponse<ReturnPaymentResponseDto>> realizeReturnPayment(
             @PathVariable Long returnPaymentId,
             @Valid @RequestBody RealizeReturnPaymentRequestDto request
@@ -187,7 +187,7 @@ public class ReturnsOperationController {
     }
 
     @PatchMapping("/payments/{returnPaymentId}/cash-pickup-time")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CAJAS')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'RETURN_CASH_DELIVER')")
     public ResponseEntity<ApiResponse<ReturnPaymentResponseDto>> scheduleCashReturnPickup(
             @PathVariable Long returnPaymentId,
             @Valid @RequestBody ScheduleCashReturnPickupRequestDto request
@@ -209,7 +209,7 @@ public class ReturnsOperationController {
     }
 
     @PatchMapping("/payments/{returnPaymentId}/mark-cash-delivered")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CAJAS')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'RETURN_CASH_DELIVER')")
     public ResponseEntity<ApiResponse<ReturnPaymentResponseDto>> markCashReturnAsDelivered(
             @PathVariable Long returnPaymentId,
             @Valid @RequestBody MarkCashReturnDeliveredRequestDto request
@@ -228,7 +228,7 @@ public class ReturnsOperationController {
     }
 
     @PatchMapping("/payments/{returnPaymentId}/confirm-cash-pickup")
-    @PreAuthorize("hasRole('SOCIO_COMERCIAL')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'RETURN_CONFIRM_RECEIPT')")
     public ResponseEntity<ApiResponse<ReturnPaymentResponseDto>> confirmCashReturnPickup(
             @PathVariable Long returnPaymentId
     ) {

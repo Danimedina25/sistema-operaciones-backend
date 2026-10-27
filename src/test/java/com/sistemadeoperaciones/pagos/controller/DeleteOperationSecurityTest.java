@@ -24,13 +24,16 @@ import static org.mockito.Mockito.verify;
 
 /**
  * La eliminación física de operaciones es exclusiva de ADMIN y GERENTE.
- * DIRECCION sí puede activar/desactivar, pero queda fuera de este endpoint.
+ * DIRECCION solo consulta operaciones; la eliminación pendiente es de GERENTE.
  */
 class DeleteOperationSecurityTest {
 
     @Configuration
     @EnableMethodSecurity
     static class Config {
+        @Bean com.sistemadeoperaciones.shared.config.RolePermissionPolicy rolePermissionPolicy() {
+            return new com.sistemadeoperaciones.shared.config.RolePermissionPolicy();
+        }
         @Bean PaymentOperationService service() { return mock(PaymentOperationService.class); }
         @Bean PaymentOperationController controller(PaymentOperationService service) {
             return new PaymentOperationController(service);
@@ -89,6 +92,6 @@ class DeleteOperationSecurityTest {
         PreAuthorize preAuthorize = delete.getAnnotation(PreAuthorize.class);
 
         assertThat(preAuthorize).isNotNull();
-        assertThat(preAuthorize.value()).isEqualTo("hasAnyRole('ADMIN', 'GERENTE')");
+        assertThat(preAuthorize.value()).isEqualTo("@rolePermissionPolicy.allows(authentication, 'OPERATION_DELETE')");
     }
 }

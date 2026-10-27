@@ -18,8 +18,10 @@ import org.springframework.stereotype.Component;
 public class ReturnPaymentDtoMapper {
 
     private final ReturnRequestTotalsCalculator totalsCalculator;
+    private final com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository installments;
 
-    public ReturnPaymentDtoMapper(ReturnRequestTotalsCalculator totalsCalculator) {
+    public ReturnPaymentDtoMapper(ReturnRequestTotalsCalculator totalsCalculator, com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository installments) {
+        this.installments = installments;
         this.totalsCalculator = totalsCalculator;
     }
 
@@ -42,6 +44,7 @@ public class ReturnPaymentDtoMapper {
         dto.setMonto(returnPayment.getMonto());
         dto.setTipoPago(returnPayment.getTipoPago());
         dto.setEstatus(returnPayment.getEstatus());
+        dto.setCuentaAsignadaEn(returnPayment.getCuentaAsignadaEn());
 
         dto.setCuentaDestinoCliente(returnPayment.getCuentaDestinoCliente());
         dto.setCuentaClabeCliente(returnPayment.getCuentaClabeCliente());
@@ -68,6 +71,9 @@ public class ReturnPaymentDtoMapper {
         if (returnPayment.getCuentaOrigen() != null) {
             dto.setCuentaOrigenId(returnPayment.getCuentaOrigen().getId());
             dto.setCuentaOrigenNombre(returnPayment.getCuentaOrigen().getBanco());
+            dto.setCuentaOrigenTitular(returnPayment.getCuentaOrigen().getTitular());
+            String numero = returnPayment.getCuentaOrigen().getNumeroCuenta();
+            dto.setCuentaOrigenNumero(numero == null ? null : numero.substring(Math.max(0, numero.length() - 4)));
         }
 
         if (returnPayment.getSolicitadoPor() != null) {
@@ -87,7 +93,15 @@ public class ReturnPaymentDtoMapper {
 
         // Totales calculados a partir de las parcialidades (backend = fuente de verdad).
         totalsCalculator.apply(dto, returnPayment);
+        if (returnPayment.getTipoPago() == com.sistemadeoperaciones.pagos.enums.PaymentType.RETIRO_SIN_TARJETA) {
+            boolean withoutInstallments = dto.getNumeroParcialidades() == 0;
+            dto.setRetiroEtapa(withoutInstallments
+                    ? "PENDIENTE_CODIGO"
+                    : returnPayment.getEstatus().name());
+        }
 
+        if (returnPayment.getTipoPago() == com.sistemadeoperaciones.pagos.enums.PaymentType.RETIRO_SIN_TARJETA && dto.getNumeroParcialidades() > 0 && installments.existsBySolicitudIdAndCodigoParaClienteTrue(returnPayment.getId()))
+            dto.setRetiroEtapa(returnPayment.getEstatus() == com.sistemadeoperaciones.pagos.enums.ReturnPaymentStatus.RETORNADO ? "CODIGOS_CONCLUIDOS" : "CODIGOS_EN_SEGUIMIENTO");
         return dto;
     }
 }

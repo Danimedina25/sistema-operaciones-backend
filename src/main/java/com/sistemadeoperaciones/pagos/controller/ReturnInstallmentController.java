@@ -37,7 +37,7 @@ public class ReturnInstallmentController {
     }
 
     @PostMapping("/requests/{returnRequestId}/installments")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'RETURN_INSTALLMENT_MANAGE')")
     public ResponseEntity<ApiResponse<ReturnInstallmentResponseDto>> createInstallment(
             @PathVariable Long returnRequestId,
             @Valid @RequestBody CreateReturnInstallmentRequestDto request
@@ -77,7 +77,7 @@ public class ReturnInstallmentController {
     }
 
     @PatchMapping("/installments/{installmentId}/confirm")
-    @PreAuthorize("hasRole('SOCIO_COMERCIAL')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'RETURN_CONFIRM_RECEIPT')")
     public ResponseEntity<ApiResponse<ReturnInstallmentResponseDto>> confirmInstallment(
             @PathVariable Long installmentId
     ) {
@@ -89,8 +89,26 @@ public class ReturnInstallmentController {
         );
     }
 
+    @GetMapping("/requests/{returnRequestId}/cardless-accounts")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'RETURN_BANK_PAY')")
+    public ApiResponse<List<com.sistemadeoperaciones.cuentasbancarias.dto.BankAccountResponseDto>> eligibleAccounts(@PathVariable Long returnRequestId, @RequestParam(required=false) Long editingId) {
+        return new ApiResponse<>(true, "Cuentas disponibles", returnInstallmentService.eligibleCardlessAccounts(returnRequestId, editingId), null);
+    }
+    @PatchMapping("/installments/{installmentId}/cardless-code")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'RETURN_BANK_PAY')")
+    public ApiResponse<ReturnInstallmentResponseDto> editCode(@PathVariable Long installmentId, @Valid @RequestBody CreateReturnInstallmentRequestDto body) {
+        return new ApiResponse<>(true, "Código actualizado", returnInstallmentService.editCardlessCode(installmentId, body), null);
+    }
+
+    public record BankCodeConfirmation(@jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max=500) String comprobanteUrl) {}
+    @PatchMapping("/installments/{installmentId}/cardless-bank-confirm")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'RETURN_BANK_PAY')")
+    public ApiResponse<ReturnInstallmentResponseDto> confirmCodeBank(@PathVariable Long installmentId, @Valid @RequestBody BankCodeConfirmation body) {
+        return new ApiResponse<>(true, "Cobro bancario confirmado", returnInstallmentService.confirmCardlessBank(installmentId, body.comprobanteUrl()), null);
+    }
+
     @PatchMapping("/installments/{installmentId}/deliver")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CAJAS')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'RETURN_CASH_DELIVER')")
     public ResponseEntity<ApiResponse<ReturnInstallmentResponseDto>> deliverInstallment(
             @PathVariable Long installmentId,
             @Valid @RequestBody DeliverReturnInstallmentRequestDto request
@@ -104,7 +122,7 @@ public class ReturnInstallmentController {
     }
 
     @PatchMapping("/installments/{installmentId}/cancel")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'JEFA_CAJAS', 'JEFA_CUENTAS', 'AUXILIAR_CUENTAS')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'RETURN_INSTALLMENT_MANAGE')")
     public ResponseEntity<ApiResponse<ReturnInstallmentResponseDto>> cancelInstallment(
             @PathVariable Long installmentId,
             @Valid @RequestBody CancelReturnInstallmentRequestDto request

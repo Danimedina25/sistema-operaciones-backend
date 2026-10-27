@@ -1,6 +1,8 @@
 package com.sistemadeoperaciones.shared.config;
 
 import com.sistemadeoperaciones.shared.enums.RoleName;
+import com.sistemadeoperaciones.shared.audit.AdminRequestAuditFilter;
+import com.sistemadeoperaciones.shared.audit.service.AdminRequestAuditService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
@@ -45,7 +47,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationProvider authenticationProvider) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationProvider authenticationProvider,
+                                                   AdminRequestAuditService adminRequestAuditService) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -103,6 +106,7 @@ public class SecurityConfig {
                 )
                 .authenticationProvider(authenticationProvider)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(new AdminRequestAuditFilter(adminRequestAuditService), JwtAuthFilter.class)
                 .build();
     }
 

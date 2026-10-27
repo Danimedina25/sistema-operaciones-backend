@@ -505,7 +505,7 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
                 PaymentType.DEPOSITO,
                 inicio,
                 fin
-        );
+        ).add(nvl(cashGeneralMovementRepository.sumEnviadoDesdeCajaBetween(inicio, fin)));
 
         BigDecimal entradasEfectivo = sumEntradaByTipo(
                 PaymentType.EFECTIVO,

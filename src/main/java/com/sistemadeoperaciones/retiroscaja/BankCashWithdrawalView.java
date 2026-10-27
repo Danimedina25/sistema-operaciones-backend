@@ -23,5 +23,6 @@ public record BankCashWithdrawalView(
         String registradoPorNombre,
         String resueltoPorNombre,
         LocalDateTime resueltoEn,
-        Long cashMovementId
+        Long cashMovementId,
+        Long version
 ) {}

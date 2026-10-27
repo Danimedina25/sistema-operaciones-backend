@@ -1,6 +1,7 @@
 package com.sistemadeoperaciones.usuarios.service;
 
 import com.sistemadeoperaciones.shared.audit.service.DeletionAuditService;
+import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.shared.enums.RoleName;
 import com.sistemadeoperaciones.usuarios.dto.response.CommercialPartnerSettingsResponseDto;
@@ -22,7 +23,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -37,6 +40,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final UserDeletionGuard userDeletionGuard;
     private final UserDeletionDependencyCleaner userDeletionDependencyCleaner;
     private final DeletionAuditService deletionAuditService;
+    private final BusinessAuditService businessAuditService;
 
     public UserManagementServiceImpl(UserRepository userRepository,
                                      RoleRepository roleRepository,
@@ -45,7 +49,8 @@ public class UserManagementServiceImpl implements UserManagementService {
                                      AuthenticatedUserService authenticatedUserService,
                                      UserDeletionGuard userDeletionGuard,
                                      UserDeletionDependencyCleaner userDeletionDependencyCleaner,
-                                     DeletionAuditService deletionAuditService) {
+                                     DeletionAuditService deletionAuditService,
+                                     BusinessAuditService businessAuditService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.userActivationService = userActivationService;
@@ -54,6 +59,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         this.userDeletionGuard = userDeletionGuard;
         this.userDeletionDependencyCleaner = userDeletionDependencyCleaner;
         this.deletionAuditService = deletionAuditService;
+        this.businessAuditService = businessAuditService;
     }
 
     @Override
@@ -140,6 +146,8 @@ public class UserManagementServiceImpl implements UserManagementService {
             throw new EmailSendException("El usuario fue creado correctamente, pero no se pudo enviar el correo de activación");
         }
 
+        auditUserChange("USER_CREATE", savedUser.getId(), null, auditSnapshot(savedUser));
+
         return new UserCreatedResponseDto(
                 savedUser.getId(),
                 savedUser.getNombre(),
@@ -163,13 +171,23 @@ public class UserManagementServiceImpl implements UserManagementService {
     }
 
     @Override
+    @Transactional
     public void resendActivationEmail(Long userId) {
         userActivationService.resendActivationEmail(userId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + userId));
+        auditUserChange("USER_RESEND_ACTIVATION", userId, auditSnapshot(user), auditSnapshot(user));
     }
 
     @Override
+    @Transactional
     public void updateUserEmail(Long userId, UpdateUserEmailRequestDto request) {
+        User beforeUser = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + userId));
+        Map<String, Object> before = auditSnapshot(beforeUser);
         userActivationService.updateUserEmailAndResendActivation(userId, request);
+        User afterUser = userRepository.findById(userId).orElseThrow();
+        auditUserChange("USER_EMAIL_UPDATE", userId, before, auditSnapshot(afterUser));
     }
 
     @Override
@@ -199,6 +217,7 @@ public class UserManagementServiceImpl implements UserManagementService {
                         new ResourceNotFoundException(
                                 "Usuario no encontrado con id: " + id
                         ));
+        Map<String, Object> before = auditSnapshot(user);
 
         Role role = roleRepository.findById(request.getRoleId())
                 .orElseThrow(() ->
@@ -331,13 +350,16 @@ public class UserManagementServiceImpl implements UserManagementService {
             );
         }
 
+        auditUserChange("USER_UPDATE", id, before, auditSnapshot(updatedUser));
         return mapToResponse(updatedUser);
     }
 
     @Override
+    @Transactional
     public UserResponseDto deactivate(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + id));
+        Map<String, Object> before = auditSnapshot(user);
 
         if (!Boolean.TRUE.equals(user.getActivo())) {
             throw new BadRequestException("El usuario ya se encuentra inactivo");
@@ -346,13 +368,16 @@ public class UserManagementServiceImpl implements UserManagementService {
         user.setActivo(false);
 
         User updated = userRepository.save(user);
+        auditUserChange("USER_DEACTIVATE", id, before, auditSnapshot(updated));
         return mapToResponse(updated);
     }
 
     @Override
+    @Transactional
     public UserResponseDto activate(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + id));
+        Map<String, Object> before = auditSnapshot(user);
 
         if (Boolean.TRUE.equals(user.getActivo())) {
             throw new BadRequestException("El usuario ya se encuentra activo");
@@ -361,6 +386,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         user.setActivo(true);
 
         User updated = userRepository.save(user);
+        auditUserChange("USER_ACTIVATE", id, before, auditSnapshot(updated));
         return mapToResponse(updated);
     }
 
@@ -371,6 +397,7 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         User target = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + id));
+        Map<String, Object> before = auditSnapshot(target);
 
         userDeletionGuard.assertCanDelete(currentUser, target);
 
@@ -380,9 +407,32 @@ public class UserManagementServiceImpl implements UserManagementService {
         try {
             userRepository.delete(target);
             userRepository.flush();
+            auditUserChange("USER_DELETE", id, before, null);
         } catch (DataIntegrityViolationException e) {
             throw new BadRequestException("No se puede eliminar el usuario porque tiene información relacionada");
         }
+    }
+
+    private void auditUserChange(String action, Long id, Object before, Object after) {
+        businessAuditService.record(authenticatedUserService.getCurrentUser().getId(), action, "USER", id, before, after);
+    }
+
+    /** Explicit allowlist: never serialize User, passwords, activation tokens or full accounts. */
+    private Map<String, Object> auditSnapshot(User user) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("nombre", user.getNombre());
+        value.put("correo", user.getCorreo());
+        value.put("telefono", user.getTelefono());
+        value.put("activo", user.getActivo());
+        value.put("correoVerificado", user.getCorreoVerificado());
+        value.put("roles", user.getRoles().stream().map(role -> role.getName().name()).sorted().toList());
+        commercialPartnerSettingsRepository.findByUsuarioId(user.getId()).ifPresent(settings -> {
+            value.put("bancoComision", settings.getBanco());
+            String account = settings.getCuentaBancaria();
+            value.put("cuentaComision", account == null ? null : "••" + account.substring(Math.max(0, account.length() - 4)));
+            value.put("porcentajeComision", settings.getPorcentajeComision());
+        });
+        return value;
     }
 
     private UserResponseDto mapToResponse(User user) {

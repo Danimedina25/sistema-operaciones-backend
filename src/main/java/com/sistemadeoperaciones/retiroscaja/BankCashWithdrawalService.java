@@ -11,6 +11,7 @@ import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
 import com.sistemadeoperaciones.cuentasbancarias.service.BankNames;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
+import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
 import com.sistemadeoperaciones.shared.exception.BadRequestException;
 import com.sistemadeoperaciones.shared.exception.ConflictException;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
@@ -24,6 +25,8 @@ import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -51,6 +54,7 @@ public class BankCashWithdrawalService {
     private final DailyCashCutRepository dailyCuts;
     private final AuthenticatedUserService auth;
     private final ApplicationEventPublisher events;
+    private final BusinessAuditService businessAuditService;
 
     private void lock() { register.ensureRegister(); register.lockRegister(); }
 
@@ -91,7 +95,48 @@ public class BankCashWithdrawalService {
         withdrawal.setComprobanteUrl(proof);
         withdrawal.setRegistradoPor(auth.getCurrentUser());
         BankCashWithdrawal saved = withdrawals.saveAndFlush(withdrawal);
+        businessAuditService.record(saved.getRegistradoPor().getId(), "BANK_WITHDRAWAL_REGISTER",
+                "BANK_WITHDRAWAL", saved.getId(), null, auditSnapshot(saved));
         events.publishEvent(new WithdrawalChanged(saved.getId(), WithdrawalStatus.PENDIENTE, saved.getRegistradoPor().getNombre()));
+        return view(saved, catalog());
+    }
+
+    @Transactional
+    public BankCashWithdrawalView edit(Long id, EditWithdrawalRequest request) {
+        if (request == null || request.version() == null) throw new BadRequestException("Falta la versión del retiro");
+        lock();
+        BankCashWithdrawal withdrawal = forUpdate(id);
+        if (withdrawal.getEstatus() != WithdrawalStatus.PENDIENTE)
+            throw new ConflictException("Solo se puede editar un retiro pendiente");
+        if (!request.version().equals(withdrawal.getVersion()))
+            throw new ConflictException("El retiro cambió; actualiza la consulta antes de editar");
+        if (request.bankAccountId() == null) throw new BadRequestException("Selecciona la cuenta de la que sale el efectivo");
+        if (request.forma() == null) throw new BadRequestException("Indica la forma del retiro");
+        BigDecimal amount = amount(request.monto());
+        String reference = optionalText(request.referencia(), 300);
+        String proof = optionalText(request.comprobanteUrl(), 500);
+        if (proof != null && !proof.startsWith("https://"))
+            throw new BadRequestException("El comprobante debe ser una URL HTTPS");
+        BankAccount account = accounts.findById(request.bankAccountId())
+                .orElseThrow(() -> new ResourceNotFoundException("Cuenta bancaria no encontrada"));
+        if (!Boolean.TRUE.equals(account.getActivo())) throw new BadRequestException("La cuenta bancaria está inactiva");
+        if (bankCuts.findFirstByBankAccountIdAndFechaGreaterThanEqualOrderByFechaAsc(account.getId(), LocalDate.now()).isPresent())
+            throw new ConflictException("La cuenta ya tiene registrado el corte de hoy");
+        BigDecimal available = availability.available(account.getId());
+        if (account.getId().equals(withdrawal.getCuentaBancaria().getId()))
+            available = available.add(withdrawal.getMonto());
+        requireAvailable(account, amount, available, true);
+        User actor = auth.getCurrentUser();
+        Map<String, Object> before = auditSnapshot(withdrawal);
+        boolean proofChanged = !Objects.equals(withdrawal.getComprobanteUrl(), proof);
+        withdrawal.setCuentaBancaria(account); withdrawal.setBancoSnapshot(account.getBanco());
+        withdrawal.setForma(request.forma()); withdrawal.setMonto(amount);
+        withdrawal.setReferencia(reference); withdrawal.setComprobanteUrl(proof);
+        BankCashWithdrawal saved = withdrawals.saveAndFlush(withdrawal);
+        Map<String, Object> after = auditSnapshot(saved);
+        after.put("proofReplaced", proofChanged);
+        businessAuditService.record(actor.getId(), "BANK_WITHDRAWAL_EDIT", "BANK_WITHDRAWAL", id, before, after);
+        events.publishEvent(new WithdrawalChanged(id, WithdrawalStatus.PENDIENTE, actor.getNombre()));
         return view(saved, catalog());
     }
 
@@ -131,11 +176,14 @@ public class BankCashWithdrawalService {
                 request.denominaciones(), request.diaCajaId(), banco, totalCuentas);
 
         User user = auth.getCurrentUser();
+        Map<String, Object> beforeAudit = auditSnapshot(withdrawal);
         withdrawal.setEstatus(WithdrawalStatus.CONFIRMADO);
         withdrawal.setMovimientoCaja(cashMovements.getReferenceById(movement.id()));
         withdrawal.setResueltoPor(user);
         withdrawal.setResueltoEn(LocalDateTime.now());
         BankCashWithdrawal saved = withdrawals.saveAndFlush(withdrawal);
+        businessAuditService.record(user.getId(), "BANK_WITHDRAWAL_CONFIRM", "BANK_WITHDRAWAL",
+                saved.getId(), beforeAudit, auditSnapshot(saved));
         events.publishEvent(new WithdrawalChanged(saved.getId(), WithdrawalStatus.CONFIRMADO, user.getNombre()));
         return view(saved, catalog);
     }
@@ -160,11 +208,15 @@ public class BankCashWithdrawalService {
             throw new ConflictException("Sólo se puede " + (target == WithdrawalStatus.RECHAZADO ? "rechazar" : "cancelar")
                     + " un retiro pendiente");
         User user = auth.getCurrentUser();
+        Map<String, Object> beforeAudit = auditSnapshot(withdrawal);
         withdrawal.setEstatus(target);
         withdrawal.setMotivo(reason);
         withdrawal.setResueltoPor(user);
         withdrawal.setResueltoEn(LocalDateTime.now());
         BankCashWithdrawal saved = withdrawals.saveAndFlush(withdrawal);
+        businessAuditService.record(user.getId(), target == WithdrawalStatus.RECHAZADO
+                        ? "BANK_WITHDRAWAL_REJECT" : "BANK_WITHDRAWAL_CANCEL",
+                "BANK_WITHDRAWAL", saved.getId(), beforeAudit, auditSnapshot(saved));
         events.publishEvent(new WithdrawalChanged(saved.getId(), target, user.getNombre()));
         return view(saved, catalog());
     }
@@ -189,6 +241,18 @@ public class BankCashWithdrawalService {
     private BankCashWithdrawal forUpdate(Long id) {
         return withdrawals.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Retiro no encontrado"));
+    }
+
+    private Map<String, Object> auditSnapshot(BankCashWithdrawal withdrawal) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("bankAccountId", withdrawal.getCuentaBancaria().getId());
+        snapshot.put("amount", withdrawal.getMonto());
+        snapshot.put("method", withdrawal.getForma());
+        snapshot.put("reference", withdrawal.getReferencia());
+        snapshot.put("proofPresent", withdrawal.getComprobanteUrl() != null);
+        snapshot.put("status", withdrawal.getEstatus());
+        snapshot.put("cashMovementId", withdrawal.getMovimientoCaja() == null ? null : withdrawal.getMovimientoCaja().getId());
+        return snapshot;
     }
 
     private BankNames catalog() {
@@ -248,6 +312,6 @@ public class BankCashWithdrawalService {
                 w.getReferencia(), w.getComprobanteUrl(), w.getEstatus(), w.getMotivo(),
                 w.getRegistradoPor().getId(), w.getRegistradoPor().getNombre(),
                 w.getResueltoPor() == null ? null : w.getResueltoPor().getNombre(), w.getResueltoEn(),
-                w.getMovimientoCaja() == null ? null : w.getMovimientoCaja().getId());
+                w.getMovimientoCaja() == null ? null : w.getMovimientoCaja().getId(), w.getVersion());
     }
 }

@@ -30,6 +30,10 @@ import com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepos
 import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
 import com.sistemadeoperaciones.pagos.repository.PaymentOperationRepository;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
+import com.sistemadeoperaciones.shared.config.RolePermissionPolicy;
+import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
+import com.sistemadeoperaciones.shared.enums.RoleName;
+import com.sistemadeoperaciones.usuarios.model.Role;
 import com.sistemadeoperaciones.usuarios.model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +41,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -45,6 +50,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -73,6 +79,8 @@ class ReturnInstallmentServiceImplTest {
     @Mock NotificationService notificationService;
     @Mock ReturnPaymentDtoMapper returnPaymentDtoMapper;
     @Mock CashGeneralService cashGeneralService;
+    @Mock BusinessAuditService businessAuditService;
+    @Mock CardlessReturnFlow cardlessReturnFlow;
 
     ReturnAmountCalculator returnAmountCalculator = new ReturnAmountCalculator();
 
@@ -97,10 +105,14 @@ class ReturnInstallmentServiceImplTest {
                 notificationService,
                 returnAmountCalculator,
                 returnPaymentDtoMapper,
-                cashGeneralService
+                cashGeneralService,
+                new RolePermissionPolicy(),
+                businessAuditService,
+                cardlessReturnFlow
         );
 
         jefa = user(10L, "Jefa Cuentas");
+        jefa.setRoles(Set.of(role(RoleName.JEFA_CAJAS), role(RoleName.JEFA_CUENTAS)));
         lenient().when(authenticatedUserService.getCurrentUser()).thenReturn(jefa);
 
         operation = new PaymentOperation();
@@ -112,6 +124,7 @@ class ReturnInstallmentServiceImplTest {
         operation.setPorcentajeComisionOficina(BigDecimal.ZERO);
         operation.setEstatus(OperationStatus.RETORNO_TOTAL_SOLICITADO);
         operation.setSocioComercial(user(99L, "Socio"));
+        operation.getSocioComercial().setRoles(Set.of(role(RoleName.SOCIO_COMERCIAL)));
 
         lenient().when(paymentOperationRepository.findByIdForUpdate(1500L))
                 .thenReturn(Optional.of(operation));
@@ -223,6 +236,12 @@ class ReturnInstallmentServiceImplTest {
         return u;
     }
 
+    private Role role(RoleName name) {
+        Role role = new Role();
+        role.setName(name);
+        return role;
+    }
+
     private BankAccount bankAccount(long id) {
         BankAccount b = new BankAccount();
         b.setId(id);
@@ -249,6 +268,46 @@ class ReturnInstallmentServiceImplTest {
     // ================================================================
     // Reglas
     // ================================================================
+
+    @Test
+    void onlyAccountsCanPayBankInstallments() {
+        request(1L, PaymentType.TRANSFERENCIA, "40000");
+        jefa.setRoles(Set.of(role(RoleName.JEFA_CAJAS)));
+
+        assertThatThrownBy(() -> service.createInstallment(1L, transfer("15000")))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(installmentRepository, never()).save(any());
+        verify(businessAuditService, never()).record(any(), any(), any(), any(), any(), any());
+
+        jefa.setRoles(Set.of(role(RoleName.AUXILIAR_CUENTAS)));
+        service.createInstallment(1L, transfer("15000"));
+        verify(businessAuditService).record(eq(10L), eq("RETURN_INSTALLMENT_CREATE"), eq("RETURN_INSTALLMENT"), any(), eq(null), any());
+    }
+
+    @Test
+    void onlyCashierCanScheduleCashInstallments() {
+        request(1L, PaymentType.EFECTIVO, "40000");
+        jefa.setRoles(Set.of(role(RoleName.JEFA_CUENTAS)));
+
+        assertThatThrownBy(() -> service.createInstallment(1L, cash("15000")))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(installmentRepository, never()).save(any());
+
+        jefa.setRoles(Set.of(role(RoleName.JEFA_CAJAS)));
+        service.createInstallment(1L, cash("15000"));
+    }
+
+    @Test
+    void managerCannotRescheduleLegacyCashPickup() {
+        request(1L, PaymentType.EFECTIVO, "40000");
+        jefa.setRoles(Set.of(role(RoleName.JEFA_CAJAS)));
+        service.createInstallment(1L, cash("15000"));
+        jefa.setRoles(Set.of(role(RoleName.GERENTE)));
+
+        assertThatThrownBy(() -> service.legacySchedulePickup(1L, LocalDateTime.now().plusDays(2), null, null, null))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThat(installmentsByRequest.get(1L)).hasSize(1);
+    }
 
     @Test
     void createsInstallmentBelowBalance() {
@@ -371,6 +430,87 @@ class ReturnInstallmentServiceImplTest {
 
         assertThat(requests.get(1L).getEstatus()).isEqualTo(ReturnPaymentStatus.PARCIALMENTE_RETORNADO);
         assertThat(installmentRepository.sumCompletedBySolicitud(1L)).isEqualByComparingTo("10000");
+    }
+
+    @Test
+    void bankPreparedCardlessInstallmentCannotBeCancelledOrDebitedAgainWhenRescheduled() {
+        request(1L, PaymentType.EFECTIVO, "25000");
+        var created = service.createInstallment(1L, cash("10000"));
+        var installment = installmentRepository.findById(created.getId()).orElseThrow();
+        installment.setTipoPago(PaymentType.RETIRO_SIN_TARJETA);
+        var prepared = java.time.LocalDateTime.now();
+        installment.setFechaPreparacionBancaria(prepared);
+        assertThatThrownBy(() -> service.cancelInstallment(created.getId(), new CancelReturnInstallmentRequestDto()))
+                .isInstanceOf(ReturnInstallmentInvalidStatusException.class);
+        assertThat(installment.getEstatus()).isEqualTo(ReturnInstallmentStatus.PROGRAMADA);
+        service.legacySchedulePickup(1L, prepared.plusDays(1), null, null, "Nueva hora");
+        assertThat(installment.getFechaPreparacionBancaria()).isEqualTo(prepared);
+        assertThat(installment.getFechaHoraRecoleccion()).isEqualTo(prepared.plusDays(1));
+    }
+
+    @Test
+    void clientCodesSupportBothConfirmationOrdersAndNeverTouchCash() {
+        for (boolean bankFirst : List.of(true,false)) {
+            long req = bankFirst ? 61L : 62L;
+            request(req, PaymentType.RETIRO_SIN_TARJETA, "25000");
+            var account = new BankAccount(); account.setId(5L);
+            org.mockito.Mockito.doAnswer(a -> { OperationReturnInstallment code = a.getArgument(0); code.setCodigoParaCliente(true); code.setCuentaOrigen(account); return null; }).when(cardlessReturnFlow).reserveCode(any(), eq(5L));
+            var created = service.createInstallment(req, cashRst("10000"));
+            var i = installmentRepository.findById(created.getId()).orElseThrow();
+            assertThat(i.getCodigoParaCliente()).isTrue(); assertThat(i.getFechaCobroBancario()).isNull();
+            assertThat(i.getFechaPreparacionBancaria()).isNull();
+            if (bankFirst) service.confirmCardlessBank(i.getId(), "https://example.com/bank.png");
+            when(authenticatedUserService.getCurrentUser()).thenReturn(operation.getSocioComercial());
+            service.confirmInstallment(i.getId());
+            when(authenticatedUserService.getCurrentUser()).thenReturn(jefa);
+            if (!bankFirst) service.confirmCardlessBank(i.getId(), "https://example.com/bank.png");
+            assertThat(i.getEstatus()).isEqualTo(ReturnInstallmentStatus.COMPLETADA);
+            var collected = i.getFechaCobroBancario();
+            assertThatThrownBy(() -> service.confirmCardlessBank(i.getId(), "https://example.com/bank.png")).isInstanceOf(ReturnInstallmentInvalidStatusException.class);
+            assertThat(i.getFechaCobroBancario()).isEqualTo(collected);
+            org.mockito.Mockito.verifyNoInteractions(cashGeneralService);
+        }
+    }
+    @Test
+    void onlyAccountsRolesCanRegisterAndVerifyCodeAndOnlyUnusedCodesCanBeReleased() {
+        request(71L, PaymentType.RETIRO_SIN_TARJETA, "25000");
+        jefa.setRoles(Set.of(role(RoleName.JEFA_CAJAS)));
+        assertThatThrownBy(() -> service.createInstallment(71L, cashRst("10000"))).isInstanceOf(AccessDeniedException.class);
+        for (var role : List.of(RoleName.JEFA_CUENTAS, RoleName.AUXILIAR_CUENTAS)) {
+            jefa.setRoles(Set.of(role(role)));
+            var account = new BankAccount(); account.setId(5L);
+            org.mockito.Mockito.doAnswer(a -> { OperationReturnInstallment code = a.getArgument(0); code.setCodigoParaCliente(true); code.setCuentaOrigen(account); return null; }).when(cardlessReturnFlow).reserveCode(any(), eq(5L));
+            var created = service.createInstallment(71L, cashRst("10000"));
+            var i = installmentRepository.findById(created.getId()).orElseThrow();
+            assertThatThrownBy(() -> service.confirmCardlessBank(i.getId(), "")).isInstanceOf(ReturnInstallmentReceiptRequiredException.class);
+            var cancel = new CancelReturnInstallmentRequestDto(); cancel.setMotivo("Verificado en banco: cancelado sin uso");
+            service.cancelInstallment(i.getId(),cancel); assertThat(i.getEstatus()).isEqualTo(ReturnInstallmentStatus.CANCELADA);
+        }
+    }
+
+    @Test
+    void editsRecomputeAmountsAndRejectUsedCollectedCancelledOrUnauthorizedCodes() {
+        request(81L, PaymentType.RETIRO_SIN_TARJETA, "25000");
+        var account = new BankAccount(); account.setId(5L);
+        org.mockito.Mockito.doAnswer(a -> { OperationReturnInstallment code = a.getArgument(0); code.setCodigoParaCliente(true); code.setCuentaOrigen(account); return null; }).when(cardlessReturnFlow).reserveCode(any(), eq(5L));
+        var created = service.createInstallment(81L, cashRst("10000"));
+        var i = installmentRepository.findById(created.getId()).orElseThrow();
+        when(cardlessReturnFlow.remaining(i.getSolicitud())).thenReturn(new BigDecimal("15000"));
+        service.editCardlessCode(i.getId(),cashRst("12000"));
+        assertThat(i.getMonto()).isEqualByComparingTo("12000");
+        assertThatThrownBy(() -> service.editCardlessCode(i.getId(),cashRst("30000"))).isInstanceOf(ReturnInstallmentAmountExceedsAvailableException.class);
+        jefa.setRoles(Set.of(role(RoleName.JEFA_CAJAS)));
+        assertThatThrownBy(() -> service.editCardlessCode(i.getId(),cashRst("10000"))).isInstanceOf(AccessDeniedException.class);
+        jefa.setRoles(Set.of(role(RoleName.JEFA_CUENTAS)));
+        i.setFechaConfirmacion(LocalDateTime.now());
+        assertThatThrownBy(() -> service.editCardlessCode(i.getId(),cashRst("10000"))).isInstanceOf(ReturnInstallmentInvalidStatusException.class);
+        var cancel = new CancelReturnInstallmentRequestDto(); cancel.setMotivo("Cancelado");
+        assertThatThrownBy(() -> service.cancelInstallment(i.getId(),cancel)).isInstanceOf(ReturnInstallmentInvalidStatusException.class);
+        i.setFechaConfirmacion(null); i.setFechaCobroBancario(LocalDateTime.now());
+        assertThatThrownBy(() -> service.editCardlessCode(i.getId(),cashRst("10000"))).isInstanceOf(ReturnInstallmentInvalidStatusException.class);
+        i.setFechaCobroBancario(null); i.setEstatus(ReturnInstallmentStatus.CANCELADA);
+        assertThatThrownBy(() -> service.editCardlessCode(i.getId(),cashRst("10000"))).isInstanceOf(ReturnInstallmentInvalidStatusException.class);
+        org.mockito.Mockito.verifyNoInteractions(cashGeneralService);
     }
 
     @Test

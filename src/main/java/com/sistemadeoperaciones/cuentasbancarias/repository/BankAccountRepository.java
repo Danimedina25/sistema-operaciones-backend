@@ -7,6 +7,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface BankAccountRepository extends JpaRepository<BankAccount, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select a from BankAccount a where a.id = :id")
+    Optional<BankAccount> findByIdForUpdate(@org.springframework.data.repository.query.Param("id") Long id);
 
     boolean existsByNumeroCuenta(String numeroCuenta);
 

@@ -41,6 +41,7 @@ import com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepos
 import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
 import com.sistemadeoperaciones.pagos.repository.PaymentOperationRepository;
 import com.sistemadeoperaciones.shared.audit.service.DeletionAuditService;
+import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.shared.enums.RoleName;
 import com.sistemadeoperaciones.shared.exception.BusinessException;
@@ -102,6 +103,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     private final NotificationRepository notificationRepository;
     private final UserNotificationRepository userNotificationRepository;
     private final DeletionAuditService deletionAuditService;
+    private final BusinessAuditService businessAuditService;
     /** Un pago validado en efectivo entra a Caja General en la misma transacción. */
     private final CashGeneralService cashGeneralService;
     public PaymentOperationServiceImpl(
@@ -123,7 +125,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             NotificationRepository notificationRepository,
             UserNotificationRepository userNotificationRepository,
             DeletionAuditService deletionAuditService,
-            CashGeneralService cashGeneralService
+            CashGeneralService cashGeneralService,
+            BusinessAuditService businessAuditService
     ) {
         this.paymentOperationRepository = paymentOperationRepository;
         this.operationPaymentRepository = operationPaymentRepository;
@@ -144,6 +147,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         this.userNotificationRepository = userNotificationRepository;
         this.cashGeneralService = cashGeneralService;
         this.deletionAuditService = deletionAuditService;
+        this.businessAuditService = businessAuditService;
     }
 
     @Override
@@ -214,12 +218,6 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             }
         }
 
-        validateCommercialPartnersOwnership(
-                socioComercial,
-                socioNivel2,
-                socioNivel3
-        );
-
         Integer nivelesRedComercial = request.getNivelesRedComercial();
 
         if (nivelesRedComercial < 2) {
@@ -250,6 +248,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                     "El socio comercial nivel 2 y nivel 3 no pueden ser el mismo"
             );
         }
+
+        requireConfiguredNetwork(socioNivel2, socioNivel3);
 
         Clientes cliente = clientesRepository.findById(
                 request.getClienteId()
@@ -369,6 +369,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         PaymentOperation saved =
                 paymentOperationRepository.save(operation);
 
+        businessAuditService.record(currentUser.getId(), "OPERATION_CREATE", "PAYMENT_OPERATION", saved.getId(), null, operationAuditSnapshot(saved));
+
         return mapToOperationResponse(saved);
     }
 
@@ -442,6 +444,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 .orElseThrow(() ->
                         new PaymentOperationNotFoundException(operationId)
                 );
+        Map<String, Object> beforeAudit = operationAuditSnapshot(operation);
 
         boolean socioSinPrivilegiosAdministrativos = currentUserUpdate.getRoles().stream()
                 .anyMatch(role -> role.getName() == RoleName.SOCIO_COMERCIAL)
@@ -541,12 +544,6 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         }
 
-        validateCommercialPartnersOwnership(
-                socioComercial,
-                socioNivel2,
-                socioNivel3
-        );
-
         Integer nivelesRedComercial = request.getNivelesRedComercial();
 
         if (nivelesRedComercial < 2) {
@@ -577,6 +574,12 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                     "El socio comercial nivel 2 y nivel 3 no pueden ser el mismo"
             );
         }
+
+        if ((socioNivel2 != null && (operation.getSocioComercialNivel2() == null
+                    || !socioNivel2.getId().equals(operation.getSocioComercialNivel2().getId())))
+                || (socioNivel3 != null && (operation.getSocioComercialNivel3() == null
+                    || !socioNivel3.getId().equals(operation.getSocioComercialNivel3().getId()))))
+            requireConfiguredNetwork(socioNivel2, socioNivel3);
 
         List<OperationPayment> payments =
                 operationPaymentRepository.findByOperacionId(operationId);
@@ -624,12 +627,16 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         } else {
             porcentajeComisionOficinaEfectivo = operation.getPorcentajeComisionOficina();
             porcentajeComisionSocioNivel1Efectivo = operation.getPorcentajeComisionSocio();
-            porcentajeComisionSocioNivel2Efectivo = operation.getPorcentajeComisionSocioNivel2() != null
-                    ? operation.getPorcentajeComisionSocioNivel2()
-                    : (socioNivel2 != null ? socioNivel2.getPorcentajeComision() : null);
-            porcentajeComisionSocioNivel3Efectivo = operation.getPorcentajeComisionSocioNivel3() != null
-                    ? operation.getPorcentajeComisionSocioNivel3()
-                    : (socioNivel3 != null ? socioNivel3.getPorcentajeComision() : null);
+            porcentajeComisionSocioNivel2Efectivo = socioNivel2 == null ? null
+                    : operation.getSocioComercialNivel2() != null
+                        && socioNivel2.getId().equals(operation.getSocioComercialNivel2().getId())
+                        && operation.getPorcentajeComisionSocioNivel2() != null
+                        ? operation.getPorcentajeComisionSocioNivel2() : socioNivel2.getPorcentajeComision();
+            porcentajeComisionSocioNivel3Efectivo = socioNivel3 == null ? null
+                    : operation.getSocioComercialNivel3() != null
+                        && socioNivel3.getId().equals(operation.getSocioComercialNivel3().getId())
+                        && operation.getPorcentajeComisionSocioNivel3() != null
+                        ? operation.getPorcentajeComisionSocioNivel3() : socioNivel3.getPorcentajeComision();
         }
 
         // Igual que en createOperation: si el socio comercial nivel 1 de la
@@ -683,6 +690,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         PaymentOperation updated =
                 paymentOperationRepository.save(operation);
 
+        businessAuditService.record(currentUserUpdate.getId(), "OPERATION_UPDATE", "PAYMENT_OPERATION", updated.getId(), beforeAudit, operationAuditSnapshot(updated));
+
         return mapToOperationResponse(updated);
     }
     @Override
@@ -730,6 +739,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         OperationPayment saved = operationPaymentRepository.save(payment);
 
+        businessAuditService.record(registradoPor.getId(), "PAYMENT_REGISTER", "OPERATION_PAYMENT", saved.getId(), null, paymentAuditSnapshot(saved));
+
         recordChequeCapture(saved, "REGISTRAR");
         recalculateOperation(operation);
         if (saved.getTipoPago() == PaymentType.CHEQUE) chequeEvents.publishEvent(new com.sistemadeoperaciones.cheques.ChequeService.Changed(saved.getId(), "REGISTRAR", registradoPor.getNombre()));
@@ -744,10 +755,15 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             UpdateOperationPaymentRequestDto request
     ) {
         OperationPayment payment = loadPaymentForMutation(paymentId);
+        Map<String, Object> beforeAudit = paymentAuditSnapshot(payment);
 
-        if (payment.getEstatus() != PaymentStatus.PENDIENTE_VALIDACION) {
+        // Un pago rechazado se corrige sobre el mismo registro y vuelve a validación. El cheque
+        // rechazado conserva su propio flujo.
+        boolean correctingRejected = payment.getEstatus() == PaymentStatus.RECHAZADA
+                && payment.getTipoPago() != PaymentType.CHEQUE;
+        if (payment.getEstatus() != PaymentStatus.PENDIENTE_VALIDACION && !correctingRejected) {
             throw new InvalidPaymentStatusException(
-                    "Solo se pueden editar comprobantes en estatus PENDIENTE_VALIDACION"
+                    "Solo se pueden editar comprobantes pendientes de validación o rechazados"
             );
         }
 
@@ -793,13 +809,24 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         payment.setFechaPago(LocalDateTime.now());
         payment.setObservaciones(request.getObservaciones());
         payment.setFechaComprobante(request.getFechaComprobante());
+        if (correctingRejected) {
+            // El motivo y quién rechazó quedan en la bitácora (beforeAudit).
+            payment.setEstatus(PaymentStatus.PENDIENTE_VALIDACION);
+            payment.setValidadoPor(null);
+            payment.setFechaValidacion(null);
+            payment.setEnProcesoPor(null);
+            payment.setFechaEnProceso(null);
+        }
 
         OperationPayment updated = operationPaymentRepository.save(payment);
+        businessAuditService.record(authenticatedUserService.getCurrentUser().getId(),
+                correctingRejected ? "PAYMENT_RESUBMIT" : "PAYMENT_UPDATE", "OPERATION_PAYMENT", updated.getId(), beforeAudit, paymentAuditSnapshot(updated));
         recordChequeCapture(updated, "EDITAR");
 
         recalculateOperation(operation);
 
         if (updated.getTipoPago() == PaymentType.CHEQUE) chequeEvents.publishEvent(new com.sistemadeoperaciones.cheques.ChequeService.Changed(updated.getId(), "EDITAR", authenticatedUserService.getCurrentUser().getNombre()));
+        else if (correctingRejected) notifyPaymentSubmitted(operation, updated);
         else if (previousPaymentType != request.getTipoPago()) {
             notifyPaymentTypeChanged(operation, updated, previousPaymentType);
         }
@@ -851,6 +878,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Transactional
     public OperationPaymentResponseDto validatePayment(Long paymentId, UpdatePaymentStatusRequestDto request) {
         OperationPayment payment = loadPaymentForMutation(paymentId);
+        Map<String, Object> beforeAudit = paymentAuditSnapshot(payment);
 
         if (payment.getEstatus() != PaymentStatus.PENDIENTE_VALIDACION
                 && payment.getEstatus() != PaymentStatus.EN_PROCESO) {
@@ -897,6 +925,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                     );
         }
         notifyPaymentValidated(updated);
+        businessAuditService.record(validadoPor.getId(), "PAYMENT_VALIDATE", "OPERATION_PAYMENT", updated.getId(), beforeAudit, paymentAuditSnapshot(updated));
 
         return mapToPaymentResponse(updated);
     }
@@ -905,6 +934,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Transactional
     public OperationPaymentResponseDto rejectPayment(Long paymentId, UpdatePaymentStatusRequestDto request) {
         OperationPayment payment = loadPaymentForMutation(paymentId);
+        Map<String, Object> beforeAudit = paymentAuditSnapshot(payment);
 
         if (payment.getEstatus() != PaymentStatus.PENDIENTE_VALIDACION
                 && payment.getEstatus() != PaymentStatus.EN_PROCESO) {
@@ -927,6 +957,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         OperationPayment updated = operationPaymentRepository.save(payment);
         recalculateOperation(payment.getOperacion());
         notifyPaymentRejected(updated);
+        businessAuditService.record(validadoPor.getId(), "PAYMENT_REJECT", "OPERATION_PAYMENT", updated.getId(), beforeAudit, paymentAuditSnapshot(updated));
 
         return mapToPaymentResponse(updated);
     }
@@ -935,6 +966,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Transactional
     public OperationPaymentResponseDto markPaymentInProgress(Long paymentId, UpdatePaymentStatusRequestDto request) {
         OperationPayment payment = loadPaymentForMutation(paymentId);
+        Map<String, Object> beforeAudit = paymentAuditSnapshot(payment);
 
         if (payment.getTipoPago() != PaymentType.TRANSFERENCIA
                 && payment.getTipoPago() != PaymentType.DEPOSITO) {
@@ -961,6 +993,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         OperationPayment updated = operationPaymentRepository.save(payment);
         recalculateOperation(payment.getOperacion());
         notifyPaymentInProgress(updated);
+        businessAuditService.record(currentUser.getId(), "PAYMENT_MARK_IN_PROGRESS", "OPERATION_PAYMENT", updated.getId(), beforeAudit, paymentAuditSnapshot(updated));
 
         return mapToPaymentResponse(updated);
     }
@@ -969,6 +1002,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Transactional
     public OperationPaymentResponseDto releasePaymentInProgress(Long paymentId) {
         OperationPayment payment = loadPaymentForMutation(paymentId);
+        Map<String, Object> beforeAudit = paymentAuditSnapshot(payment);
 
         if (payment.getEstatus() != PaymentStatus.EN_PROCESO) {
             throw new InvalidPaymentStatusException(
@@ -983,6 +1017,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         OperationPayment updated = operationPaymentRepository.save(payment);
         recalculateOperation(payment.getOperacion());
+        businessAuditService.record(authenticatedUserService.getCurrentUser().getId(), "PAYMENT_RELEASE", "OPERATION_PAYMENT", updated.getId(), beforeAudit, paymentAuditSnapshot(updated));
 
         return mapToPaymentResponse(updated);
     }
@@ -991,6 +1026,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Transactional
     public OperationPaymentResponseDto updateValidationReceipt(Long paymentId, UpdatePaymentStatusRequestDto request) {
         OperationPayment payment = loadPaymentForMutation(paymentId);
+        Map<String, Object> beforeAudit = paymentAuditSnapshot(payment);
 
         if (payment.getEstatus() != PaymentStatus.VALIDADA) {
             throw new InvalidPaymentStatusException(
@@ -1002,6 +1038,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         payment.setComprobanteValidacionUrl(request.getComprobanteValidacionUrl());
 
         OperationPayment updated = operationPaymentRepository.save(payment);
+        businessAuditService.record(authenticatedUserService.getCurrentUser().getId(), "PAYMENT_VALIDATION_RECEIPT_UPDATE", "OPERATION_PAYMENT", updated.getId(), beforeAudit, paymentAuditSnapshot(updated));
 
         return mapToPaymentResponse(updated);
     }
@@ -1027,6 +1064,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Transactional
     public PaymentOperationResponseDto activate(Long id) {
         PaymentOperation operation = getOperationOrThrow(id);
+        Map<String, Object> beforeAudit = operationAuditSnapshot(operation);
 
         if (Boolean.TRUE.equals(operation.getActivo())) {
             throw new BusinessException("La operación ya se encuentra activa");
@@ -1035,6 +1073,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         operation.setActivo(true);
 
         PaymentOperation updated = paymentOperationRepository.save(operation);
+        businessAuditService.record(authenticatedUserService.getCurrentUser().getId(), "OPERATION_ACTIVATE", "PAYMENT_OPERATION", updated.getId(), beforeAudit, operationAuditSnapshot(updated));
 
         return mapToOperationResponse(updated);
     }
@@ -1043,6 +1082,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     @Transactional
     public PaymentOperationResponseDto deactivate(Long id) {
         PaymentOperation operation = getOperationOrThrow(id);
+        Map<String, Object> beforeAudit = operationAuditSnapshot(operation);
 
         if (!Boolean.TRUE.equals(operation.getActivo())) {
             throw new BusinessException("La operación ya se encuentra inactiva");
@@ -1051,6 +1091,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         operation.setActivo(false);
 
         PaymentOperation updated = paymentOperationRepository.save(operation);
+        businessAuditService.record(authenticatedUserService.getCurrentUser().getId(), "OPERATION_DEACTIVATE", "PAYMENT_OPERATION", updated.getId(), beforeAudit, operationAuditSnapshot(updated));
 
         return mapToOperationResponse(updated);
     }
@@ -1063,6 +1104,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         // el alta de un pago o una solicitud de retorno que corran en paralelo.
         PaymentOperation operation = paymentOperationRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new PaymentOperationNotFoundException(id));
+        Map<String, Object> beforeAudit = operationAuditSnapshot(operation);
 
         // Ya con el lock: el estatus pudo cambiar entre que el frontend pintó la
         // acción y que llegó esta petición.
@@ -1106,6 +1148,7 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         // transacción, si el commit fallara el registro se revierte junto con él y no
         // queda una auditoría de éxito sin borrado.
         deletionAuditService.record("PAYMENT_OPERATION", id, auditLabel, currentUser);
+        businessAuditService.record(currentUser.getId(), "OPERATION_DELETE", "PAYMENT_OPERATION", id, beforeAudit, null);
     }
 
     /**
@@ -1316,7 +1359,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 .and(PaymentOperationSpecification.matchesActivoFilter(filter.getActivo()))
                 .and(PaymentOperationSpecification.hasPaymentMatching(filter.getPaymentTypes(), filter.getPaymentStatus()))
                 .and(PaymentOperationSpecification.hasPaymentCuentaDestinoId(filter.getCuentaDestinoId()))
-                .and(PaymentOperationSpecification.hasPaymentBanco(filter.getBanco()));
+                .and(PaymentOperationSpecification.hasPaymentBanco(filter.getBanco()))
+                .and(PaymentOperationSpecification.hasMissingIncome(filter.getMissingIncome()));
 
         return paymentOperationRepository.findAll(specification, pageable)
                 .map(this::mapToOperationResponse);
@@ -1483,19 +1527,15 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
         boolean isAdmin = currentUser.getRoles().stream()
                 .anyMatch(role -> role.getName() == RoleName.ADMIN);
-        boolean isGerenteODireccion = currentUser.getRoles().stream()
-                .anyMatch(role -> role.getName() == RoleName.GERENTE || role.getName() == RoleName.DIRECCION);
         boolean isJefaCajas = currentUser.getRoles().stream()
                 .anyMatch(role -> role.getName() == RoleName.JEFA_CAJAS);
         boolean isCuentas = currentUser.getRoles().stream()
                 .anyMatch(role -> role.getName() == RoleName.JEFA_CUENTAS || role.getName() == RoleName.AUXILIAR_CUENTAS);
 
         boolean allowed = isAdmin
-                || isGerenteODireccion
                 || (tipoPago == PaymentType.EFECTIVO && isJefaCajas)
                 || ((tipoPago == PaymentType.TRANSFERENCIA
-                        || tipoPago == PaymentType.DEPOSITO
-                        || tipoPago == PaymentType.CHEQUE) && isCuentas);
+                        || tipoPago == PaymentType.DEPOSITO) && isCuentas);
 
         if (!allowed) {
             throw new BusinessException("El usuario autenticado no tiene permiso para validar o rechazar comprobantes");
@@ -1671,6 +1711,38 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                 "/operaciones/" + operation.getId() + "?scrollToPayments=true",
                 NotificationPriority.HIGH
         );
+    }
+
+    private Map<String, Object> operationAuditSnapshot(PaymentOperation operation) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("clienteId", operation.getCliente() == null ? null : operation.getCliente().getId());
+        snapshot.put("socioComercialId", operation.getSocioComercial() == null ? null : operation.getSocioComercial().getId());
+        snapshot.put("socioNivel2Id", operation.getSocioComercialNivel2() == null ? null : operation.getSocioComercialNivel2().getId());
+        snapshot.put("socioNivel3Id", operation.getSocioComercialNivel3() == null ? null : operation.getSocioComercialNivel3().getId());
+        snapshot.put("montoTotal", operation.getMontoTotal());
+        snapshot.put("montoValidado", operation.getMontoValidado());
+        snapshot.put("estatus", operation.getEstatus());
+        snapshot.put("activo", operation.getActivo());
+        snapshot.put("porcentajeComisionOficina", operation.getPorcentajeComisionOficina());
+        snapshot.put("porcentajeComisionSocio", operation.getPorcentajeComisionSocio());
+        snapshot.put("porcentajeComisionSocioNivel2", operation.getPorcentajeComisionSocioNivel2());
+        snapshot.put("porcentajeComisionSocioNivel3", operation.getPorcentajeComisionSocioNivel3());
+        snapshot.put("observaciones", operation.getObservaciones());
+        return snapshot;
+    }
+
+    private Map<String, Object> paymentAuditSnapshot(OperationPayment payment) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("operacionId", payment.getOperacion() == null ? null : payment.getOperacion().getId());
+        snapshot.put("monto", payment.getMonto());
+        snapshot.put("tipoPago", payment.getTipoPago());
+        snapshot.put("cuentaDestinoId", payment.getCuentaDestino() == null ? null : payment.getCuentaDestino().getId());
+        snapshot.put("estatus", payment.getEstatus());
+        snapshot.put("tieneComprobanteIngreso", payment.getComprobanteUrl() != null && !payment.getComprobanteUrl().isBlank());
+        snapshot.put("tieneComprobanteValidacion", payment.getComprobanteValidacionUrl() != null && !payment.getComprobanteValidacionUrl().isBlank());
+        snapshot.put("validadoPorId", payment.getValidadoPor() == null ? null : payment.getValidadoPor().getId());
+        snapshot.put("observaciones", payment.getObservaciones());
+        return snapshot;
     }
 
     private PaymentOperationResponseDto mapToOperationResponse(PaymentOperation operation) {
@@ -1850,32 +1922,11 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
     }
 
 
-    private void validateCommercialPartnersOwnership(
-            User socioComercial,
-            CommercialPartner socioNivel2,
-            CommercialPartner socioNivel3
-    ) {
-
-        if (
-                socioNivel2 != null &&
-                        !socioNivel2.getSocioComercial().getId()
-                                .equals(socioComercial.getId())
-        ) {
-            throw new BusinessException(
-                    "El socio comercial nivel 2 no pertenece al socio comercial de la operación"
-
-            );
-        }
-
-        if (
-                socioNivel3 != null &&
-                        !socioNivel3.getSocioComercial().getId()
-                                .equals(socioComercial.getId())
-        ) {
-            throw new BusinessException(
-                    "El socio comercial nivel 3 no pertenece al socio comercial seleccionado"
-            );
-        }
+    private void requireConfiguredNetwork(CommercialPartner level2, CommercialPartner level3) {
+        if (level2 != null && !Boolean.TRUE.equals(level2.getCommissionConfigured()))
+            throw new BusinessException("Gerencia debe configurar la comisión del socio secundario antes de usarlo");
+        if (level3 != null && !Boolean.TRUE.equals(level3.getCommissionConfigured()))
+            throw new BusinessException("Gerencia debe configurar la comisión del socio secundario antes de usarlo");
     }
 
     private Long resolveSocioComercialId(User currentUser, Long requestedId) {
@@ -1999,8 +2050,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
                     NotificationType.CHEQUE_CASH_COLLECTION_ASSIGNED, NotificationModule.PAGOS,
                     NotificationReferenceType.OPERATION_PAYMENT, id, actionUrl, NotificationPriority.HIGH);
             case "DEVOLVER_A_CUENTAS" -> notificationService.createForRoles(
-                    List.of(RoleName.JEFA_CUENTAS, RoleName.AUXILIAR_CUENTAS, RoleName.ADMIN),
-                    "Cheque devuelto a Cuentas",
+                    List.of(RoleName.JEFA_CAJAS, RoleName.ADMIN),
+                    "Cheque disponible en Cajas",
                     actorName + " informó que no pudo cobrarse en efectivo el cheque " + payment.getNumeroCheque()
                             + " de la operación #" + operation.getId() + ". Motivo: " + payment.getObservaciones(),
                     NotificationType.CHEQUE_CASH_COLLECTION_RETURNED, NotificationModule.PAGOS,

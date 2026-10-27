@@ -10,7 +10,7 @@ import java.util.*;
 
 public final class StaffPendingScope {
     private StaffPendingScope() {}
-    public static final List<PaymentType> CASH = List.of(PaymentType.EFECTIVO, PaymentType.RETIRO_SIN_TARJETA);
+    public static final List<PaymentType> CASH = List.of(PaymentType.EFECTIVO);
     public static final List<PaymentType> BANK = List.of(PaymentType.TRANSFERENCIA, PaymentType.DEPOSITO, PaymentType.CHEQUE);
     public static boolean has(User user, RoleName role) {
         return user.getRoles().stream().anyMatch(r -> r.getName() == role);
@@ -29,7 +29,9 @@ public final class StaffPendingScope {
                 ? (cash ? has(user, RoleName.JEFA_CAJAS) : has(user, RoleName.JEFA_CUENTAS) || has(user, RoleName.AUXILIAR_CUENTAS))
                 : (cash ? effectiveRole == RoleName.JEFA_CAJAS : effectiveRole == RoleName.JEFA_CUENTAS || effectiveRole == RoleName.AUXILIAR_CUENTAS);
         if (!allowed) throw new AccessDeniedException("El perfil no puede gestionar esta cola");
-        return cash ? (income ? List.of(PaymentType.EFECTIVO) : CASH) : BANK;
+        if (!cash && !income && (supervisedRole == RoleName.JEFA_CUENTAS || supervisedRole == null && has(user, RoleName.JEFA_CUENTAS)))
+            return List.of(PaymentType.TRANSFERENCIA, PaymentType.DEPOSITO, PaymentType.CHEQUE);
+        return cash ? (income ? List.of(PaymentType.EFECTIVO) : CASH) : income ? List.of(PaymentType.TRANSFERENCIA, PaymentType.DEPOSITO, PaymentType.CHEQUE) : BANK;
     }
     public static List<PaymentType> returnTypes(User user, String queue) {
         return returnTypes(user, queue, null);
@@ -41,7 +43,9 @@ public final class StaffPendingScope {
         List<PaymentType> result = new ArrayList<>();
         if (has(user, RoleName.JEFA_CAJAS)) result.addAll(CASH);
         if (has(user, RoleName.JEFA_CUENTAS) || has(user, RoleName.AUXILIAR_CUENTAS)) result.addAll(BANK);
-        return result.isEmpty() ? null : result;
+
+        if (has(user, RoleName.JEFA_CUENTAS) || has(user, RoleName.AUXILIAR_CUENTAS)) result.add(PaymentType.RETIRO_SIN_TARJETA);
+        return result.isEmpty() ? null : result.stream().distinct().toList();
     }
     public static void requireCashDeliveryAccess(User user, RoleName supervisedRole) {
         if (supervisedRole == null) {

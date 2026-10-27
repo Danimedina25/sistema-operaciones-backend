@@ -20,6 +20,11 @@ public class PaymentOperationFilterDto {
     public RoleName getSupervisedRole() { return supervisedRole; }
     public void setSupervisedRole(RoleName supervisedRole) { this.supervisedRole = supervisedRole; }
 
+    /** Solo operaciones a las que aún les falta registrar pagos de ingreso. */
+    private Boolean missingIncome;
+    public Boolean getMissingIncome() { return missingIncome; }
+    public void setMissingIncome(Boolean missingIncome) { this.missingIncome = missingIncome; }
+
     private String search;
     private OperationStatus status;
     private Long socioComercialId;

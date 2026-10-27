@@ -39,6 +39,8 @@ import com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepos
 import com.sistemadeoperaciones.pagos.repository.OperationReturnPaymentRepository;
 import com.sistemadeoperaciones.pagos.repository.PaymentOperationRepository;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
+import com.sistemadeoperaciones.shared.config.RolePermissionPolicy;
+import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
 import com.sistemadeoperaciones.usuarios.model.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -73,6 +75,9 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
     private final ReturnAmountCalculator returnAmountCalculator;
     private final ReturnPaymentDtoMapper returnPaymentDtoMapper;
     private final CashGeneralService cashGeneralService;
+    private final RolePermissionPolicy rolePermissionPolicy;
+    private final BusinessAuditService businessAuditService;
+    private final CardlessReturnFlow cardlessReturnFlow;
 
     public ReturnInstallmentServiceImpl(
             PaymentOperationRepository paymentOperationRepository,
@@ -83,7 +88,10 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
             NotificationService notificationService,
             ReturnAmountCalculator returnAmountCalculator,
             ReturnPaymentDtoMapper returnPaymentDtoMapper,
-            CashGeneralService cashGeneralService
+            CashGeneralService cashGeneralService,
+            RolePermissionPolicy rolePermissionPolicy,
+            BusinessAuditService businessAuditService,
+            CardlessReturnFlow cardlessReturnFlow
     ) {
         this.paymentOperationRepository = paymentOperationRepository;
         this.returnPaymentRepository = returnPaymentRepository;
@@ -94,6 +102,9 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         this.returnAmountCalculator = returnAmountCalculator;
         this.returnPaymentDtoMapper = returnPaymentDtoMapper;
         this.cashGeneralService = cashGeneralService;
+        this.rolePermissionPolicy = rolePermissionPolicy;
+        this.businessAuditService = businessAuditService;
+        this.cardlessReturnFlow = cardlessReturnFlow;
     }
 
     // ==================================================================
@@ -101,7 +112,7 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
     // ==================================================================
 
     @Override
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public ReturnInstallmentResponseDto createInstallment(
             Long returnRequestId,
             CreateReturnInstallmentRequestDto request
@@ -110,6 +121,9 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
 
         OperationReturnPayment solicitud = lockRequestAndOperation(returnRequestId);
         PaymentOperation operation = solicitud.getOperacion();
+        if (solicitud.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA)
+            requireAction(currentUser, RolePermissionPolicy.Action.RETURN_BANK_PAY);
+        else requireHandlerFor(solicitud.getTipoPago(), currentUser);
 
         if (request.getMonto() == null
                 || request.getMonto().compareTo(BigDecimal.ZERO) <= 0) {
@@ -140,7 +154,13 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
 
         LocalDateTime now = LocalDateTime.now();
 
-        if (isCash(solicitud.getTipoPago())) {
+        if (solicitud.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA) {
+            if (isBlank(request.getCodigoRetiroSinTarjeta())) throw new ReturnInstallmentWithdrawalCodeRequiredException();
+            if (request.getCodigoRetiroSinTarjeta().length() > 40) throw new com.sistemadeoperaciones.shared.exception.BadRequestException("El código no puede exceder 40 caracteres");
+            installment.setCodigoRetiroSinTarjeta(request.getCodigoRetiroSinTarjeta().trim());
+            cardlessReturnFlow.reserveCode(installment, request.getCuentaOrigenId());
+            installment.setEstatus(ReturnInstallmentStatus.PROGRAMADA);
+        } else if (isCash(solicitud.getTipoPago())) {
             if (request.getFechaHoraRecoleccion() == null) {
                 throw new ReturnInstallmentPickupDateRequiredException();
             }
@@ -152,13 +172,6 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
                     request.getEvidenciaImportePreparadoUrl().trim());
             installment.setEstatus(ReturnInstallmentStatus.PROGRAMADA);
 
-            if (solicitud.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA) {
-                installment.setCuentaOrigen(requireBankAccount(request.getCuentaOrigenId()));
-                if (isBlank(request.getCodigoRetiroSinTarjeta())) {
-                    throw new ReturnInstallmentWithdrawalCodeRequiredException();
-                }
-                installment.setCodigoRetiroSinTarjeta(request.getCodigoRetiroSinTarjeta().trim());
-            }
         } else {
             if (isBlank(request.getComprobanteUrl())) {
                 throw new ReturnInstallmentReceiptRequiredException();
@@ -171,12 +184,14 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
                 installment.setCuentaOrigen(requireBankAccount(request.getCuentaOrigenId()));
             }
 
+            if (installment.getCuentaOrigen() != null) cardlessReturnFlow.protectOtherPayment(installment.getCuentaOrigen().getId(), monto);
             installment.setEstatus(ReturnInstallmentStatus.COMPLETADA);
             installment.setRealizadoPor(currentUser);
             installment.setFechaRealizacion(now);
         }
 
         OperationReturnInstallment saved = installmentRepository.save(installment);
+        businessAuditService.record(currentUser.getId(), "RETURN_INSTALLMENT_CREATE", "RETURN_INSTALLMENT", saved.getId(), null, installmentAuditSnapshot(saved));
 
         recomputeRequestStatus(solicitud);
         recomputeOperationStatus(operation);
@@ -184,6 +199,72 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         dispatchNotificationsAfterChange(saved, solicitud);
 
         return mapToResponse(saved);
+    }
+
+    private void requireEditableCode(OperationReturnInstallment i) {
+        if (!Boolean.TRUE.equals(i.getCodigoParaCliente()) || i.getEstatus() != ReturnInstallmentStatus.PROGRAMADA || i.getFechaConfirmacion() != null || i.getFechaCobroBancario() != null)
+            throw new ReturnInstallmentInvalidStatusException("Solo se pueden modificar códigos sin uso ni cobro confirmado");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.sistemadeoperaciones.cuentasbancarias.dto.BankAccountResponseDto> eligibleCardlessAccounts(Long requestId, Long editingId) {
+        requireAction(authenticatedUserService.getCurrentUser(), RolePermissionPolicy.Action.RETURN_BANK_PAY);
+        var request = returnPaymentRepository.findById(requestId).orElseThrow(ReturnPaymentNotFoundException::new);
+        if (request.getTipoPago() != PaymentType.RETIRO_SIN_TARJETA) throw new ReturnInstallmentInvalidStatusException("La solicitud no es retiro sin tarjeta");
+        OperationReturnInstallment editing = null;
+        if (editingId != null) {
+            editing = installmentRepository.findById(editingId).orElseThrow(ReturnInstallmentNotFoundException::new);
+            if (!editing.getSolicitud().getId().equals(requestId)) throw new ReturnInstallmentInvalidStatusException("El código no pertenece a esta solicitud");
+            requireEditableCode(editing);
+        }
+        return cardlessReturnFlow.eligible(request, editing);
+    }
+
+    @Override
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
+    public ReturnInstallmentResponseDto editCardlessCode(Long id, CreateReturnInstallmentRequestDto request) {
+        var i = loadWithLocks(id);
+        var user = authenticatedUserService.getCurrentUser();
+        requireAction(user, RolePermissionPolicy.Action.RETURN_BANK_PAY);
+        requireEditableCode(i);
+        if (request.getMonto() == null || request.getMonto().signum() <= 0) throw new InvalidReturnAmountException();
+        var amount = request.getMonto().setScale(2, RoundingMode.HALF_UP);
+        if (amount.compareTo(cardlessReturnFlow.remaining(i.getSolicitud()).add(i.getMonto())) > 0) throw new ReturnInstallmentAmountExceedsAvailableException();
+        var code = request.getCodigoRetiroSinTarjeta();
+        if (isBlank(code) || code.trim().length() > 40) throw new ReturnInstallmentInvalidStatusException("Captura un código de hasta 40 caracteres");
+        var before = installmentAuditSnapshot(i);
+        before.put("withdrawalCode", i.getCodigoRetiroSinTarjeta());
+        cardlessReturnFlow.validateEdit(i, request.getCuentaOrigenId(), amount, code.trim());
+        i.setMonto(amount); i.setCodigoRetiroSinTarjeta(code.trim());
+        installmentRepository.save(i);
+        var after = installmentAuditSnapshot(i); after.put("withdrawalCode", i.getCodigoRetiroSinTarjeta());
+        businessAuditService.record(user.getId(), "CARDLESS_CODE_EDIT", "RETURN_INSTALLMENT", id, before, after);
+        recomputeRequestStatus(i.getSolicitud()); recomputeOperationStatus(i.getSolicitud().getOperacion());
+        notifyUser(i.getSolicitud().getOperacion().getSocioComercial().getId(), "Código de retiro actualizado", "Cuentas actualizó un código de retiro. Consulta sus datos antes de compartirlo con el cliente.", NotificationType.RETURN_INSTALLMENT_CODE_AVAILABLE, i.getSolicitud().getOperacion().getId(), "/operaciones/" + i.getSolicitud().getOperacion().getId() + "?scrollToReturns=true");
+        return mapToResponse(i);
+    }
+
+    @Override
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
+    public ReturnInstallmentResponseDto confirmCardlessBank(Long id, String proof) {
+        var i = loadWithLocks(id);
+        var user = authenticatedUserService.getCurrentUser();
+        requireAction(user, RolePermissionPolicy.Action.RETURN_BANK_PAY);
+        if (!Boolean.TRUE.equals(i.getCodigoParaCliente()) || i.getEstatus() == ReturnInstallmentStatus.CANCELADA || i.getFechaCobroBancario() != null)
+            throw new ReturnInstallmentInvalidStatusException("Este código no admite otra confirmación de cobro");
+        if (isBlank(proof) || proof.length() > 500) throw new ReturnInstallmentReceiptRequiredException();
+        cardlessReturnFlow.lockCodeAccount(i);
+        var before = installmentAuditSnapshot(i);
+        var now = LocalDateTime.now();
+        i.setFechaCobroBancario(now); i.setFechaEntrega(now); i.setEntregadoPor(user);
+        i.setComprobanteUrl(proof.trim());
+        recomputeInstallmentStatus(i);
+        installmentRepository.save(i);
+        businessAuditService.record(user.getId(), "CARDLESS_CODE_BANK_CONFIRM", "RETURN_INSTALLMENT", id, before, installmentAuditSnapshot(i));
+        recomputeRequestStatus(i.getSolicitud()); recomputeOperationStatus(i.getSolicitud().getOperacion());
+        notifyUser(i.getSolicitud().getOperacion().getSocioComercial().getId(), "Cobro de retiro sin tarjeta confirmado", "Cuentas verificó el cobro por $" + i.getMonto() + ". Confirma su uso si aún no lo has reportado.", NotificationType.RETURN_INSTALLMENT_DELIVERED, i.getSolicitud().getOperacion().getId(), "/operaciones/" + i.getSolicitud().getOperacion().getId() + "?scrollToReturns=true");
+        return mapToResponse(i);
     }
 
     // ==================================================================
@@ -214,23 +295,27 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         }
 
         User currentUser = authenticatedUserService.getCurrentUser();
+        requireAction(currentUser, RolePermissionPolicy.Action.RETURN_CONFIRM_RECEIPT);
         boolean isOwner = operation.getSocioComercial() != null
                 && operation.getSocioComercial().getId().equals(currentUser.getId());
-        if (!isOwner) {
+        boolean admin = currentUser.getRoles().stream().anyMatch(role -> role.getName() == com.sistemadeoperaciones.shared.enums.RoleName.ADMIN);
+        if (!isOwner && !admin) {
             throw new AccessDeniedException("No tienes permisos para confirmar esta parcialidad");
         }
 
+        Map<String, Object> beforeAudit = installmentAuditSnapshot(installment);
         installment.setFechaConfirmacion(LocalDateTime.now());
         installment.setConfirmadoPor(currentUser);
         recomputeInstallmentStatus(installment);
 
         OperationReturnInstallment saved = installmentRepository.save(installment);
+        businessAuditService.record(currentUser.getId(), "RETURN_INSTALLMENT_CONFIRM", "RETURN_INSTALLMENT", saved.getId(), beforeAudit, installmentAuditSnapshot(saved));
         recomputeRequestStatus(solicitud);
         recomputeOperationStatus(operation);
 
         if (saved.getEstatus() == ReturnInstallmentStatus.COMPLETADA) {
             dispatchNotificationsAfterChange(saved, solicitud);
-        } else {
+        } else if (!Boolean.TRUE.equals(saved.getCodigoParaCliente())) {
             notifyRoles(
                     java.util.List.of(
                             com.sistemadeoperaciones.shared.enums.RoleName.JEFA_CAJAS,
@@ -242,10 +327,12 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
                             + ". Falta que cierres la entrega con foto y persona que recibió.",
                     NotificationType.RETURN_INSTALLMENT_DELIVERED,
                     saved.getId(),
-                    "/entregas-de-hoy"
+                    "/operaciones/" + operation.getId() + "?scrollToReturns=true&action=manage-return&returnRequestId=" + solicitud.getId()
             );
         }
 
+        if (Boolean.TRUE.equals(saved.getCodigoParaCliente()) && saved.getFechaCobroBancario() == null)
+            notifyRoles(java.util.List.of(com.sistemadeoperaciones.shared.enums.RoleName.JEFA_CUENTAS, com.sistemadeoperaciones.shared.enums.RoleName.AUXILIAR_CUENTAS), "Uso de código reportado", "El socio reportó el uso del código por $" + saved.getMonto() + ". Verifica el cobro bancario.", NotificationType.RETURN_INSTALLMENT_DELIVERED, operation.getId(), "/operaciones/" + operation.getId() + "?scrollToReturns=true");
         return mapToResponse(saved);
     }
 
@@ -259,7 +346,11 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         OperationReturnPayment solicitud = installment.getSolicitud();
         PaymentOperation operation = solicitud.getOperacion();
 
+        if (Boolean.TRUE.equals(installment.getCodigoParaCliente()))
+            throw new AccessDeniedException("El cobro de este código lo confirma Cuentas desde Retornos");
         requireCashType(installment);
+        User currentUser = authenticatedUserService.getCurrentUser();
+        requireAction(currentUser, RolePermissionPolicy.Action.RETURN_CASH_DELIVER);
         // Independiente de la confirmación del socio: la jefa puede cerrar
         // mientras la parcialidad no esté completada ni cancelada.
         if (installment.getEstatus() == ReturnInstallmentStatus.COMPLETADA
@@ -292,7 +383,7 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         RecipientResolution receptor = resolveRecipient(
                 solicitud, request.getPersonaQueRecibioEfectivo());
 
-        User currentUser = authenticatedUserService.getCurrentUser();
+        Map<String, Object> beforeAudit = installmentAuditSnapshot(installment);
         LocalDateTime now = LocalDateTime.now();
 
         installment.setEntregadoPor(currentUser);
@@ -309,6 +400,7 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         recomputeInstallmentStatus(installment);
 
         OperationReturnInstallment saved = installmentRepository.save(installment);
+        businessAuditService.record(currentUser.getId(), "RETURN_INSTALLMENT_DELIVER", "RETURN_INSTALLMENT", saved.getId(), beforeAudit, installmentAuditSnapshot(saved));
         recomputeRequestStatus(solicitud);
         recomputeOperationStatus(operation);
 
@@ -339,21 +431,32 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         OperationReturnInstallment installment = loadWithLocks(installmentId);
         OperationReturnPayment solicitud = installment.getSolicitud();
         PaymentOperation operation = solicitud.getOperacion();
+        User currentUser = authenticatedUserService.getCurrentUser();
+        if (Boolean.TRUE.equals(installment.getCodigoParaCliente())) {
+            requireAction(currentUser, RolePermissionPolicy.Action.RETURN_BANK_PAY);
+            cardlessReturnFlow.lockCodeAccount(installment);
+            if (installment.getFechaCobroBancario() != null || installment.getFechaConfirmacion() != null)
+                throw new ReturnInstallmentInvalidStatusException("No se puede liberar un código reportado como utilizado o cobrado");
+            if (request == null || isBlank(request.getMotivo()))
+                throw new com.sistemadeoperaciones.shared.exception.BadRequestException("Indica la verificación bancaria de vencimiento o cancelación sin uso");
+        } else requireHandlerFor(installment.getTipoPago(), currentUser);
 
         // Solo se puede cancelar mientras ninguna de las dos partes haya
         // confirmado (estatus PROGRAMADA). En cuanto hay una marca, ya no.
+        if (installment.getFechaPreparacionBancaria() != null)
+            throw new ReturnInstallmentInvalidStatusException("El retiro ya salió del banco. Reprograma la recolección; cancelar requiere registrar el destino del efectivo.");
         if (installment.getEstatus() != ReturnInstallmentStatus.PROGRAMADA) {
             throw new ReturnInstallmentNotCancellableException();
         }
 
-        User currentUser = authenticatedUserService.getCurrentUser();
-
+        Map<String, Object> beforeAudit = installmentAuditSnapshot(installment);
         installment.setEstatus(ReturnInstallmentStatus.CANCELADA);
         installment.setCanceladoPor(currentUser);
         installment.setFechaCancelacion(LocalDateTime.now());
         installment.setObservaciones(appendMotivo(installment.getObservaciones(), request.getMotivo()));
 
         OperationReturnInstallment saved = installmentRepository.save(installment);
+        businessAuditService.record(currentUser.getId(), "RETURN_INSTALLMENT_CANCEL", "RETURN_INSTALLMENT", saved.getId(), beforeAudit, installmentAuditSnapshot(saved));
         recomputeRequestStatus(solicitud);
         recomputeOperationStatus(operation);
 
@@ -488,6 +591,11 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
             String observaciones
     ) {
         OperationReturnPayment solicitud = lockRequestAndOperation(returnRequestId);
+        User currentUser = authenticatedUserService.getCurrentUser();
+        requireAction(currentUser, RolePermissionPolicy.Action.RETURN_CASH_DELIVER);
+        if (!isCash(solicitud.getTipoPago())) {
+            throw new AccessDeniedException("Esta solicitud no se entrega en efectivo");
+        }
 
         // Reprogramación: si ya hay una parcialidad PROGRAMADA se actualiza en sitio
         // (semántica del endpoint legacy, que permitía re-agendar).
@@ -498,10 +606,13 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
                 .findFirst()
                 .orElse(null);
 
+        if (existing != null && Boolean.TRUE.equals(existing.getCodigoParaCliente()))
+            throw new AccessDeniedException("Los códigos para clientes se gestionan por Cuentas, sin recolección de efectivo");
         if (existing != null) {
+            Map<String, Object> beforeAudit = installmentAuditSnapshot(existing);
             existing.setFechaHoraRecoleccion(fechaHoraRecoleccion);
             if (solicitud.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA) {
-                if (cuentaOrigenId != null) {
+                if (cuentaOrigenId != null && existing.getFechaPreparacionBancaria() == null) {
                     existing.setCuentaOrigen(requireBankAccount(cuentaOrigenId));
                 }
                 if (!isBlank(codigoRetiroSinTarjeta)) {
@@ -512,6 +623,7 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
                 existing.setObservaciones(trimToNull(observaciones));
             }
             OperationReturnInstallment saved = installmentRepository.save(existing);
+            businessAuditService.record(currentUser.getId(), "RETURN_INSTALLMENT_RESCHEDULE", "RETURN_INSTALLMENT", saved.getId(), beforeAudit, installmentAuditSnapshot(saved));
             recomputeRequestStatus(solicitud);
             return mapToResponse(saved);
         }
@@ -647,7 +759,11 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         BigDecimal montoSolicitado = scaled(solicitud.getMonto());
         BigDecimal retornado = scaled(installmentRepository.sumCompletedBySolicitud(solicitud.getId()));
         BigDecimal pendiente = montoSolicitado.subtract(retornado).max(BigDecimal.ZERO);
-        String tipo = installment.getTipoPago().name();
+        String tipo = installment.getTipoPago() == PaymentType.RETIRO_SIN_TARJETA ? "retiro sin tarjeta" : installment.getTipoPago().name();
+        if (Boolean.TRUE.equals(installment.getCodigoParaCliente()) && installment.getEstatus() == ReturnInstallmentStatus.PROGRAMADA) {
+            notifyUser(socio.getId(), "Código de retiro disponible", "Consulta en Retornos el código por $" + installment.getMonto() + " y compártelo con tu cliente. Después reporta su uso.", NotificationType.RETURN_INSTALLMENT_CODE_AVAILABLE, operation.getId(), "/operaciones/" + operation.getId() + "?scrollToReturns=true");
+            return;
+        }
 
         if (installment.getEstatus() == ReturnInstallmentStatus.COMPLETADA) {
             notifyUser(
@@ -787,6 +903,35 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         }
     }
 
+    private void requireHandlerFor(PaymentType tipo, User user) {
+        requireAction(user, isCash(tipo)
+                ? RolePermissionPolicy.Action.RETURN_CASH_DELIVER
+                : RolePermissionPolicy.Action.RETURN_BANK_PAY);
+    }
+
+    private void requireAction(User user, RolePermissionPolicy.Action action) {
+        if (!rolePermissionPolicy.allows(user, action)) {
+            throw new AccessDeniedException("No tienes permisos para esta parcialidad de retorno");
+        }
+    }
+
+    private Map<String, Object> installmentAuditSnapshot(OperationReturnInstallment installment) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("returnRequestId", installment.getSolicitud().getId());
+        snapshot.put("amount", installment.getMonto());
+        snapshot.put("paymentType", installment.getTipoPago());
+        snapshot.put("status", installment.getEstatus());
+        snapshot.put("pickupAt", installment.getFechaHoraRecoleccion());
+        snapshot.put("bankPreparedAt", installment.getFechaPreparacionBancaria());
+        snapshot.put("clientCode", installment.getCodigoParaCliente());
+        snapshot.put("bankCollectedAt", installment.getFechaCobroBancario());
+        snapshot.put("deliveredAt", installment.getFechaEntrega());
+        snapshot.put("confirmedAt", installment.getFechaConfirmacion());
+        snapshot.put("cancelledAt", installment.getFechaCancelacion());
+        snapshot.put("originAccountId", installment.getCuentaOrigen() == null ? null : installment.getCuentaOrigen().getId());
+        return snapshot;
+    }
+
     /**
      * Recalcula el estatus de una parcialidad de efectivo/RST a partir de sus dos
      * marcas independientes: confirmación del socio ({@code fechaConfirmacion}) y
@@ -905,6 +1050,9 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         dto.setOperationId(operation.getId());
         dto.setMonto(i.getMonto());
         dto.setTipoPago(i.getTipoPago());
+        dto.setFechaPreparacionBancaria(i.getFechaPreparacionBancaria());
+        dto.setCodigoParaCliente(i.getCodigoParaCliente());
+        dto.setFechaCobroBancario(i.getFechaCobroBancario());
         dto.setEstatus(i.getEstatus());
         dto.setComprobanteUrl(i.getComprobanteUrl());
         dto.setEvidenciaImportePreparadoUrl(i.getEvidenciaImportePreparadoUrl());
@@ -936,7 +1084,7 @@ public class ReturnInstallmentServiceImpl implements ReturnInstallmentService {
         }
         if (i.getCuentaOrigen() != null) {
             dto.setCuentaOrigenId(i.getCuentaOrigen().getId());
-            dto.setCuentaOrigenNombre(i.getCuentaOrigen().getBanco());
+            dto.setCuentaOrigenNombre(i.getCuentaOrigen().getBanco() + " ••" + (i.getCuentaOrigen().getNumeroCuenta() == null ? "" : i.getCuentaOrigen().getNumeroCuenta().substring(Math.max(0, i.getCuentaOrigen().getNumeroCuenta().length() - 4))) + " · " + i.getCuentaOrigen().getTitular());
         }
         if (i.getCreadoPor() != null) {
             dto.setCreadoPorId(i.getCreadoPor().getId());

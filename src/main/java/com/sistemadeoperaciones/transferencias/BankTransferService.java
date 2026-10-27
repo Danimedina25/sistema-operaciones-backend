@@ -6,6 +6,7 @@ import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
 import com.sistemadeoperaciones.cuentasbancarias.repository.BankAccountRepository;
 import com.sistemadeoperaciones.retiroscaja.BankAvailability;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
+import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
 import com.sistemadeoperaciones.shared.exception.BadRequestException;
 import com.sistemadeoperaciones.shared.exception.ConflictException;
 import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
@@ -17,6 +18,7 @@ import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 @Service
@@ -33,6 +35,7 @@ public class BankTransferService {
     // puede colarse entre el cálculo y el guardado de un corte bancario.
     private final CashGeneralRegisterRepository periodLock;
     private final AuthenticatedUserService auth;
+    private final BusinessAuditService businessAuditService;
 
     @Transactional
     public BankTransferView create(BankTransferRequest request) {
@@ -87,6 +90,9 @@ public class BankTransferService {
         transfer.setComprobanteUrl(proof);
         transfer.setRegistradoPor(auth.getCurrentUser());
         BankTransfer saved = transfers.saveAndFlush(transfer);
+        businessAuditService.record(saved.getRegistradoPor().getId(), "BANK_TRANSFER_CREATE", "BANK_TRANSFER",
+                saved.getId(), null, Map.of("originAccountId", origen.getId(),
+                        "destinationAccountId", destino.getId(), "amount", amount));
 
         return view(saved, availability.balance(origen.getId()));
     }

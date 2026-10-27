@@ -24,7 +24,7 @@ public class CommercialPartnerController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'CATALOG_CREATE')")
     public ResponseEntity<ApiResponse<CommercialPartnerResponseDto>> create(
             @Valid @RequestBody CommercialPartnerRequestDTO request
     ) {
@@ -109,7 +109,7 @@ public class CommercialPartnerController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION', 'SOCIO_COMERCIAL')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'CATALOG_EDIT')")
     public ResponseEntity<ApiResponse<CommercialPartnerResponseDto>> update(
 
             @PathVariable Long id,
@@ -130,8 +130,17 @@ public class CommercialPartnerController {
         );
     }
 
+    @PutMapping("/{id}/commission")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'CATALOG_COMMISSION_CONFIGURE')")
+    public ResponseEntity<ApiResponse<CommercialPartnerResponseDto>> configureCommission(
+            @PathVariable Long id,
+            @RequestBody com.sistemadeoperaciones.socioscomerciales.dto.ConfigurePartnerCommissionRequest request) {
+        var response = commercialPartnerService.configureCommission(id, request.porcentajeComision());
+        return ResponseEntity.ok(new ApiResponse<>(true, "Comisión configurada", response, null));
+    }
+
     @PatchMapping("/{id}/deactivate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'CATALOG_STATUS')")
     public ResponseEntity<ApiResponse<CommercialPartnerResponseDto>>
     deactivateCommercialPartner(
             @PathVariable Long id
@@ -151,7 +160,7 @@ public class CommercialPartnerController {
     }
 
     @PatchMapping("/{id}/activate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'CATALOG_STATUS')")
     public ResponseEntity<ApiResponse<CommercialPartnerResponseDto>>
     activateCommercialPartner(
             @PathVariable Long id
@@ -171,7 +180,7 @@ public class CommercialPartnerController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'DIRECCION')")
+    @PreAuthorize("@rolePermissionPolicy.allows(authentication, 'CATALOG_DELETE')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         commercialPartnerService.delete(id);
 

@@ -8,6 +8,18 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public class ReturnPaymentResponseDto {
+    private LocalDateTime cuentaAsignadaEn;
+    private String cuentaOrigenTitular;
+    private String cuentaOrigenNumero;
+    private String retiroEtapa;
+    public LocalDateTime getCuentaAsignadaEn() { return cuentaAsignadaEn; }
+    public void setCuentaAsignadaEn(LocalDateTime value) { cuentaAsignadaEn = value; }
+    public String getCuentaOrigenTitular() { return cuentaOrigenTitular; }
+    public void setCuentaOrigenTitular(String value) { cuentaOrigenTitular = value; }
+    public String getCuentaOrigenNumero() { return cuentaOrigenNumero; }
+    public void setCuentaOrigenNumero(String value) { cuentaOrigenNumero = value; }
+    public String getRetiroEtapa() { return retiroEtapa; }
+    public void setRetiroEtapa(String value) { retiroEtapa = value; }
 
     private Long id;
 
