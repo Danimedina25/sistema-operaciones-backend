@@ -2,6 +2,7 @@ package com.sistemadeoperaciones.configuraciones.controller;
 
 import com.sistemadeoperaciones.configuraciones.dto.ConfiguracionGeneralRequestDTO;
 import com.sistemadeoperaciones.configuraciones.dto.ConfiguracionGeneralResponseDto;
+import com.sistemadeoperaciones.configuraciones.dto.PendingUrgencyThresholdsDto;
 import com.sistemadeoperaciones.configuraciones.service.ConfiguracionGeneralService;
 import com.sistemadeoperaciones.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
@@ -33,6 +34,20 @@ public class ConfiguracionGeneralController {
                         true,
                         "Configuración general obtenida exitosamente",
                         response,
+                        null
+                )
+        );
+    }
+
+    /** Todos los roles con pendientes necesitan los umbrales para pintar el semáforo. */
+    @GetMapping("/pendientes")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<PendingUrgencyThresholdsDto>> umbralesPendientes() {
+        return ResponseEntity.ok(
+                new ApiResponse<>(
+                        true,
+                        "Umbrales de pendientes obtenidos exitosamente",
+                        configuracionGeneralService.umbralesPendientes(),
                         null
                 )
         );

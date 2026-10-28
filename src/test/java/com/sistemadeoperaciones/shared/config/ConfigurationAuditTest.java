@@ -33,7 +33,9 @@ class ConfigurationAuditTest {
         service.actualizar(request);
 
         verify(audit).record(9L, "CONFIGURATION_UPDATE", "CONFIGURATION", 5L,
-                Map.of("porcentajeComisionOficina", new BigDecimal("1.50")),
-                Map.of("porcentajeComisionOficina", new BigDecimal("2.00")));
+                Map.of("porcentajeComisionOficina", new BigDecimal("1.50"),
+                        "horasPendienteAtencion", 4, "horasPendienteUrgente", 24),
+                Map.of("porcentajeComisionOficina", new BigDecimal("2.00"),
+                        "horasPendienteAtencion", 4, "horasPendienteUrgente", 24));
     }
 }

@@ -2,6 +2,8 @@ package com.sistemadeoperaciones.configuraciones.service;
 
 import com.sistemadeoperaciones.configuraciones.dto.ConfiguracionGeneralRequestDTO;
 import com.sistemadeoperaciones.configuraciones.dto.ConfiguracionGeneralResponseDto;
+import com.sistemadeoperaciones.configuraciones.dto.PendingUrgencyThresholdsDto;
+import com.sistemadeoperaciones.shared.exception.BusinessException;
 import com.sistemadeoperaciones.configuraciones.model.ConfiguracionGeneral;
 import com.sistemadeoperaciones.configuraciones.repository.ConfiguracionGeneralRepository;
 import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
@@ -9,7 +11,7 @@ import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
+import java.util.Map;
 
 @Service
 public class ConfiguracionGeneralServiceImpl implements ConfiguracionGeneralService {
@@ -45,25 +47,54 @@ public class ConfiguracionGeneralServiceImpl implements ConfiguracionGeneralServ
 
     @Override
     @Transactional
+    public PendingUrgencyThresholdsDto umbralesPendientes() {
+        ConfiguracionGeneral configuracion = obtener();
+        return new PendingUrgencyThresholdsDto(
+                configuracion.getHorasPendienteAtencion(),
+                configuracion.getHorasPendienteUrgente()
+        );
+    }
+
+    @Override
+    @Transactional
     public ConfiguracionGeneralResponseDto actualizar(ConfiguracionGeneralRequestDTO request) {
         ConfiguracionGeneral configuracion = obtener();
-        BigDecimal anterior = configuracion.getPorcentajeComisionOficina();
+        Map<String, Object> anterior = snapshot(configuracion);
+
+        Integer atencion = request.getHorasPendienteAtencion() != null
+                ? request.getHorasPendienteAtencion() : configuracion.getHorasPendienteAtencion();
+        Integer urgente = request.getHorasPendienteUrgente() != null
+                ? request.getHorasPendienteUrgente() : configuracion.getHorasPendienteUrgente();
+        if (atencion >= urgente) {
+            throw new BusinessException("Las horas para urgente deben ser mayores que las de atender pronto");
+        }
 
         configuracion.setPorcentajeComisionOficina(request.getPorcentajeComisionOficina());
+        configuracion.setHorasPendienteAtencion(atencion);
+        configuracion.setHorasPendienteUrgente(urgente);
 
         ConfiguracionGeneral actualizada = configuracionGeneralRepository.save(configuracion);
         businessAuditService.record(authenticatedUserService.getCurrentUser().getId(),
                 "CONFIGURATION_UPDATE", "CONFIGURATION", actualizada.getId(),
-                java.util.Map.of("porcentajeComisionOficina", anterior),
-                java.util.Map.of("porcentajeComisionOficina", actualizada.getPorcentajeComisionOficina()));
+                anterior, snapshot(actualizada));
 
         return mapToResponse(actualizada);
+    }
+
+    private static Map<String, Object> snapshot(ConfiguracionGeneral configuracion) {
+        return Map.of(
+                "porcentajeComisionOficina", configuracion.getPorcentajeComisionOficina(),
+                "horasPendienteAtencion", configuracion.getHorasPendienteAtencion(),
+                "horasPendienteUrgente", configuracion.getHorasPendienteUrgente()
+        );
     }
 
     private ConfiguracionGeneralResponseDto mapToResponse(ConfiguracionGeneral configuracion) {
         return new ConfiguracionGeneralResponseDto(
                 configuracion.getId(),
                 configuracion.getPorcentajeComisionOficina(),
+                configuracion.getHorasPendienteAtencion(),
+                configuracion.getHorasPendienteUrgente(),
                 configuracion.getUpdatedAt()
         );
     }
