@@ -18,6 +18,7 @@ public interface CashBankDepositRepository extends JpaRepository<CashBankDeposit
     @Query("select d from CashBankDeposit d where d.id = :id")
     Optional<CashBankDeposit> findByIdForUpdate(@Param("id") Long id);
     List<CashBankDeposit> findByEstatusOrderByRegistradoEnAscIdAsc(CashBankDepositStatus status);
+    List<CashBankDeposit> findByEstatusOrderByRegistradoEnDescIdDesc(CashBankDepositStatus status);
     List<CashBankDeposit> findByRegistradoEnGreaterThanEqualAndRegistradoEnLessThanOrderByRegistradoEnDescIdDesc(
             LocalDateTime start, LocalDateTime end);
     @Query("select coalesce(sum(d.monto), 0) from CashBankDeposit d where d.origen = com.sistemadeoperaciones.envioscaja.CashBankDepositOrigin.EFECTIVO_CAJA and d.estatus in (com.sistemadeoperaciones.envioscaja.CashBankDepositStatus.PENDIENTE, com.sistemadeoperaciones.envioscaja.CashBankDepositStatus.RECHAZADO_PENDIENTE_DEVOLUCION)")

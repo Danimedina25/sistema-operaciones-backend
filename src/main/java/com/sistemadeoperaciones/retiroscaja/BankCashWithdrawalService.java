@@ -221,10 +221,10 @@ public class BankCashWithdrawalService {
         return view(saved, catalog());
     }
 
-    /** Pendientes, sin límite de fechas: es la bandeja de Cajas y lo que va "en tránsito". */
+    /** Pendientes, sin límite de fechas: es la bandeja de Cajas y lo que va "en tránsito", el más reciente primero. */
     public List<BankCashWithdrawalView> pending() {
         BankNames catalog = catalog();
-        return withdrawals.findByEstatusOrderByRegistradoEnAscIdAsc(WithdrawalStatus.PENDIENTE)
+        return withdrawals.findByEstatusOrderByRegistradoEnDescIdDesc(WithdrawalStatus.PENDIENTE)
                 .stream().map(w -> view(w, catalog)).toList();
     }
 

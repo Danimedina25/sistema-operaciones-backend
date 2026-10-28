@@ -111,6 +111,14 @@ class BankCashWithdrawalServiceTest {
     }
 
     @Test
+    void theCashTrayListsTheMostRecentWithdrawalFirst() {
+        var first = register(bbva, WithdrawalMethod.RETIRO_SIN_TARJETA, "100");
+        var second = register(bbva, WithdrawalMethod.RETIRO_SIN_TARJETA, "200");
+
+        assertThat(service.pending()).extracting(BankCashWithdrawalView::id).containsExactly(second.id(), first.id());
+    }
+
+    @Test
     void aPendingWithdrawalKeepsTheBalanceButIsNoLongerAvailable() {
         var w = register(bbva, WithdrawalMethod.RETIRO_SIN_TARJETA, "300");
 

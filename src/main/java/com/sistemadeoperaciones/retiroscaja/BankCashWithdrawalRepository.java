@@ -26,6 +26,7 @@ public interface BankCashWithdrawalRepository extends JpaRepository<BankCashWith
 
     @EntityGraph(attributePaths = {"cuentaBancaria", "registradoPor", "resueltoPor"})
     List<BankCashWithdrawal> findByEstatusOrderByRegistradoEnAscIdAsc(WithdrawalStatus estatus);
+    List<BankCashWithdrawal> findByEstatusOrderByRegistradoEnDescIdDesc(WithdrawalStatus estatus);
 
     @EntityGraph(attributePaths = {"cuentaBancaria", "registradoPor", "resueltoPor"})
     List<BankCashWithdrawal> findByRegistradoEnGreaterThanEqualAndRegistradoEnLessThanOrderByRegistradoEnDescIdDesc(

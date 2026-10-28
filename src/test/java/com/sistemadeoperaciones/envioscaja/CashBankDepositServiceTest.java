@@ -86,6 +86,14 @@ class CashBankDepositServiceTest {
                 "https://example.test/salida.pdf", hundreds(hundreds)));
     }
 
+    @Test void theTrayListsTheMostRecentDepositFirstWhileTheSummaryKeepsTheOldest() {
+        var first = register(2);
+        var second = register(3);
+
+        assertThat(service.pending()).extracting(CashBankDepositView::id).containsExactly(second.id(), first.id());
+        assertThat(service.pendingSummary().oldest()).isEqualTo(first.registradoEn());
+    }
+
     @Test void pendingReservesWithoutChangingEitherBalance() {
         var d = register(6);
         assertThat(d.estatus()).isEqualTo(CashBankDepositStatus.PENDIENTE);

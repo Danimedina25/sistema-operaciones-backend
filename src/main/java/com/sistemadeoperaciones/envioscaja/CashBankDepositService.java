@@ -385,12 +385,13 @@ public class CashBankDepositService {
         return view(saved);
     }
 
+    /** Bandejas de trabajo: el envío más reciente primero. El resumen sigue midiendo el más antiguo. */
     public List<CashBankDepositView> pending() {
-        return deposits.findByEstatusOrderByRegistradoEnAscIdAsc(CashBankDepositStatus.PENDIENTE)
+        return deposits.findByEstatusOrderByRegistradoEnDescIdDesc(CashBankDepositStatus.PENDIENTE)
                 .stream().map(this::view).toList();
     }
     public List<CashBankDepositView> rejectedForReturn() {
-        return deposits.findByEstatusOrderByRegistradoEnAscIdAsc(CashBankDepositStatus.RECHAZADO_PENDIENTE_DEVOLUCION)
+        return deposits.findByEstatusOrderByRegistradoEnDescIdDesc(CashBankDepositStatus.RECHAZADO_PENDIENTE_DEVOLUCION)
                 .stream().map(this::view).toList();
     }
     public List<CashBankDepositView> list(LocalDate from, LocalDate to) {
