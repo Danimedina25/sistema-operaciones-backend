@@ -1616,12 +1616,12 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
     private List<RoleName> resolvePaymentSubmittedRoles(PaymentType tipoPago) {
         if (tipoPago == PaymentType.TRANSFERENCIA
-                || tipoPago == PaymentType.DEPOSITO
-                || tipoPago == PaymentType.CHEQUE) {
+                || tipoPago == PaymentType.DEPOSITO) {
             return List.of(RoleName.JEFA_CUENTAS, RoleName.AUXILIAR_CUENTAS, RoleName.ADMIN);
         }
 
-        if (tipoPago == PaymentType.EFECTIVO) {
+        // El cheque lo valida Cajas y ella decide si se cobra en efectivo o se deposita.
+        if (tipoPago == PaymentType.EFECTIVO || tipoPago == PaymentType.CHEQUE) {
             return List.of(RoleName.JEFA_CAJAS, RoleName.ADMIN);
         }
 
@@ -2032,16 +2032,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
         String actionUrl = "/operaciones/" + operation.getId() + "?scrollToPayments=true";
         switch (action) {
             case "COBRAR_BANCO" -> notifyPaymentValidated(payment);
-            case "CONFIRMAR_COBRO_EFECTIVO" -> {
-                notifyPaymentValidated(payment);
-                notificationService.createForRoles(
-                        List.of(RoleName.JEFA_CUENTAS, RoleName.AUXILIAR_CUENTAS, RoleName.ADMIN),
-                        "Cheque cobrado en efectivo",
-                        actorName + " confirmó la recepción de " + payment.getMonto() + " MXN en Caja General para el cheque "
-                                + payment.getNumeroCheque() + " de la operación #" + operation.getId() + ".",
-                        NotificationType.CHEQUE_CASH_COLLECTION_COMPLETED, NotificationModule.PAGOS,
-                        NotificationReferenceType.OPERATION_PAYMENT, id, actionUrl, NotificationPriority.HIGH);
-            }
+            // El efectivo entra a Caja: Cuentas no tiene nada que hacer, solo se avisa al socio.
+            case "CONFIRMAR_COBRO_EFECTIVO" -> notifyPaymentValidated(payment);
             case "ASIGNAR_COBRO_EFECTIVO" -> notificationService.createForRoles(
                     List.of(RoleName.JEFA_CAJAS, RoleName.ADMIN),
                     "Nuevo cheque pendiente de cobro en efectivo",
