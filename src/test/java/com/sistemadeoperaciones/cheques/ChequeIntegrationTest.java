@@ -192,6 +192,22 @@ class ChequeIntegrationTest {
         var movement=tx(() -> movements.findByPagoId(p.id()).orElseThrow()); assertThat(movement.getTipo()).isEqualTo(CashMovementConcept.COBRO_CHEQUE_CLIENTE); assertThat(movement.getCuentaBancaria()).isNull();
         assertThat(cash.latest().saldoActual()).isEqualByComparingTo("100");
     }
+    @Test void aChequeWithARecordedCollectionCannotBeCollectedAgainEvenIfItsStateWasAltered() {
+        var day=cash.open(new OpenCashDayRequest(LocalDate.now(),BigDecimal.ZERO,counts(0))); var received=received();
+        var assigned=service.act(received.id(),command(received,ChequeAction.ASIGNAR_COBRO_EFECTIVO));
+        service.act(assigned.id(),new ChequeCommand(UUID.randomUUID(),assigned.version(),ChequeAction.CONFIRMAR_COBRO_EFECTIVO,LocalDate.now(),null,proof(),null,day.id(),counts(1)));
+        // Datos alterados fuera del flujo: el cheque vuelve a "pendiente" y sin movimiento de caja.
+        run(() -> {
+            movements.findByPagoId(received.id()).ifPresent(movements::delete);
+            var p=paymentRepository.findById(received.id()).orElseThrow(); p.setChequeEstado("PENDIENTE_COBRO_EFECTIVO"); p.setEstatus(PaymentStatus.PENDIENTE_VALIDACION); paymentRepository.save(p);
+        });
+        var altered=service.byPayment(received.id());
+        assertThatThrownBy(() -> service.act(altered.id(),new ChequeCommand(UUID.randomUUID(),altered.version(),ChequeAction.CONFIRMAR_COBRO_EFECTIVO,LocalDate.now(),null,proof(),null,day.id(),counts(1))))
+                .isInstanceOf(ConflictException.class).hasMessage("Este cheque ya tiene un cobro registrado");
+        assertThat(movements.findByPagoId(received.id())).isEmpty();
+        assertThat(service.byPayment(received.id()).historial()).extracting(ChequeView.History::accion)
+                .filteredOn("CONFIRMAR_COBRO_EFECTIVO"::equals).hasSize(1);
+    }
     @Test void cashAssignsTheChequeAndCanReturnItWithoutRejectingThePayment() {
         var p=received();
         var cashRole=new Role(); cashRole.setName(RoleName.JEFA_CAJAS); actor.setRoles(Set.of(cashRole));

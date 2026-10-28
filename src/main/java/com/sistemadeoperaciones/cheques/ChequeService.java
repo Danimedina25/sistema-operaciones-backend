@@ -106,6 +106,8 @@ public class ChequeService {
         if (p.getEstatus() != PaymentStatus.PENDIENTE_VALIDACION && p.getEstatus() != PaymentStatus.EN_PROCESO)
             throw new ConflictException("El pago no está pendiente");
         validateTransition(p.getChequeEstado(), command.accion());
+        if (command.accion() == ChequeAction.COBRAR_BANCO || command.accion() == ChequeAction.CONFIRMAR_COBRO_EFECTIVO)
+            requireNotCollected(audits, id);
         if (p.getChequeEstado().equals("DEPOSITADO")
                 && (command.accion() == ChequeAction.COBRAR_BANCO || command.accion() == ChequeAction.DEVOLVER)
                 && !depositRepository.findByChequePaymentIdOrderByIdDesc(id).isEmpty())
@@ -174,6 +176,13 @@ public class ChequeService {
         events.publishEvent(new Changed(id, command.accion().name(), user.getNombre()));
         return result;
     }
+    /** Un cheque se cobra una sola vez: el historial manda aunque el estado se haya alterado. */
+    public static void requireNotCollected(ChequeAuditRepository audits, Long paymentId) {
+        if (audits.existsByPagoIdAndAccionIn(paymentId, COLLECTION_ACTIONS))
+            throw new ConflictException("Este cheque ya tiene un cobro registrado");
+    }
+    private static final List<String> COLLECTION_ACTIONS =
+            List.of(ChequeAction.COBRAR_BANCO.name(), ChequeAction.CONFIRMAR_COBRO_EFECTIVO.name());
     static void validateTransition(String state, ChequeAction action) {
         boolean allowed = switch (state) {
             case "POR_COBRAR" -> action == ChequeAction.DEPOSITAR

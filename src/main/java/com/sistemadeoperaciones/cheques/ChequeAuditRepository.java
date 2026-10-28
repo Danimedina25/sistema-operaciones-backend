@@ -5,4 +5,5 @@ public interface ChequeAuditRepository extends JpaRepository<ChequeAudit, Long> 
     Optional<ChequeAudit> findByRequestId(String requestId);
     List<ChequeAudit> findByPagoIdOrderByIdAsc(Long pagoId);
     List<ChequeAudit> findByPagoIdInOrderByIdAsc(Collection<Long> ids);
+    boolean existsByPagoIdAndAccionIn(Long pagoId, Collection<String> acciones);
 }

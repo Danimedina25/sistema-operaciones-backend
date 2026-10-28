@@ -311,6 +311,7 @@ public class CashBankDepositService {
         if (d.getOrigen() == CashBankDepositOrigin.CHEQUE) {
             requirePendingCheque(d);
             OperationPayment p = d.getChequePayment();
+            ChequeService.requireNotCollected(chequeAudits, p.getId());
             ChequeService.validateProof(bankProof, p.getOperacion().getId());
             p.setChequeEstado("COBRADO"); p.setChequeDestinoCobro("CUENTA_BANCARIA");
             p.setChequeFechaCobro(LocalDate.now().atStartOfDay()); p.setChequeVersion(p.getChequeVersion() + 1);
