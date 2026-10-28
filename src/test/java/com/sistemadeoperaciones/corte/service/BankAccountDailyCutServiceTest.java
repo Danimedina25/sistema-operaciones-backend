@@ -13,7 +13,6 @@ import com.sistemadeoperaciones.pagos.enums.PaymentStatus;
 import com.sistemadeoperaciones.pagos.enums.PaymentType;
 import com.sistemadeoperaciones.pagos.model.OperationPayment;
 import com.sistemadeoperaciones.pagos.model.PaymentOperation;
-import com.sistemadeoperaciones.shared.exception.ResourceNotFoundException;
 import com.sistemadeoperaciones.usuarios.model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,7 +45,7 @@ class BankAccountDailyCutServiceTest {
     @Autowired BankAccountDailyCutService service;
     @Autowired BankAccountDailyCutRepository cuts;
 
-    static final LocalDate HOY = LocalDate.now();
+    static final LocalDate HOY = com.sistemadeoperaciones.shared.utils.OfficeClock.today();
     static final LocalDate AYER = HOY.minusDays(1);
     static final LocalDate ANTEAYER = HOY.minusDays(2);
 
@@ -196,16 +195,22 @@ class BankAccountDailyCutServiceTest {
     }
 
     @Test
-    void aMissingHistoricalCutAfterAccountCreationIsReportedInsteadOfGuessed() {
+    void aMissingHistoricalCutAfterAccountCreationIsCalculatedFromItsMovements() {
         em.flush();
         em.getEntityManager().createNativeQuery("update bank_accounts set created_at = :created where id = :id")
                 .setParameter("created", ANTEAYER.minusDays(1).atStartOfDay())
                 .setParameter("id", cuenta.getId())
                 .executeUpdate();
         em.clear();
-        assertThatThrownBy(() -> service.calculateBalance(cuenta.getId(), ANTEAYER))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("No existe corte registrado");
+        var balance = service.calculateBalance(cuenta.getId(), ANTEAYER);
+        assertThat(balance.getFecha()).isEqualTo(ANTEAYER);
+        assertInvariant(balance);
+    }
+
+    @Test
+    void aFutureDayIsRejected() {
+        assertThatThrownBy(() -> service.calculateBalance(cuenta.getId(), HOY.plusDays(1)))
+                .isInstanceOf(com.sistemadeoperaciones.corte.exceptions.FutureCashCutDateException.class);
     }
 
     @Test

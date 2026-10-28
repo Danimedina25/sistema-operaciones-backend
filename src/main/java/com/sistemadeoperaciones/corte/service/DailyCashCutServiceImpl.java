@@ -6,6 +6,8 @@ import com.sistemadeoperaciones.corte.dto.CashCutRangeResponse;
 import com.sistemadeoperaciones.corte.dto.DailyCashCutRequest;
 import com.sistemadeoperaciones.corte.dto.DailyCashCutResponse;
 import com.sistemadeoperaciones.corte.enums.DailyCashCutStatus;
+import com.sistemadeoperaciones.shared.utils.OfficeClock;
+import com.sistemadeoperaciones.corte.exceptions.FutureCashCutDateException;
 import com.sistemadeoperaciones.corte.exceptions.CashCutDateRequiredException;
 import com.sistemadeoperaciones.corte.exceptions.DailyCashCutAlreadyExistsException;
 import com.sistemadeoperaciones.corte.exceptions.InitialCashBalanceRequiredException;
@@ -25,7 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.List;
 
 @Service
@@ -72,30 +73,25 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
             throw new CashCutDateRequiredException();
         }
 
-        LocalDate hoy = LocalDate.now();
+        LocalDate hoy = OfficeClock.today();
 
-        if (fecha.isEqual(hoy)) {
-
-            BigDecimal saldoInicial =
-                    obtenerSaldoInicial(fecha);
-
-            return calculateDailyCut(
-                    fecha,
-                    saldoInicial
-            );
+        if (fecha.isAfter(hoy)) {
+            throw new FutureCashCutDateException();
         }
 
-        DailyCashCut corte =
-                dailyCashCutRepository
-                        .findByFecha(fecha)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "No existe corte registrado para la fecha "
-                                                + fecha
-                                )
-                        );
+        // Un día pasado manda su corte registrado; si el cierre automático no lo guardó,
+        // se calcula igual que hoy y se marca como no registrado en lugar de fallar.
+        if (fecha.isBefore(hoy)) {
+            var registrado = dailyCashCutRepository.findByFecha(fecha);
+            if (registrado.isPresent()) {
+                return mapToResponse(registrado.get());
+            }
+        }
 
-        return mapToResponse(corte);
+        return calculateDailyCut(
+                fecha,
+                obtenerSaldoInicial(fecha)
+        );
     }
 
     private DailyCashCutResponse mapToResponse(
@@ -260,7 +256,7 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
             );
         }
 
-        LocalDate hoy = LocalDate.now();
+        LocalDate hoy = OfficeClock.today();
 
         boolean incluyeHoy =
                 !fechaInicio.isAfter(hoy)
@@ -493,7 +489,10 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
             BigDecimal saldoInicial
     ) {
         LocalDateTime inicio = fecha.atStartOfDay();
-        LocalDateTime fin = fecha.atTime(LocalTime.MAX);
+        // Último microsegundo del día. LocalTime.MAX (9 decimales) MySQL lo redondea a las 00:00
+        // del día siguiente, y lo ocurrido a medianoche —un cheque cobrado con fecha efectiva—
+        // se contaba en los dos días. El libro de movimientos usa la misma frontera.
+        LocalDateTime fin = fecha.plusDays(1).atStartOfDay().minusNanos(1_000);
 
         BigDecimal entradasTransferencia = sumEntradaByTipo(
                 PaymentType.TRANSFERENCIA,
@@ -696,7 +695,7 @@ public class DailyCashCutServiceImpl implements DailyCashCutService {
         }
 
         // Hoy siempre se calcula en vivo: registrarlo lo congelaría a media jornada.
-        LocalDate ultimoCerrable = LocalDate.now().minusDays(1);
+        LocalDate ultimoCerrable = OfficeClock.today().minusDays(1);
         LocalDate fin = hasta == null || hasta.isAfter(ultimoCerrable) ? ultimoCerrable : hasta;
 
         if (fin.isBefore(desde)) {

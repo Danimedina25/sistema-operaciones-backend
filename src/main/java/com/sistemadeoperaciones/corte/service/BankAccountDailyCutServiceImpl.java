@@ -1,5 +1,7 @@
 package com.sistemadeoperaciones.corte.service;
 
+import com.sistemadeoperaciones.corte.exceptions.FutureCashCutDateException;
+import com.sistemadeoperaciones.shared.utils.OfficeClock;
 import com.sistemadeoperaciones.corte.dto.BankAccountBalanceDetailResponseDto;
 import com.sistemadeoperaciones.corte.dto.BankAccountBalanceResponseDto;
 import com.sistemadeoperaciones.corte.dto.BankGroupBalanceResponseDto;
@@ -68,11 +70,16 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
                                 )
                         );
 
+        if (fecha.isAfter(OfficeClock.today())) {
+            throw new FutureCashCutDateException();
+        }
+
         /*
          * FECHA HISTÓRICA: manda el corte registrado. No se recalcula para que el histórico
-         * siga siendo reproducible.
+         * siga siendo reproducible. Si el cierre automático no lo guardó, se calcula desde
+         * los movimientos (el saldo inicial ya cubre los días sin corte).
          */
-        if (fecha.isBefore(LocalDate.now())) {
+        if (fecha.isBefore(OfficeClock.today())) {
 
             var cut = bankAccountDailyCutRepository.findByBankAccountIdAndFecha(bankAccountId, fecha);
             if (cut.isPresent()) return mapToDetailResponse(cut.get());
@@ -80,7 +87,6 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
             if (fecha.isBefore(account.getCreatedAt().toLocalDate())) {
                 return emptyBalance(account, fecha);
             }
-            throw new ResourceNotFoundException("No existe corte registrado para la fecha " + fecha);
         }
 
         /*
@@ -98,7 +104,7 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
 
         final LocalDate fechaConsulta =
                 fecha == null
-                        ? LocalDate.now()
+                        ? OfficeClock.today()
                         : fecha;
 
         return bankAccountRepository.findByActivoTrue()
@@ -133,10 +139,10 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
 
         final LocalDate fechaConsulta =
                 fecha == null
-                        ? LocalDate.now()
+                        ? OfficeClock.today()
                         : fecha;
 
-        if (fechaConsulta.isBefore(LocalDate.now())) {
+        if (fechaConsulta.isBefore(OfficeClock.today())) {
             registerDailyCut(fechaConsulta);
         }
 
@@ -273,7 +279,7 @@ public class BankAccountDailyCutServiceImpl implements BankAccountDailyCutServic
     @Override
     @Transactional
     public int recalculateAllFrom(LocalDate fecha) {
-        if (fecha == null || !fecha.isBefore(LocalDate.now())) {
+        if (fecha == null || !fecha.isBefore(OfficeClock.today())) {
             throw new IllegalArgumentException("La fecha debe ser anterior a hoy");
         }
 

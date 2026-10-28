@@ -50,7 +50,7 @@ class DailyCashCutServiceTest {
     @Autowired DailyCashCutService service;
     @Autowired DailyCashCutRepository cuts;
 
-    static final LocalDate HOY = LocalDate.now();
+    static final LocalDate HOY = com.sistemadeoperaciones.shared.utils.OfficeClock.today();
 
     User user;
     PaymentOperation operation;
@@ -369,4 +369,38 @@ class DailyCashCutServiceTest {
         assertThat(cuts.count()).isEqualTo(1);
     }
 
+    @Test
+    void aPastDayWithoutARegisteredCutIsCalculatedInsteadOfFailing() {
+        LocalDate ayer = HOY.minusDays(1);
+        pagoValidado(PaymentType.TRANSFERENCIA, "3000", ayer.atTime(20, 32));
+        pagoValidado(PaymentType.DEPOSITO, "1500", HOY.atTime(10, 0));
+        em.flush();
+
+        DailyCashCutResponse corte = service.calculateDailyCut(ayer);
+
+        assertThat(corte.isRegistrado()).isFalse();
+        assertThat(corte.getFecha()).isEqualTo(ayer);
+        assertThat(corte.getEntradasTransferencia()).isEqualByComparingTo("3000");
+        assertThat(corte.getEntradasDeposito()).isEqualByComparingTo("0");
+        assertInvariant(corte);
+        assertThat(cuts.findByFecha(ayer)).isEmpty();
+    }
+
+    @Test
+    void aMovementAtMidnightBelongsOnlyToTheDayThatStarts() {
+        LocalDate ayer = HOY.minusDays(1);
+        // Un cheque se cobra con fecha efectiva sin hora: queda a las 00:00 del día siguiente.
+        pagoValidado(PaymentType.TRANSFERENCIA, "1500", HOY.atStartOfDay());
+        em.flush();
+
+        assertThat(service.calculateDailyCut(ayer).getEntradasTransferencia()).isEqualByComparingTo("0");
+        assertThat(service.calculateDailyCut(HOY).getEntradasTransferencia()).isEqualByComparingTo("1500");
+    }
+
+    @Test
+    void aFutureDayIsRejected() {
+        assertThatThrownBy(() -> service.calculateDailyCut(HOY.plusDays(1)))
+                .isInstanceOf(com.sistemadeoperaciones.corte.exceptions.FutureCashCutDateException.class)
+                .hasMessageContaining("fecha futura");
+    }
 }
