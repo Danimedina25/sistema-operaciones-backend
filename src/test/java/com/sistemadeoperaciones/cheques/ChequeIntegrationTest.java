@@ -139,6 +139,7 @@ class ChequeIntegrationTest {
         });
         var legacy=service.byPayment(received.id());
         assertThat(legacy.depositoCompartido()).isFalse();
+        assertThat(legacy.depositoId()).isNull();
         var confirmed=service.act(legacy.id(),command(legacy,ChequeAction.COBRAR_BANCO));
         assertThat(confirmed.estado()).isEqualTo("COBRADO");
         assertThat(bankRows()).isEqualTo(1);
@@ -146,6 +147,7 @@ class ChequeIntegrationTest {
     @Test void depositedThenCollectedHasOneBankEntryAndTotalsIgnoreStateFilter() {
         var p=received(); p=service.act(p.id(),command(p,ChequeAction.DEPOSITAR));
         assertThat(p.depositoCompartido()).isTrue();
+        assertThat(p.depositoId()).isEqualTo(depositId(p.id()));
         var pending=p;
         assertThatThrownBy(() -> service.act(pending.id(),command(pending,ChequeAction.COBRAR_BANCO))).isInstanceOf(ConflictException.class);
         p=confirmCheque(p);

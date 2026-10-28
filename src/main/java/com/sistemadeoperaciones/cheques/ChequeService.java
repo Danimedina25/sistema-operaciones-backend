@@ -3,6 +3,7 @@ package com.sistemadeoperaciones.cheques;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sistemadeoperaciones.cajageneral.repository.CashGeneralRegisterRepository;
 import com.sistemadeoperaciones.cajageneral.service.CashGeneralService;
+import com.sistemadeoperaciones.envioscaja.CashBankDeposit;
 import com.sistemadeoperaciones.envioscaja.CashBankDepositService;
 import com.sistemadeoperaciones.envioscaja.CashBankDepositRepository;
 import com.sistemadeoperaciones.corte.repository.DailyCashCutRepository;
@@ -210,11 +211,15 @@ public class ChequeService {
     }
     private ChequeView view(OperationPayment p, List<ChequeAudit> history) {
         BankAccount b = p.getCuentaDestino();
+        // El envío que creó Cajas al depositar; Cuentas lo confirma o rechaza también desde el panel del cheque.
+        Long depositoId = "DEPOSITADO".equals(p.getChequeEstado())
+                ? depositRepository.findByChequePaymentIdOrderByIdDesc(p.getId()).stream().findFirst().map(CashBankDeposit::getId).orElse(null)
+                : null;
         return new ChequeView(p.getId(), p.getId(), p.getOperacion().getId(), p.getOperacion().getCliente().getNombre(),
                 p.getNumeroCheque(), p.getBancoEmisor(), p.getEmisor(), p.getBeneficiario(), p.getMonto(), "MXN", p.getChequeEstado(), p.getChequeEstado() == null,
                 p.getChequeVersion(), p.getCreatedAt(), b == null ? null : b.getId(), b == null ? null : b.getTitular()+" — "+b.getBanco()+" — "+b.getNumeroCuenta(),
                 p.getChequeDestinoCobro(), p.getComprobanteUrl(),
-                "DEPOSITADO".equals(p.getChequeEstado()) && !depositRepository.findByChequePaymentIdOrderByIdDesc(p.getId()).isEmpty(), history.stream().map(a -> new ChequeView.History(a.getId(), a.getAccion(), a.getFecha(), a.getUsuarioNombre(), a.getMotivo(), a.getComprobanteUrl())).toList());
+                depositoId != null, depositoId, history.stream().map(a -> new ChequeView.History(a.getId(), a.getAccion(), a.getFecha(), a.getUsuarioNombre(), a.getMotivo(), a.getComprobanteUrl())).toList());
     }
     @Transactional(readOnly=true)
     public ChequeView.Page list(String states, String search, String customer, Long operationId, String bank, LocalDate from, LocalDate to, int page) {
