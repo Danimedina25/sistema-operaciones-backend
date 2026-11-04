@@ -1,5 +1,6 @@
 package com.sistemadeoperaciones.envioscaja;
 
+import com.sistemadeoperaciones.shared.storage.ProofUrls;
 import com.sistemadeoperaciones.cajageneral.dto.CashMovementResponse;
 import com.sistemadeoperaciones.cajageneral.model.CashGeneralDay;
 import com.sistemadeoperaciones.cajageneral.repository.CashGeneralDayRepository;
@@ -92,7 +93,7 @@ public class CashBankDepositService {
 
     private void lock() { register.ensureRegister(); register.lockRegister(); }
     private static String proof(String value, String name) {
-        if (value == null || value.isBlank() || value.length() > 500 || !value.startsWith("https://"))
+        if (value == null || value.isBlank() || value.length() > 500 || !ProofUrls.isAcceptable(value))
             throw new BadRequestException("Adjunta el comprobante " + name + " mediante una URL HTTPS");
         return value.trim();
     }

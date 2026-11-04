@@ -1,5 +1,6 @@
 package com.sistemadeoperaciones.transferencias;
 
+import com.sistemadeoperaciones.shared.storage.ProofUrls;
 import com.sistemadeoperaciones.cajageneral.repository.CashGeneralRegisterRepository;
 import com.sistemadeoperaciones.corte.repository.BankAccountDailyCutRepository;
 import com.sistemadeoperaciones.cuentasbancarias.models.BankAccount;
@@ -58,7 +59,7 @@ public class BankTransferService {
         BigDecimal amount = amount(request.monto());
         String reference = optionalText(request.referencia(), 300);
         String proof = optionalText(request.comprobanteUrl(), 500);
-        if (proof != null && !proof.startsWith("https://"))
+        if (proof != null && !ProofUrls.isAcceptable(proof))
             throw new BadRequestException("El comprobante debe ser una URL HTTPS");
 
         BankAccount origen = activeAccount(request.cuentaOrigenId(), "origen");

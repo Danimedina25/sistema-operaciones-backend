@@ -1,5 +1,6 @@
 package com.sistemadeoperaciones.cheques;
 
+import com.sistemadeoperaciones.shared.storage.ProofUrls;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sistemadeoperaciones.cajageneral.repository.CashGeneralRegisterRepository;
 import com.sistemadeoperaciones.cajageneral.service.CashGeneralService;
@@ -26,9 +27,6 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
-import java.net.URI;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.*;
 import java.util.*;
@@ -199,13 +197,8 @@ public class ChequeService {
             throw new ConflictException("Transición de cheque no permitida");
     }
     public static void validateProof(String proof, Long operationId) {
-        try {
-            URI uri = URI.create(proof);
-            String path = URLDecoder.decode(uri.getRawPath(), StandardCharsets.UTF_8);
-            if (proof.length() > 500 || !"https".equals(uri.getScheme()) || !"firebasestorage.googleapis.com".equals(uri.getHost())
-                    || !path.contains("/o/comprobantes/operaciones/" + operationId + "/") || path.contains(".."))
-                throw new IllegalArgumentException();
-        } catch (Exception e) { throw new BusinessException("El comprobante debe pertenecer a esta operación en el almacenamiento autorizado"); }
+        if (!ProofUrls.isOperationProof(proof, operationId))
+            throw new BusinessException("El comprobante debe pertenecer a esta operación en el almacenamiento autorizado");
     }
     private String fingerprint(ChequeCommand c) {
         try {
