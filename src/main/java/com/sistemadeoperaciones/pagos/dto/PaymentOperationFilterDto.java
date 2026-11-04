@@ -49,6 +49,12 @@ public class PaymentOperationFilterDto {
     private List<ReturnPaymentStatus> returnStatuses;
 
     /**
+     * Filtra operaciones con al menos una parcialidad en efectivo o retiro sin
+     * tarjeta que el socio aún debe confirmar. Usado por Mis pendientes del socio.
+     */
+    private Boolean pendingSocioConfirmation;
+
+    /**
      * Filtra operaciones que tengan al menos un pago hacia esta cuenta
      * destino exacta.
      */
@@ -145,6 +151,14 @@ public class PaymentOperationFilterDto {
 
     public void setReturnStatuses(List<ReturnPaymentStatus> returnStatuses) {
         this.returnStatuses = returnStatuses;
+    }
+
+    public Boolean getPendingSocioConfirmation() {
+        return pendingSocioConfirmation;
+    }
+
+    public void setPendingSocioConfirmation(Boolean pendingSocioConfirmation) {
+        this.pendingSocioConfirmation = pendingSocioConfirmation;
     }
 
     public Long getCuentaDestinoId() {

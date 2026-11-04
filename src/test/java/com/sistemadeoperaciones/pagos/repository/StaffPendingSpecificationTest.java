@@ -79,4 +79,24 @@ class StaffPendingSpecificationTest {
         assertThat(installments.findAll(spec,PageRequest.of(1,2)).getContent()).hasSize(1);
         assertThat(installments.findAll(PendingInstallmentSpecification.pending(true,today,List.of(PaymentType.EFECTIVO)))).extracting(OperationReturnInstallment::getId).containsExactly(old.getId());
     }
+    @Test void socioPendingConfirmationFollowsInstallmentMarksNotRequestStatus() {
+        var now = LocalDateTime.of(2026, 11, 4, 12, 0);
+        var delivered = operation(); var deliveredRequest = request(delivered, PaymentType.EFECTIVO);
+        deliveredRequest.setEstatus(ReturnPaymentStatus.ENTREGADO);
+        installment(deliveredRequest, ReturnInstallmentStatus.ENTREGADA, "100").setFechaEntrega(now);
+        var scheduled = operation(); installment(request(scheduled, PaymentType.EFECTIVO), ReturnInstallmentStatus.PROGRAMADA, "100");
+        var code = operation(); installment(request(code, PaymentType.RETIRO_SIN_TARJETA), ReturnInstallmentStatus.PROGRAMADA, "100");
+        var partial = operation(); var partialRequest = request(partial, PaymentType.EFECTIVO);
+        partialRequest.setEstatus(ReturnPaymentStatus.PARCIALMENTE_RETORNADO);
+        installment(partialRequest, ReturnInstallmentStatus.COMPLETADA, "40");
+        installment(partialRequest, ReturnInstallmentStatus.ENTREGADA, "60").setFechaEntrega(now);
+        var confirmed = operation(); installment(request(confirmed, PaymentType.EFECTIVO), ReturnInstallmentStatus.ENTREGADA, "100").setFechaConfirmacion(now);
+        var completed = operation(); installment(request(completed, PaymentType.EFECTIVO), ReturnInstallmentStatus.COMPLETADA, "100");
+        var cancelled = operation(); installment(request(cancelled, PaymentType.EFECTIVO), ReturnInstallmentStatus.CANCELADA, "100");
+        var transfer = operation(); installment(request(transfer, PaymentType.TRANSFERENCIA), ReturnInstallmentStatus.PROGRAMADA, "100");
+        em.flush(); em.clear();
+        var spec = PaymentOperationSpecification.hasInstallmentPendingSocioConfirmation();
+        assertThat(operations.findAll(spec)).extracting(PaymentOperation::getId)
+                .containsExactlyInAnyOrder(delivered.getId(), scheduled.getId(), code.getId(), partial.getId());
+    }
 }

@@ -471,6 +471,10 @@ public class ReturnsOperationServiceImpl implements ReturnsOperationService {
                 )
         ).and(PaymentOperationSpecification.hasReturnWithStatusIn(returnStatuses));
 
+        if (Boolean.TRUE.equals(filter.getPendingSocioConfirmation())) {
+            specification = specification.and(PaymentOperationSpecification.hasInstallmentPendingSocioConfirmation());
+        }
+
         User currentUser = authenticatedUserService.getCurrentUser();
 
         boolean isSocioComercial = currentUser.getRoles()

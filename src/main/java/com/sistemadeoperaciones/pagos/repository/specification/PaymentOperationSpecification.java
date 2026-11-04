@@ -180,6 +180,26 @@ public final class PaymentOperationSpecification {
         };
     }
 
+    /**
+     * Parcialidades que esperan la confirmación del socio: efectivo o retiro sin tarjeta,
+     * programadas o entregadas por Caja, sin fecha de confirmación. No depende del estatus
+     * de la solicitud, que pasa a ENTREGADO en cuanto Caja registra la entrega.
+     */
+    public static Specification<PaymentOperation> hasInstallmentPendingSocioConfirmation() {
+        return (root, query, cb) -> {
+            var pending = query.subquery(Long.class);
+            var installment = pending.from(com.sistemadeoperaciones.pagos.model.OperationReturnInstallment.class);
+            pending.select(installment.get("id")).where(
+                    cb.equal(installment.get("solicitud").get("operacion"), root),
+                    installment.get("tipoPago").in(PaymentType.EFECTIVO, PaymentType.RETIRO_SIN_TARJETA),
+                    installment.get("estatus").in(
+                            com.sistemadeoperaciones.pagos.enums.ReturnInstallmentStatus.PROGRAMADA,
+                            com.sistemadeoperaciones.pagos.enums.ReturnInstallmentStatus.ENTREGADA),
+                    cb.isNull(installment.get("fechaConfirmacion")));
+            return cb.exists(pending);
+        };
+    }
+
     public static Specification<PaymentOperation> hasPaymentTypeIn(List<PaymentType> paymentTypes) {
         return (root, query, cb) -> {
             if (paymentTypes == null || paymentTypes.isEmpty()) {
