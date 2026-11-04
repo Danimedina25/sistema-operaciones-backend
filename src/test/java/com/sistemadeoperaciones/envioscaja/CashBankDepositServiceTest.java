@@ -55,7 +55,12 @@ class CashBankDepositServiceTest {
 
     @BeforeEach void setup() {
         user = new User(); user.setNombre("Jefa"); user.setCorreo("jefa+" + System.nanoTime() + "@example.test");
-        em.persist(user); when(auth.getCurrentUser()).thenReturn(user);
+        em.persist(user);
+        var openingActor = new User(); openingActor.setId(user.getId());
+        var role = new com.sistemadeoperaciones.usuarios.model.Role();
+        role.setName(com.sistemadeoperaciones.shared.enums.RoleName.GERENTE);
+        openingActor.getRoles().add(role);
+        when(auth.getCurrentUser()).thenReturn(openingActor);
         account = new BankAccount();
         account.setBanco("BANORTE"); account.setTitular("Oficina");
         account.setNumeroCuenta("123456789012345678"); account.setClabe("123456789012345678"); account.setActivo(true);
@@ -72,6 +77,7 @@ class CashBankDepositServiceTest {
         em.persist(globalPrevious);
         em.flush();
         cash.open(new OpenCashDayRequest(LocalDate.now(), new BigDecimal("1000"), hundreds(10)));
+        when(auth.getCurrentUser()).thenReturn(user);
     }
 
     static Map<CashDenomination, Integer> hundreds(int count) {

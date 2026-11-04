@@ -122,6 +122,23 @@ public class GeneralCutReadService {
                     direction, direction, diff.abs()));
         }
 
+        // Un ajuste autorizado al abrir cambia el efectivo físico frente al cierre anterior.
+        CashGeneralDay previousCashDay = before.orElse(null);
+        for (CashGeneralDay day : cashDays) {
+            if (previousCashDay != null) {
+                BigDecimal diff = money(day.getSaldoInicial()).subtract(closingBalance(previousCashDay));
+                if (diff.signum() != 0) {
+                    String direction = diff.signum() > 0 ? "ENTRADA" : "SALIDA";
+                    if (diff.signum() > 0) cashIncome = cashIncome.add(diff);
+                    else cashOutflow = cashOutflow.add(diff.negate());
+                    book.add(new Movement("cash-opening-" + day.getId(), day.getCreatedAt(),
+                            "Ajuste de apertura · " + (diff.signum() > 0 ? "sobrante" : "faltante"),
+                            "Caja General", direction, direction, diff.abs()));
+                }
+            }
+            previousCashDay = day;
+        }
+
         BankLedgerFilter filter = new BankLedgerFilter(startDate, endDate, null, null, null, null);
         int bankPage = 0;
         org.springframework.data.domain.Page<BankLedgerRowDto> slice;

@@ -15,6 +15,8 @@ import com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepos
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
 import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
 import com.sistemadeoperaciones.usuarios.model.User;
+import com.sistemadeoperaciones.usuarios.model.Role;
+import com.sistemadeoperaciones.shared.enums.RoleName;
 import com.sistemadeoperaciones.retiroscaja.*;
 import com.sistemadeoperaciones.envioscaja.CashBankDepositRepository;
 import org.junit.jupiter.api.*;
@@ -53,6 +55,7 @@ class CashGeneralServiceTest {
     }
     @BeforeEach void setup() {
         user = new User(); user.setId(7L);
+        Role role = new Role(); role.setName(RoleName.JEFA_CAJAS); user.getRoles().add(role);
         day = new CashGeneralDay(); day.setId(1L); day.setVersion(0L); day.setFecha(LocalDate.now());
         day.setSaldoInicial(money("100")); day.setSaldoActual(money("100"));
         day.setApertura(counts(1,0)); day.setCierre(new EnumMap<>(CashDenomination.class)); day.setAbiertoPor(user);
@@ -232,11 +235,38 @@ class CashGeneralServiceTest {
         day.setClosedAt(LocalDateTime.now()); day.setSaldoContado(money("99.50"));
         assertThatThrownBy(() -> service.open(request)).hasMessageContaining("posterior");
         day.setFecha(LocalDate.now().minusDays(1));
-        assertThatThrownBy(() -> service.open(request)).hasMessageContaining("contado");
+        day.setCierre(counts(0,199));
+        assertThatThrownBy(() -> service.open(request)).hasMessageContaining("saldo y las denominaciones");
         var result = service.open(new OpenCashDayRequest(LocalDate.now(),money("99.50"),counts(0,199)));
         assertThat(result.saldoInicial()).isEqualByComparingTo("99.50");
         verify(businessAuditService).record(eq(7L), eq("CASH_DAY_OPEN"), eq("CASH_DAY"),
-                isNull(), isNull(), any());
+                isNull(), any(), any());
+    }
+    @Test void cashierCannotChangeDenominationsEvenIfOpeningTotalMatches() {
+        day.setFecha(LocalDate.now().minusDays(1)); day.setClosedAt(LocalDateTime.now());
+        day.setSaldoContado(money("100")); day.setCierre(counts(1,0));
+        when(days.findFirstByOrderByFechaDesc()).thenReturn(Optional.of(day));
+        assertThatThrownBy(() -> service.open(new OpenCashDayRequest(LocalDate.now(), money("100"), counts(0,200), "Cambio")))
+                .hasMessageContaining("saldo y las denominaciones");
+        verify(days, never()).saveAndFlush(any());
+    }
+    @Test void firstOpeningRequiresManager() {
+        assertThatThrownBy(() -> service.open(new OpenCashDayRequest(LocalDate.now(), money("100"), counts(1,0))))
+                .hasMessageContaining("Gerencia");
+        verify(days, never()).saveAndFlush(any());
+    }
+    @Test void managerMayAdjustOpeningWithReasonAndAuditPreviousValues() {
+        user.getRoles().clear(); Role role = new Role(); role.setName(RoleName.GERENTE); user.getRoles().add(role);
+        day.setFecha(LocalDate.now().minusDays(1)); day.setClosedAt(LocalDateTime.now());
+        day.setSaldoContado(money("100")); day.setCierre(counts(1,0));
+        when(days.findFirstByOrderByFechaDesc()).thenReturn(Optional.of(day));
+        assertThatThrownBy(() -> service.open(new OpenCashDayRequest(LocalDate.now(), money("150"), counts(1,100))))
+                .hasMessageContaining("Explica el ajuste");
+        var opened = service.open(new OpenCashDayRequest(LocalDate.now(), money("150"), counts(1,100), "Arqueo corregido"));
+        assertThat(opened.saldoInicial()).isEqualByComparingTo("150");
+        verify(businessAuditService).record(eq(7L), eq("CASH_DAY_OPEN"), eq("CASH_DAY"),
+                isNull(), argThat(before -> before instanceof Map<?, ?> map && money("100").equals(map.get("closingBalance"))),
+                argThat(after -> after instanceof Map<?, ?> map && "Arqueo corregido".equals(map.get("openingAdjustmentReason"))));
     }
     @Test void retryIsIdempotentEvenAfterClosingButChangedPayloadConflicts() {
         var r = request(CashMovementDirection.ENTRADA,money("100"),null,1);

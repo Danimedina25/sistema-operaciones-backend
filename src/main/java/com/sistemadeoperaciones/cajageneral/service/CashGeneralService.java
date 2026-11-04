@@ -18,6 +18,7 @@ import com.sistemadeoperaciones.retiroscaja.BankCashWithdrawal;
 import com.sistemadeoperaciones.retiroscaja.BankCashWithdrawalRepository;
 import com.sistemadeoperaciones.retiroscaja.WithdrawalStatus;
 import com.sistemadeoperaciones.shared.config.AuthenticatedUserService;
+import com.sistemadeoperaciones.shared.enums.RoleName;
 import com.sistemadeoperaciones.shared.audit.service.BusinessAuditService;
 import com.sistemadeoperaciones.envioscaja.CashBankDepositRepository;
 import com.sistemadeoperaciones.shared.exception.ConflictException;
@@ -355,21 +356,42 @@ public class CashGeneralService {
             throw new InvalidCashGeneralException("La caja solo puede abrirse en la fecha actual");
         BigDecimal amount = CashGeneralAmounts.money(request.saldoInicial(), false);
         CashGeneralAmounts.requireTotal(request.denominaciones(), amount);
-        days.findFirstByOrderByFechaDesc().ifPresent(previous -> {
+        var actor = auth.getCurrentUser();
+        boolean mayAdjustOpening = actor.getRoles().stream().anyMatch(role ->
+                role.getName() == RoleName.GERENTE || role.getName() == RoleName.ADMIN);
+        var previousDay = days.findFirstByOrderByFechaDesc();
+        if (previousDay.isEmpty() && !mayAdjustOpening)
+            throw new InvalidCashGeneralException("La primera apertura debe registrarla Gerencia");
+        previousDay.ifPresent(previous -> {
             if (previous.getClosedAt() == null) throw new ConflictException("Cierra la caja abierta antes de abrir otra");
             if (!request.fecha().isAfter(previous.getFecha()))
                 throw new ConflictException("La apertura debe ser posterior al último corte");
-            if (amount.compareTo(previous.getSaldoContado()) != 0)
-                throw new InvalidCashGeneralException("El saldo inicial debe coincidir con el contado del último cierre");
+            boolean balanceChanged = amount.compareTo(previous.getSaldoContado()) != 0;
+            boolean countsChanged = Arrays.stream(CashDenomination.values()).anyMatch(denomination ->
+                    !Objects.equals(request.denominaciones().get(denomination), previous.getCierre().getOrDefault(denomination, 0)));
+            if ((balanceChanged || countsChanged) && !mayAdjustOpening)
+                throw new InvalidCashGeneralException("La apertura debe conservar el saldo y las denominaciones del último cierre");
+            if ((balanceChanged || countsChanged) && (request.motivoAjuste() == null || request.motivoAjuste().isBlank()))
+                throw new InvalidCashGeneralException("Explica el ajuste de apertura");
         });
         // TODO: confirmar con negocio la migración histórica. No se importan los Excel automáticamente.
         CashGeneralDay day = new CashGeneralDay();
         day.setFecha(request.fecha()); day.setSaldoInicial(amount); day.setSaldoActual(amount);
         day.setApertura(new EnumMap<>(request.denominaciones())); day.setCierre(new EnumMap<>(CashDenomination.class));
-        day.setAbiertoPor(auth.getCurrentUser());
+        day.setAbiertoPor(actor);
         CashGeneralDay saved = days.saveAndFlush(day);
+        Map<String, Object> beforeAudit = previousDay.map(previous -> {
+            Map<String, Object> snapshot = new LinkedHashMap<String, Object>();
+            snapshot.put("previousDayId", previous.getId());
+            snapshot.put("closingBalance", previous.getSaldoContado());
+            snapshot.put("closingCounts", new LinkedHashMap<>(previous.getCierre()));
+            return snapshot;
+        }).orElse(null);
+        Map<String, Object> afterAudit = dayAuditSnapshot(saved);
+        if (request.motivoAjuste() != null && !request.motivoAjuste().isBlank())
+            afterAudit.put("openingAdjustmentReason", request.motivoAjuste().trim());
         businessAuditService.record(saved.getAbiertoPor().getId(), "CASH_DAY_OPEN", "CASH_DAY",
-                saved.getId(), null, dayAuditSnapshot(saved));
+                saved.getId(), beforeAudit, afterAudit);
         return dayDto(saved);
     }
 

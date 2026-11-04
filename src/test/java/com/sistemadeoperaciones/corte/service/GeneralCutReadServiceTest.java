@@ -115,6 +115,8 @@ class GeneralCutReadServiceTest {
         var before = closedDay(0L, "100", "105");
         var sobrante = closedDay(1L, "145", "185");
         var faltante = closedDay(2L, "185", "175");
+        sobrante.setSaldoInicial(new BigDecimal("105"));
+        faltante.setSaldoInicial(new BigDecimal("185"));
         var abierto = new CashGeneralDay(); abierto.setId(3L); abierto.setSaldoInicial(new BigDecimal("175"));
         abierto.setSaldoActual(new BigDecimal("195"));
         when(days.findByFechaBetweenOrderByFechaAsc(start, end)).thenReturn(List.of(sobrante, faltante, abierto));
@@ -140,6 +142,38 @@ class GeneralCutReadServiceTest {
                 && m.type().equals("ENTRADA") && m.amount().compareTo(new BigDecimal("40")) == 0));
         assertTrue(result.movements().stream().anyMatch(m -> m.concept().equals("Diferencia de arqueo · faltante")
                 && m.type().equals("SALIDA") && m.amount().compareTo(new BigDecimal("10")) == 0));
+    }
+
+    @Test void managerOpeningAdjustmentAppearsInBookAndKeepsCutBalanced() {
+        LocalDate date = LocalDate.of(2026, 10, 2);
+        var before = closedDay(1L, "100", "100");
+        var opened = new CashGeneralDay(); opened.setId(2L); opened.setFecha(date);
+        opened.setCreatedAt(date.atTime(8, 0)); opened.setSaldoInicial(new BigDecimal("150"));
+        opened.setSaldoActual(new BigDecimal("150"));
+        when(days.findByFechaBetweenOrderByFechaAsc(date, date)).thenReturn(List.of(opened));
+        when(days.findFirstByFechaLessThanEqualOrderByFechaDesc(date.minusDays(1))).thenReturn(Optional.of(before));
+        when(days.findFirstByFechaLessThanEqualOrderByFechaDesc(date)).thenReturn(Optional.of(opened));
+        when(bankCuts.calculateBalances(any())).thenReturn(List.of());
+        when(bankCuts.calculateBalancesGrouped(date)).thenReturn(List.of());
+        when(withdrawals.findByEstatusOrderByRegistradoEnAscIdAsc(WithdrawalStatus.PENDIENTE)).thenReturn(List.of());
+        when(deposits.findByEstatusOrderByRegistradoEnAscIdAsc(any())).thenReturn(List.of());
+        when(bankLedger.search(any(), eq(0), eq(100))).thenReturn(new PageImpl<>(List.of()));
+        var service = new GeneralCutReadService(days, cashMovements, bankCuts, bankLedger, withdrawals, deposits,
+                new ReturnCustodyQuery(mock(com.sistemadeoperaciones.pagos.repository.OperationReturnInstallmentRepository.class)));
+        var cut = service.read(date, date, 0, 30);
+        assertEquals(new BigDecimal("100"), cut.cashInitial());
+        assertEquals(new BigDecimal("50"), cut.cashIncome());
+        assertEquals(new BigDecimal("150"), cut.cashFinal());
+        assertEquals(0, cut.difference().signum());
+        assertTrue(cut.movements().stream().anyMatch(row -> row.id().equals("cash-opening-2")
+                && row.concept().equals("Ajuste de apertura · sobrante") && row.amount().compareTo(new BigDecimal("50")) == 0));
+        opened.setSaldoInicial(new BigDecimal("50")); opened.setSaldoActual(new BigDecimal("50"));
+        var shortage = service.read(date, date, 0, 30);
+        assertEquals(new BigDecimal("50"), shortage.cashOutflow());
+        assertEquals(new BigDecimal("50"), shortage.cashFinal());
+        assertEquals(0, shortage.difference().signum());
+        assertTrue(shortage.movements().stream().anyMatch(row -> row.id().equals("cash-opening-2")
+                && row.concept().equals("Ajuste de apertura · faltante") && row.amount().compareTo(new BigDecimal("50")) == 0));
     }
 
     private CashGeneralDay closedDay(long id, String system, String counted) {

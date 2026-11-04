@@ -22,7 +22,7 @@ public class CashGeneralController {
         return ok(service.deliveries(page));
     }
     @PostMapping("/days")
-    @PreAuthorize("hasAnyRole('ADMIN', 'JEFA_CAJAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'JEFA_CAJAS', 'GERENTE')")
     public ApiResponse<CashDayResponse> open(@Valid @RequestBody OpenCashDayRequest request) { return ok(service.open(request)); }
     @PostMapping("/days/{id}/movements")
     @PreAuthorize("hasAnyRole('ADMIN', 'JEFA_CAJAS')")
@@ -30,7 +30,7 @@ public class CashGeneralController {
         return ok(service.createMovement(id, request));
     }
     @PostMapping("/days/{id}/close")
-    @PreAuthorize("hasAnyRole('ADMIN', 'JEFA_CAJAS')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'JEFA_CAJAS', 'GERENTE')")
     public ApiResponse<CashDayResponse> close(@PathVariable Long id, @Valid @RequestBody CloseCashDayRequest request) { return ok(service.close(id, request)); }
     @DeleteMapping("/days/{id}")
     @PreAuthorize("hasRole('ADMIN')")

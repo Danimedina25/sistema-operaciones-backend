@@ -98,7 +98,13 @@ class BankCashWithdrawalServiceTest {
     }
 
     CashDayResponse openCash() {
-        return cash.open(new OpenCashDayRequest(HOY, new BigDecimal("100"), hundreds(1)));
+        var openingActor = new User(); openingActor.setId(user.getId());
+        var role = new com.sistemadeoperaciones.usuarios.model.Role();
+        role.setName(com.sistemadeoperaciones.shared.enums.RoleName.GERENTE);
+        openingActor.getRoles().add(role);
+        when(auth.getCurrentUser()).thenReturn(openingActor);
+        try { return cash.open(new OpenCashDayRequest(HOY, new BigDecimal("100"), hundreds(1))); }
+        finally { when(auth.getCurrentUser()).thenReturn(user); }
     }
 
     BankCashWithdrawalView register(BankAccount account, WithdrawalMethod forma, String monto) {

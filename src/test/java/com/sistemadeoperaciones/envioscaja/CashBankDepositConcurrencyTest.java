@@ -63,7 +63,12 @@ class CashBankDepositConcurrencyTest {
             cut.setFecha(LocalDate.now().minusDays(1)); cut.setSaldoInicial(new BigDecimal("100"));
             cut.setSaldoFinal(new BigDecimal("100")); em.persist(cut);
         });
+        var openingActor = auth.getCurrentUser();
+        var role = new com.sistemadeoperaciones.usuarios.model.Role();
+        role.setName(com.sistemadeoperaciones.shared.enums.RoleName.GERENTE);
+        openingActor.getRoles().add(role);
         cash.open(new OpenCashDayRequest(LocalDate.now(), new BigDecimal("100"), hundreds(1)));
+        openingActor.getRoles().clear();
     }
     @AfterEach void cleanup() {
         new TransactionTemplate(manager).executeWithoutResult(status -> {

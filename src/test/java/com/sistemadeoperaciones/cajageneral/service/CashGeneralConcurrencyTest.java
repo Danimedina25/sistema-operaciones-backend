@@ -51,6 +51,9 @@ class CashGeneralConcurrencyTest {
         User user = new TransactionTemplate(manager).execute(status -> {
             User u = new User(); u.setNombre("Jefa Caja"); u.setCorreo(UUID.randomUUID()+"@example.com"); em.persist(u); return u;
         });
+        var role = new com.sistemadeoperaciones.usuarios.model.Role();
+        role.setName(com.sistemadeoperaciones.shared.enums.RoleName.GERENTE);
+        user.getRoles().add(role);
         when(auth.getCurrentUser()).thenReturn(user);
     }
     @AfterEach void cleanup() {

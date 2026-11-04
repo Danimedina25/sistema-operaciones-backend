@@ -65,6 +65,9 @@ class CashGeneralAuditIntegrationTest {
             User row = new User(); row.setNombre("Jefa local");
             row.setCorreo(UUID.randomUUID() + "@example.test"); em.persist(row); return row;
         });
+        var role = new com.sistemadeoperaciones.usuarios.model.Role();
+        role.setName(com.sistemadeoperaciones.shared.enums.RoleName.GERENTE);
+        user.getRoles().add(role);
         when(auth.getCurrentUser()).thenReturn(user);
         var counts = new EnumMap<CashDenomination, Integer>(CashDenomination.class);
         for (var denomination : CashDenomination.values()) counts.put(denomination, 0);

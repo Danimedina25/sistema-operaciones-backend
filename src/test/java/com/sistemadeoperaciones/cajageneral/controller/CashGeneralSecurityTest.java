@@ -18,22 +18,24 @@ class CashGeneralSecurityTest {
         @Bean CashGeneralService service() { return mock(CashGeneralService.class); }
         @Bean CashGeneralController controller(CashGeneralService service) { return new CashGeneralController(service); }
     }
-    @Test void roleGuardAllowsCashierWritesAndManagementReadsOnly() {
+    @Test void roleGuardAllowsManagerAndCashierToOpenAndCloseButOnlyCashierToMoveMoney() {
         try (var context = new AnnotationConfigApplicationContext(Config.class)) {
             var controller = context.getBean(CashGeneralController.class);
             for (String role : List.of("ADMIN", "JEFA_CAJAS", "GERENTE", "DIRECCION", "SOCIO_COMERCIAL", "AUXILIAR_CUENTAS", "JEFA_CUENTAS")) {
                 SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("user", "", List.of(new SimpleGrantedAuthority("ROLE_" + role))));
                 if (List.of("ADMIN", "JEFA_CAJAS", "GERENTE", "DIRECCION").contains(role)) assertThatCode(controller::latest).doesNotThrowAnyException();
                 else assertThatThrownBy(controller::latest).isInstanceOf(AccessDeniedException.class);
-                if (List.of("ADMIN", "JEFA_CAJAS").contains(role)) {
+                if (List.of("ADMIN", "JEFA_CAJAS", "GERENTE").contains(role)) {
                     assertThatCode(() -> controller.open(null)).doesNotThrowAnyException();
-                    assertThatCode(() -> controller.movement(1L,null)).doesNotThrowAnyException();
                     assertThatCode(() -> controller.close(1L,null)).doesNotThrowAnyException();
                 } else {
                     assertThatThrownBy(() -> controller.open(null)).isInstanceOf(AccessDeniedException.class);
-                    assertThatThrownBy(() -> controller.movement(1L,null)).isInstanceOf(AccessDeniedException.class);
                     assertThatThrownBy(() -> controller.close(1L,null)).isInstanceOf(AccessDeniedException.class);
                 }
+                if (List.of("ADMIN", "JEFA_CAJAS").contains(role))
+                    assertThatCode(() -> controller.movement(1L,null)).doesNotThrowAnyException();
+                else
+                    assertThatThrownBy(() -> controller.movement(1L,null)).isInstanceOf(AccessDeniedException.class);
                 if (role.equals("ADMIN"))
                     assertThatCode(() -> controller.delete(1L, null)).doesNotThrowAnyException();
                 else

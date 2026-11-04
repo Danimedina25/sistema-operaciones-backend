@@ -6,4 +6,9 @@ import java.util.*;
 import jakarta.validation.constraints.*;
 import com.sistemadeoperaciones.cajageneral.enums.*;
 public record OpenCashDayRequest(@NotNull LocalDate fecha, @NotNull @DecimalMin("0") @Digits(integer=13, fraction=2) BigDecimal saldoInicial,
-    @NotNull @JsonDeserialize(contentUsing = CashQuantityDeserializer.class) Map<CashDenomination, @NotNull @Min(0) Integer> denominaciones) {}
+    @NotNull @JsonDeserialize(contentUsing = CashQuantityDeserializer.class) Map<CashDenomination, @NotNull @Min(0) Integer> denominaciones,
+    @Size(max = 500) String motivoAjuste) {
+    public OpenCashDayRequest(LocalDate fecha, BigDecimal saldoInicial, Map<CashDenomination, Integer> denominaciones) {
+        this(fecha, saldoInicial, denominaciones, null);
+    }
+}
