@@ -1372,10 +1372,14 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
             OperationStatus.RECHAZADA
     );
 
+    private int stalledHours(Integer thresholdHours) {
+        return thresholdHours != null ? thresholdHours : configuracionGeneralService.obtener().getHorasOperacionDetenida();
+    }
+
     @Override
     @Transactional(readOnly = true)
-    public Page<PaymentOperationResponseDto> findStalledOperations(int thresholdHours, Pageable pageable) {
-        LocalDateTime threshold = LocalDateTime.now().minusHours(thresholdHours);
+    public Page<PaymentOperationResponseDto> findStalledOperations(Integer thresholdHours, Pageable pageable) {
+        LocalDateTime threshold = LocalDateTime.now().minusHours(stalledHours(thresholdHours));
 
         Specification<PaymentOperation> specification = Specification
                 .where(PaymentOperationSpecification.matchesActivoFilter("ACTIVE"))
@@ -1388,8 +1392,8 @@ public class PaymentOperationServiceImpl implements PaymentOperationService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<PaymentOperationResponseDto> searchStalledOperations(String search, int thresholdHours, Pageable pageable) {
-        LocalDateTime threshold = LocalDateTime.now().minusHours(thresholdHours);
+    public Page<PaymentOperationResponseDto> searchStalledOperations(String search, Integer thresholdHours, Pageable pageable) {
+        LocalDateTime threshold = LocalDateTime.now().minusHours(stalledHours(thresholdHours));
 
         Specification<PaymentOperation> specification = Specification
                 .where(PaymentOperationSpecification.matchesActivoFilter("ACTIVE"))

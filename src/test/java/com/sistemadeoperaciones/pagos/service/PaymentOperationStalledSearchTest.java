@@ -66,6 +66,30 @@ class PaymentOperationStalledSearchTest {
                 .getContent().get(0).getSaldoPendientePorSolicitar()).isEqualByComparingTo("10000.00");
     }
 
+    @Test
+    void withoutThresholdUsesTheConfiguredStalledHours() {
+        var config = new com.sistemadeoperaciones.configuraciones.model.ConfiguracionGeneral();
+        config.setHorasOperacionDetenida(72);
+        org.mockito.Mockito.when(configuracionGeneralService.obtener()).thenReturn(config);
+        User owner = new User();
+        owner.setNombre("Socio de prueba");
+        owner.setCorreo("stalled-config@example.test");
+        em.persist(owner);
+        Clientes target = client("Cliente objetivo", owner);
+        PaymentOperation fourDays = operation(target, owner, OperationStatus.PENDIENTE_VALIDACION, true);
+        PaymentOperation twoDays = operation(target, owner, OperationStatus.PENDIENTE_VALIDACION, true);
+        em.flush();
+        em.createNativeQuery("UPDATE payment_operations SET updated_at = :date WHERE id = :id")
+                .setParameter("date", LocalDateTime.now().minusDays(4)).setParameter("id", fourDays.getId()).executeUpdate();
+        em.createNativeQuery("UPDATE payment_operations SET updated_at = :date WHERE id = :id")
+                .setParameter("date", LocalDateTime.now().minusDays(2)).setParameter("id", twoDays.getId()).executeUpdate();
+        em.clear();
+
+        // Con 72 h configuradas solo la de 4 días está detenida; con 48 h fijas también contaría la de 2 días.
+        assertThat(service.findStalledOperations(null, PageRequest.of(0, 10)).getContent())
+                .extracting("id").containsExactly(fourDays.getId());
+    }
+
     private Clientes client(String name, User owner) {
         Clientes client = new Clientes();
         client.setNombre(name);

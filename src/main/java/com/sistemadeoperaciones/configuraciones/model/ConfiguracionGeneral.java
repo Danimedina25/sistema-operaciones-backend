@@ -24,6 +24,14 @@ public class ConfiguracionGeneral {
     @Column(name = "horas_pendiente_urgente", nullable = false)
     private Integer horasPendienteUrgente = 24;
 
+    /** Una operación sin cambios por más de estas horas se considera detenida. */
+    @Column(name = "horas_operacion_detenida", nullable = false)
+    private Integer horasOperacionDetenida = 48;
+
+    /** Día de la semana en que se pagan las comisiones de la semana anterior (ISO: 1 = lunes … 7 = domingo). */
+    @Column(name = "dia_pago_comisiones", nullable = false)
+    private Integer diaPagoComisiones = 6;
+
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
@@ -66,6 +74,22 @@ public class ConfiguracionGeneral {
 
     public void setHorasPendienteUrgente(Integer horasPendienteUrgente) {
         this.horasPendienteUrgente = horasPendienteUrgente;
+    }
+
+    public Integer getHorasOperacionDetenida() {
+        return horasOperacionDetenida;
+    }
+
+    public void setHorasOperacionDetenida(Integer horasOperacionDetenida) {
+        this.horasOperacionDetenida = horasOperacionDetenida;
+    }
+
+    public Integer getDiaPagoComisiones() {
+        return diaPagoComisiones;
+    }
+
+    public void setDiaPagoComisiones(Integer diaPagoComisiones) {
+        this.diaPagoComisiones = diaPagoComisiones;
     }
 
     public LocalDateTime getUpdatedAt() {

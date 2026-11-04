@@ -19,6 +19,7 @@ import com.sistemadeoperaciones.usuarios.repository.RoleRepository;
 import com.sistemadeoperaciones.usuarios.repository.UserRepository;
 import com.sistemadeoperaciones.usuarios.service.activation.UserActivationService;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,6 +74,7 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         Role role = roleRepository.findById(request.getRoleId())
                 .orElseThrow(() -> new ResourceNotFoundException("Rol no encontrado con id: " + request.getRoleId()));
+        assertCanAssignRole(role, null);
 
         if (requiresTelefono(role.getName())
                 && (request.getTelefono() == null || request.getTelefono().isBlank())) {
@@ -208,6 +210,20 @@ public class UserManagementServiceImpl implements UserManagementService {
         return mapToResponse(user);
     }
 
+    /**
+     * Administrador es el superusuario técnico: solo otro Administrador puede asignarlo o cambiar
+     * el rol de quien ya lo tiene. Dirección crea y edita al resto de usuarios.
+     */
+    private void assertCanAssignRole(Role newRole, User target) {
+        boolean touchesAdmin = newRole.getName() == RoleName.ADMIN
+                || (target != null && target.getRoles().stream().anyMatch(r -> r.getName() == RoleName.ADMIN));
+        boolean actorIsAdmin = authenticatedUserService.getCurrentUser().getRoles().stream()
+                .anyMatch(r -> r.getName() == RoleName.ADMIN);
+        if (touchesAdmin && !actorIsAdmin) {
+            throw new AccessDeniedException("Solo un Administrador puede asignar el rol de Administrador");
+        }
+    }
+
     @Override
     @Transactional
     public UserResponseDto update(Long id, UpdateUserRequestDto request) {
@@ -225,6 +241,7 @@ public class UserManagementServiceImpl implements UserManagementService {
                                 "Rol no encontrado con id: "
                                         + request.getRoleId()
                         ));
+        assertCanAssignRole(role, user);
 
         if (requiresTelefono(role.getName())
                 && (request.getTelefono() == null || request.getTelefono().isBlank())) {

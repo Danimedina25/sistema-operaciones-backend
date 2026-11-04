@@ -69,8 +69,9 @@ public interface PaymentOperationService {
      * RECHAZADA), sin actualizarse desde hace más de `thresholdHours`
      * horas — ordenadas por `updatedAt` ascendente (las más antiguas primero).
      */
-    Page<PaymentOperationResponseDto> findStalledOperations(int thresholdHours, Pageable pageable);
+    /** Sin umbral explícito se usan las horas para operación detenida de Configuración. */
+    Page<PaymentOperationResponseDto> findStalledOperations(Integer thresholdHours, Pageable pageable);
 
     /** Búsqueda global entre las operaciones detenidas, antes de paginar. */
-    Page<PaymentOperationResponseDto> searchStalledOperations(String search, int thresholdHours, Pageable pageable);
+    Page<PaymentOperationResponseDto> searchStalledOperations(String search, Integer thresholdHours, Pageable pageable);
 }

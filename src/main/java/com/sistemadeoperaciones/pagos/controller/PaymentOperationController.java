@@ -195,7 +195,7 @@ public class PaymentOperationController {
     @GetMapping("/stalled")
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<Page<PaymentOperationResponseDto>>> findStalledOperations(
-            @RequestParam(defaultValue = "48") int thresholdHours,
+            @RequestParam(required = false) Integer thresholdHours,
             @PageableDefault(size = 20, sort = "updatedAt", direction = Sort.Direction.ASC) Pageable pageable
     ) {
         Page<PaymentOperationResponseDto> response =
@@ -210,7 +210,7 @@ public class PaymentOperationController {
     @PreAuthorize("hasAnyRole('ADMIN', 'GERENTE', 'DIRECCION')")
     public ResponseEntity<ApiResponse<Page<PaymentOperationResponseDto>>> searchStalledOperations(
             @RequestParam(defaultValue = "") String search,
-            @RequestParam(defaultValue = "48") int thresholdHours,
+            @RequestParam(required = false) Integer thresholdHours,
             @PageableDefault(size = 20, sort = "updatedAt", direction = Sort.Direction.ASC) Pageable pageable
     ) {
         Page<PaymentOperationResponseDto> response =

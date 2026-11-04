@@ -72,6 +72,12 @@ public class ConfiguracionGeneralServiceImpl implements ConfiguracionGeneralServ
         configuracion.setPorcentajeComisionOficina(request.getPorcentajeComisionOficina());
         configuracion.setHorasPendienteAtencion(atencion);
         configuracion.setHorasPendienteUrgente(urgente);
+        if (request.getHorasOperacionDetenida() != null) {
+            configuracion.setHorasOperacionDetenida(request.getHorasOperacionDetenida());
+        }
+        if (request.getDiaPagoComisiones() != null) {
+            configuracion.setDiaPagoComisiones(request.getDiaPagoComisiones());
+        }
 
         ConfiguracionGeneral actualizada = configuracionGeneralRepository.save(configuracion);
         businessAuditService.record(authenticatedUserService.getCurrentUser().getId(),
@@ -85,7 +91,9 @@ public class ConfiguracionGeneralServiceImpl implements ConfiguracionGeneralServ
         return Map.of(
                 "porcentajeComisionOficina", configuracion.getPorcentajeComisionOficina(),
                 "horasPendienteAtencion", configuracion.getHorasPendienteAtencion(),
-                "horasPendienteUrgente", configuracion.getHorasPendienteUrgente()
+                "horasPendienteUrgente", configuracion.getHorasPendienteUrgente(),
+                "horasOperacionDetenida", configuracion.getHorasOperacionDetenida(),
+                "diaPagoComisiones", configuracion.getDiaPagoComisiones()
         );
     }
 
@@ -95,6 +103,8 @@ public class ConfiguracionGeneralServiceImpl implements ConfiguracionGeneralServ
                 configuracion.getPorcentajeComisionOficina(),
                 configuracion.getHorasPendienteAtencion(),
                 configuracion.getHorasPendienteUrgente(),
+                configuracion.getHorasOperacionDetenida(),
+                configuracion.getDiaPagoComisiones(),
                 configuracion.getUpdatedAt()
         );
     }

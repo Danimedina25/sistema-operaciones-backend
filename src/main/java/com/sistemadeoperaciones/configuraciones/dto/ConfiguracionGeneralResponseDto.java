@@ -9,6 +9,8 @@ public class ConfiguracionGeneralResponseDto {
     private BigDecimal porcentajeComisionOficina;
     private Integer horasPendienteAtencion;
     private Integer horasPendienteUrgente;
+    private Integer horasOperacionDetenida;
+    private Integer diaPagoComisiones;
     private LocalDateTime updatedAt;
 
     public ConfiguracionGeneralResponseDto() {
@@ -16,7 +18,10 @@ public class ConfiguracionGeneralResponseDto {
 
     public ConfiguracionGeneralResponseDto(Long id, BigDecimal porcentajeComisionOficina,
                                            Integer horasPendienteAtencion, Integer horasPendienteUrgente,
+                                           Integer horasOperacionDetenida, Integer diaPagoComisiones,
                                            LocalDateTime updatedAt) {
+        this.horasOperacionDetenida = horasOperacionDetenida;
+        this.diaPagoComisiones = diaPagoComisiones;
         this.id = id;
         this.porcentajeComisionOficina = porcentajeComisionOficina;
         this.horasPendienteAtencion = horasPendienteAtencion;
@@ -62,5 +67,21 @@ public class ConfiguracionGeneralResponseDto {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Integer getHorasOperacionDetenida() {
+        return horasOperacionDetenida;
+    }
+
+    public void setHorasOperacionDetenida(Integer horasOperacionDetenida) {
+        this.horasOperacionDetenida = horasOperacionDetenida;
+    }
+
+    public Integer getDiaPagoComisiones() {
+        return diaPagoComisiones;
+    }
+
+    public void setDiaPagoComisiones(Integer diaPagoComisiones) {
+        this.diaPagoComisiones = diaPagoComisiones;
     }
 }
