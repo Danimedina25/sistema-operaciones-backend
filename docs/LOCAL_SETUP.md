@@ -21,7 +21,7 @@ SPRING_PROFILES_ACTIVE=local mvn spring-boot:run -Dspring-boot.run.jvmArguments=
 
 El backend usa MySQL en `127.0.0.1:3306`, base `db_sistema_operaciones`. Si el puerto 3306 ya está ocupado, detén el otro servicio antes de iniciar este contenedor. Las pruebas usan H2 en memoria y se ejecutan con `mvn test`.
 
-La configuración local de correo apunta a `127.0.0.1:1025`; no se incluye servidor SMTP. Los flujos que envían correo fallarán hasta que se configure un SMTP local. Ningún servicio de correo externo está configurado en este perfil.
+El perfil local usa Mailpit en `127.0.0.1:1025` si no se configuran variables de correo. Para enviar correos reales con el dominio verificado `mail.se-estatus.com`, crea una clave de Resend con permiso de envío y ejecuta `python3 scripts/configure-resend-local.py`. El asistente pide la clave sin mostrarla y agrega la configuración SMTP a `.env.local`, que está excluido de Git. Después reinicia el backend con el perfil `local` como se indica arriba. El remitente es `notificaciones@mail.se-estatus.com`; los enlaces de activación, verificación y recuperación apuntan por defecto a `http://127.0.0.1:5174` y pueden ajustarse con `FRONTEND_ACTIVATION_URL`, `FRONTEND_EMAIL_VERIFICATION_URL` y `FRONTEND_PASSWORD_RESET_URL`.
 
 ## Importar un respaldo `.sql.gz`
 

@@ -55,7 +55,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/admin/users/complete-activation").permitAll()
+                        .requestMatchers("/api/admin/users/complete-activation", "/api/admin/users/complete-email-verification").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/ws").permitAll()
                         .requestMatchers(HttpMethod.DELETE, "/api/admin/users/*")
